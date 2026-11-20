@@ -1,0 +1,111 @@
+# The blocking checks that need no GitHub API, on Linux, macOS and Windows (MG-REQ-0166),
+# and the benchmarks (MG-REQ-0181).
+name: ci
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  CARGO_TERM_COLOR: never
+  CARGO_INCREMENTAL: 0
+
+jobs:
+  ci:
+    name: ci (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    # MG-REQ-0166: the blocking checks finish in under ten minutes.
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install the toolchain
+        run: rustup toolchain install
+      - name: Cache the build
+        uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+      - name: Install cargo-deny
+        uses: taiki-e/install-action@75a7c0f87bd666af3cdb75c5b9e9d03ab6044e6f # v2.90.6
+        with:
+          tool: cargo-deny
+      - name: Run every blocking check
+        run: cargo xtask ci
+
+  traceability:
+    # Fails when a behavior rule of the pull request's issue has no passing test.
+    name: traceability
+    if: github.event_name == 'pull_request' && startsWith(github.head_ref, 'issue-')
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      issues: read
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Read the rules of the issue
+        id: rules
+        run: |
+          number="${BRANCH#issue-}"
+          number="${number%%-*}"
+          rules="$(gh api "repos/$REPOSITORY/issues/$number" --jq .body | tr -d '\r' \
+            | awk '/^## / { inside = ($0 == "## Rules") }
+                   inside && $1 == "-" && $2 ~ /^MG-REQ-[0-9]+$/ { print $2 }' \
+            | paste -sd, -)"
+          echo "rules=$rules" >> "$GITHUB_OUTPUT"
+        env:
+          BRANCH: ${{ github.head_ref }}
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+      - name: Install the toolchain
+        if: steps.rules.outputs.rules != ''
+        run: rustup toolchain install
+      - name: Cache the build
+        if: steps.rules.outputs.rules != ''
+        uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+      - name: Check the rules of the issue
+        if: steps.rules.outputs.rules != ''
+        run: cargo xtask traceability --issue-rules "$RULES"
+        env:
+          RULES: ${{ steps.rules.outputs.rules }}
+
+  benchmarks:
+    # MG-REQ-0181: a pull request that regresses a benchmark beyond its threshold fails.
+    name: benchmarks
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install the toolchain
+        run: rustup toolchain install
+      - name: Compare the benchmarks with their thresholds
+        # No benchmark exists yet, so there is nothing to compare and the job passes. The
+        # first benchmark must come with its comparison: until then the job fails rather
+        # than let a regression through.
+        run: |
+          count="$(cargo metadata --format-version 1 --no-deps --locked \
+            | jq '[.packages[].targets[] | select(.kind | index("bench"))] | length')"
+          if [ "$count" -eq 0 ]; then
+            echo "No benchmark yet: nothing to compare (MG-REQ-0181)."
+            exit 0
+          fi
+          echo "::error::$count benchmark targets exist, but no regression threshold compares them (MG-REQ-0181)."
+          exit 1

@@ -5,6 +5,7 @@ use std::path::Path;
 use std::process::{Command, Stdio};
 
 use crate::failure::Failure;
+use crate::workspace;
 
 /// Runs `cargo <args>` in `root` with extra environment variables, inheriting standard
 /// output and error so the developer sees Cargo's own messages.
@@ -48,7 +49,7 @@ pub(crate) fn output(dir: &Path, args: &[&str]) -> Result<String, Failure> {
         return Err(Failure::new(format!(
             "`cargo {}` failed in {}: {}",
             args.join(" "),
-            dir.display(),
+            workspace::shown(dir),
             output.status
         )));
     }

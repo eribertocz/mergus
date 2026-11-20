@@ -6,6 +6,7 @@ use std::path::{Path, PathBuf};
 use crate::cargo;
 use crate::failure::Failure;
 use crate::json::Json;
+use crate::workspace;
 
 /// A workspace as `cargo metadata --no-deps` describes it.
 pub(crate) struct Workspace {
@@ -71,10 +72,7 @@ impl Workspace {
 
     /// Shows `path` relative to the workspace root when it is inside it.
     pub(crate) fn show(&self, path: &Path) -> String {
-        path.strip_prefix(&self.root)
-            .unwrap_or(path)
-            .display()
-            .to_string()
+        workspace::show(&self.root, path)
     }
 }
 
@@ -116,7 +114,7 @@ fn package(json: &Json) -> Result<Package, Failure> {
     let dir = manifest
         .parent()
         .map(Path::to_path_buf)
-        .ok_or_else(|| Failure::new(format!("{} has no parent", manifest.display())))?;
+        .ok_or_else(|| Failure::new(format!("{} has no parent", workspace::shown(&manifest))))?;
     let dependencies = field(json, "dependencies")?
         .items()
         .iter()

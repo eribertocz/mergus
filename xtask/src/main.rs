@@ -85,7 +85,7 @@ fn check(command: &str) -> Result<(), Failure> {
     let root = workspace::root()?;
     match command {
         "clippy" => clippy(&root),
-        "unsafe" => unsafe_code::check(&workspace::members(&root)?),
+        "unsafe" => unsafe_code::check(&root, &workspace::members(&root)?),
         "missing-docs" => missing_docs(&root),
         "reproducible-build" => reproducible::check(&root),
         "check-boundaries" => boundaries::check(&root),

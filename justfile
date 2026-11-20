@@ -57,8 +57,8 @@ crate-docs:
 cargo-deny:
     cargo deny check
 
-# Pull request guards (MG-REQ-1730). They read the GitHub API, so `check` does not run them,
-# except `deny-rules`, which reads `git` only and runs against `main`.
+# Pull request guards (MG-REQ-1730). They judge a pull request against its base, so `check`
+# never runs them (MG-REQ-1724).
 scope *args:
     cargo xtask scope {{args}}
 

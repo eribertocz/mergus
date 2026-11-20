@@ -76,6 +76,14 @@
               "integration_id": 15368
             },
             {
+              "context": "deny-rules",
+              "integration_id": 15368
+            },
+            {
+              "context": "repository-settings",
+              "integration_id": 15368
+            },
+            {
               "context": "language"
             }
           ],

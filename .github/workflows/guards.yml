@@ -1,0 +1,194 @@
+# The guards that judge a pull request (MG-REQ-1724).
+#
+# Every guard runs the scripts and reads the configuration of the pull request's base commit
+# (MG-REQ-1722). The head is only data: the API guards read it through the GitHub API, and
+# `spec-check` and `language` read a checkout of it that nothing builds or runs.
+name: guards
+
+on:
+  pull_request_target:
+    types: [opened, edited, reopened, synchronize]
+  issue_comment:
+    types: [created, edited, deleted]
+
+permissions:
+  contents: read
+  issues: read
+  pull-requests: read
+
+env:
+  CARGO_TERM_COLOR: never
+
+jobs:
+  api:
+    # The guards that read the pull request through the API, one job each, named after it.
+    name: ${{ matrix.guard }}
+    if: github.event_name == 'pull_request_target'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        guard:
+          - scope
+          - session-identity
+          - issue-format
+          - pr-format
+          - commit-format
+          - repository-settings
+    steps:
+      - name: Check out the base commit
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+          persist-credentials: false
+      - name: Install the toolchain of the base commit
+        run: rustup toolchain install
+      - name: Run the guard
+        run: cargo xtask "$GUARD"
+        env:
+          GUARD: ${{ matrix.guard }}
+          GITHUB_TOKEN: ${{ github.token }}
+
+  independent-review:
+    name: independent-review
+    if: github.event_name == 'pull_request_target'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out the base commit
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+          persist-credentials: false
+      - name: Install the toolchain of the base commit
+        run: rustup toolchain install
+      - name: Run the guard
+        run: cargo xtask independent-review
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+
+  independent-review-rerun:
+    # The verdict is a comment. A run started by `issue_comment` attaches its checks to the
+    # default branch, so this job re-runs the `independent-review` job of the pull request's
+    # head instead; the guard reads the comments again when it re-runs.
+    name: independent-review-rerun
+    if: github.event_name == 'issue_comment' && github.event.issue.pull_request
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      actions: write
+      pull-requests: read
+    steps:
+      - name: Re-run the guard on the head commit
+        run: |
+          head="$(gh api "repos/$REPOSITORY/pulls/$NUMBER" --jq .head.sha)"
+          run="$(gh run list --repo "$REPOSITORY" --workflow guards.yml --commit "$head" \
+            --event pull_request_target --limit 1 --json databaseId --jq '.[0].databaseId')"
+          if [ -z "$run" ]; then
+            echo "::error::no guards run of pull_request_target for $head"
+            exit 1
+          fi
+          job="$(gh run view "$run" --repo "$REPOSITORY" --json jobs \
+            --jq '.jobs[] | select(.name == "independent-review") | .databaseId')"
+          if [ -z "$job" ]; then
+            echo "::error::run $run has no independent-review job"
+            exit 1
+          fi
+          gh run rerun "$run" --repo "$REPOSITORY" --job "$job"
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+          NUMBER: ${{ github.event.issue.number }}
+
+  deny-rules:
+    # The guard compares the settings file of the base and head commits with `git`, so the
+    # head's objects are fetched into the base checkout as data; nothing from them is
+    # checked out, built or run.
+    name: deny-rules
+    if: github.event_name == 'pull_request_target'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out the base commit
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+          path: base
+          persist-credentials: false
+      - name: Check out the head commit as data
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: ${{ github.event.pull_request.head.repo.full_name }}
+          ref: ${{ github.event.pull_request.head.sha }}
+          path: head
+          persist-credentials: false
+      - name: Fetch the head commit into the base checkout
+        # A local fetch, which needs no credentials; it adds objects and changes no file.
+        run: git -C base fetch --no-tags --quiet ../head HEAD
+      - name: Install the toolchain of the base commit
+        working-directory: base
+        run: rustup toolchain install
+      - name: Run the guard
+        working-directory: base
+        run: cargo xtask deny-rules
+
+  spec-check:
+    name: spec-check
+    if: github.event_name == 'pull_request_target'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out the base commit
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+          path: base
+          persist-credentials: false
+      - name: Check out the head commit as data
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: ${{ github.event.pull_request.head.repo.full_name }}
+          ref: ${{ github.event.pull_request.head.sha }}
+          path: head
+          persist-credentials: false
+      - name: Check the head's specification with the base's tool
+        # The tool judges the tree it sits in, so the base's copy replaces the head's.
+        # `-I` keeps the head's directories off the import path.
+        run: |
+          mkdir -p head/scripts
+          cp base/scripts/spec_tool.py head/scripts/spec_tool.py
+          python3 -I head/scripts/spec_tool.py check
+
+  language:
+    name: language
+    if: github.event_name == 'pull_request_target'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    # Warning only (MG-REQ-1724).
+    continue-on-error: true
+    steps:
+      - name: Check out the base commit
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+          path: tree
+          persist-credentials: false
+      - name: Build the base's xtask
+        working-directory: tree
+        run: |
+          rustup toolchain install
+          cargo build --package xtask --locked --target-dir "$RUNNER_TEMP/xtask"
+      - name: Replace the tree with the head commit as data
+        # The xtask binary is already built and judges the tree it was built in, so the
+        # head's files take the base's place; nothing from them is built or run.
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: ${{ github.event.pull_request.head.repo.full_name }}
+          ref: ${{ github.event.pull_request.head.sha }}
+          path: tree
+          clean: true
+          persist-credentials: false
+      - name: Run the guard
+        working-directory: tree
+        run: '"$RUNNER_TEMP/xtask/debug/xtask" language'
