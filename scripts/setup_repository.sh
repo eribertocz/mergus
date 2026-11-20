@@ -8,6 +8,10 @@ set -euo pipefail
 readonly MAIN_RULESET="main"
 readonly TAG_RULESET="release-tags"
 
+# App id of GitHub Actions. Pinning each required check to it means a commit status or a
+# check run posted by anyone else, such as a session using the owner's token, never counts.
+readonly GITHUB_ACTIONS_APP_ID=15368
+
 # Blocking guards of MG-REQ-1724. `language` is a warning only, so it is not required.
 readonly REQUIRED_CHECKS=(
   scope
@@ -50,6 +54,8 @@ Commands:
                    scope, session-identity, independent-review, issue-format,
                    pr-format, commit-format, spec-check.
                    (`language` is a warning only and is not required.)
+                   Each check counts only when GitHub Actions reports it, so every
+                   guard must run as a GitHub Actions job named exactly as above.
 
   help             Show this text.
 
@@ -108,7 +114,7 @@ main_has_required_checks() {
 required_checks_rule() {
   local contexts="" check
   for check in "${REQUIRED_CHECKS[@]}"; do
-    contexts+="${contexts:+,}{\"context\":\"$check\"}"
+    contexts+="${contexts:+,}{\"context\":\"$check\",\"integration_id\":$GITHUB_ACTIONS_APP_ID}"
   done
   cat <<EOF
 ,{"type":"required_status_checks","parameters":{
