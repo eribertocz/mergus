@@ -6,6 +6,7 @@ use std::path::{Path, PathBuf};
 use crate::cargo;
 use crate::failure::Failure;
 use crate::json::Json;
+use crate::workspace;
 
 /// A workspace as `cargo metadata --no-deps` describes it.
 pub(crate) struct Workspace {
@@ -71,10 +72,7 @@ impl Workspace {
 
     /// Shows `path` relative to the workspace root when it is inside it.
     pub(crate) fn show(&self, path: &Path) -> String {
-        path.strip_prefix(&self.root)
-            .unwrap_or(path)
-            .display()
-            .to_string()
+        workspace::show(&self.root, path)
     }
 }
 
