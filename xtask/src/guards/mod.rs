@@ -57,7 +57,7 @@ impl Event {
     /// the head branch or the base and head commits of the pull request.
     pub(crate) fn read(path: &Path) -> Result<Self, Failure> {
         let json = Json::parse(&workspace::read(path)?)?;
-        let missing = |what: &str| Failure::new(format!("{}: no {what}", path.display()));
+        let missing = |what: &str| Failure::new(format!("{}: no {what}", workspace::shown(path)));
         let pull_request = json
             .get("pull_request")
             .ok_or_else(|| missing("pull_request"))?;

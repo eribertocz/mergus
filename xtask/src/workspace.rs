@@ -107,6 +107,14 @@ pub(crate) fn show(root: &Path, path: &Path) -> String {
     text
 }
 
+/// Shows `path` as [`show`] does, relative to the root of this workspace.
+pub(crate) fn shown(path: &Path) -> String {
+    match root() {
+        Ok(root) => show(&root, path),
+        Err(_) => show(Path::new(""), path),
+    }
+}
+
 fn member(dir: PathBuf) -> Member {
     let name = dir
         .file_name()

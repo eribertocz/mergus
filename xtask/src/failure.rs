@@ -4,6 +4,8 @@ use std::fmt;
 use std::io;
 use std::path::Path;
 
+use crate::workspace;
+
 /// A check that did not pass, or a step that could not run.
 ///
 /// `main` returns it, so the standard library prints it on standard error through its
@@ -21,9 +23,9 @@ impl Failure {
         }
     }
 
-    /// Creates a failure for an I/O error on `path`.
+    /// Creates a failure for an I/O error on `path`, shown as [`workspace::shown`] does.
     pub(crate) fn io(path: &Path, error: &io::Error) -> Self {
-        Self::new(format!("{}: {error}", path.display()))
+        Self::new(format!("{}: {error}", workspace::shown(path)))
     }
 
     /// Creates a failure from a list of problems, or returns `Ok` when the list is empty.
@@ -50,7 +52,18 @@ impl fmt::Debug for Failure {
 
 #[cfg(test)]
 mod tests {
+    use std::io;
+
     use super::Failure;
+    use crate::workspace;
+
+    #[test]
+    fn mg_req_0189_io_failure_shows_the_path_relative_with_slashes() {
+        let path = workspace::root().unwrap().join("spec").join("missing.md");
+        let error = io::Error::new(io::ErrorKind::NotFound, "not found");
+        let failure = Failure::io(&path, &error);
+        assert_eq!(format!("{failure:?}"), "spec/missing.md: not found");
+    }
 
     #[test]
     fn no_problem_is_success() {

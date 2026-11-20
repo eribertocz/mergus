@@ -114,7 +114,7 @@ fn package(json: &Json) -> Result<Package, Failure> {
     let dir = manifest
         .parent()
         .map(Path::to_path_buf)
-        .ok_or_else(|| Failure::new(format!("{} has no parent", manifest.display())))?;
+        .ok_or_else(|| Failure::new(format!("{} has no parent", workspace::shown(&manifest))))?;
     let dependencies = field(json, "dependencies")?
         .items()
         .iter()

@@ -1,6 +1,9 @@
 //! The `scope` guard: a pull request changes only the files its branch allows, and adds no
 //! unexplained lint exception or ignored test (MG-REQ-1731).
 
+use std::ffi::OsStr;
+use std::path::Path;
+
 use super::Event;
 use super::branch;
 use super::github::{self, Api, ChangedFile};
@@ -152,7 +155,7 @@ fn files_section(body: &str) -> Vec<String> {
 
 /// Whether `entry` covers `path`: the same path, or a directory ending in `/` above it.
 fn covers(entry: &str, path: &str) -> bool {
-    entry == path || (entry.ends_with('/') && path.starts_with(entry))
+    entry == path || (entry.ends_with('/') && Path::new(path).starts_with(entry))
 }
 
 fn in_specification_scope(path: &str) -> bool {
@@ -168,7 +171,10 @@ fn is_release_file(path: &str) -> bool {
 }
 
 fn file_name(path: &str) -> &str {
-    path.rsplit('/').next().unwrap_or(path)
+    Path::new(path)
+        .file_name()
+        .and_then(OsStr::to_str)
+        .unwrap_or(path)
 }
 
 /// The findings of MG-REQ-1731.5 in the added lines of a file.
