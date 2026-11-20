@@ -45,38 +45,55 @@ jobs:
           GITHUB_TOKEN: ${{ github.token }}
 
   independent-review:
-    # Also runs when a comment is posted on a pull request, since the verdict is a comment.
     name: independent-review
-    if: github.event_name == 'pull_request_target' || github.event.issue.pull_request
+    if: github.event_name == 'pull_request_target'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - name: Write the pull request event
-        # An `issue_comment` event does not carry the pull request, so both events read it
-        # from the API and give the guard the same event file.
-        id: event
-        run: |
-          gh api "repos/$REPOSITORY/pulls/$NUMBER" > "$RUNNER_TEMP/pull.json"
-          jq --null-input --arg repository "$REPOSITORY" \
-            --slurpfile pull "$RUNNER_TEMP/pull.json" \
-            '{repository: {full_name: $repository}, pull_request: $pull[0]}' \
-            > "$RUNNER_TEMP/event.json"
-          echo "base=$(jq --raw-output .base.sha "$RUNNER_TEMP/pull.json")" >> "$GITHUB_OUTPUT"
-        env:
-          GH_TOKEN: ${{ github.token }}
-          REPOSITORY: ${{ github.repository }}
-          NUMBER: ${{ github.event.pull_request.number || github.event.issue.number }}
       - name: Check out the base commit
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ steps.event.outputs.base }}
+          ref: ${{ github.event.pull_request.base.sha }}
           persist-credentials: false
       - name: Install the toolchain of the base commit
         run: rustup toolchain install
       - name: Run the guard
-        run: cargo xtask independent-review --event "$RUNNER_TEMP/event.json"
+        run: cargo xtask independent-review
         env:
           GITHUB_TOKEN: ${{ github.token }}
+
+  independent-review-rerun:
+    # The verdict is a comment. A run started by `issue_comment` attaches its checks to the
+    # default branch, so this job re-runs the `independent-review` job of the pull request's
+    # head instead; the guard reads the comments again when it re-runs.
+    name: independent-review-rerun
+    if: github.event_name == 'issue_comment' && github.event.issue.pull_request
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      actions: write
+      pull-requests: read
+    steps:
+      - name: Re-run the guard on the head commit
+        run: |
+          head="$(gh api "repos/$REPOSITORY/pulls/$NUMBER" --jq .head.sha)"
+          run="$(gh run list --repo "$REPOSITORY" --workflow guards.yml --commit "$head" \
+            --event pull_request_target --limit 1 --json databaseId --jq '.[0].databaseId')"
+          if [ -z "$run" ]; then
+            echo "::error::no guards run of pull_request_target for $head"
+            exit 1
+          fi
+          job="$(gh run view "$run" --repo "$REPOSITORY" --json jobs \
+            --jq '.jobs[] | select(.name == "independent-review") | .databaseId')"
+          if [ -z "$job" ]; then
+            echo "::error::run $run has no independent-review job"
+            exit 1
+          fi
+          gh run rerun "$run" --repo "$REPOSITORY" --job "$job"
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+          NUMBER: ${{ github.event.issue.number }}
 
   spec-check:
     name: spec-check
