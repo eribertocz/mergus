@@ -21,6 +21,8 @@ readonly REQUIRED_CHECKS=(
   pr-format
   commit-format
   spec-check
+  deny-rules
+  repository-settings
 )
 
 # Crate names of spec/architecture/crates.md section 2.
@@ -52,7 +54,8 @@ Commands:
   required-checks  Step 2. Run once the CI guards exist and report on pull requests.
                    Adds to ruleset "main" the required status checks:
                    scope, session-identity, independent-review, issue-format,
-                   pr-format, commit-format, spec-check.
+                   pr-format, commit-format, spec-check, deny-rules,
+                   repository-settings.
                    (`language` is a warning only and is not required.)
                    Each check counts only when GitHub Actions reports it, so every
                    guard must run as a GitHub Actions job named exactly as above.

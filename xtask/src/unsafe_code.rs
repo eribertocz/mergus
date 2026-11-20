@@ -12,12 +12,13 @@ const FFI_CRATES: [&str; 3] = ["mergus-engine-duckdb", "mergus-engine-polars", "
 const FORBID: &str = "#![forbid(unsafe_code)]";
 
 /// Checks that every crate root outside the FFI crates forbids `unsafe`, and that every
-/// `unsafe` block of an FFI crate is preceded by a `// SAFETY:` comment.
+/// `unsafe` block of an FFI crate is preceded by a `// SAFETY:` comment. Files are shown
+/// relative to the workspace `root`.
 ///
 /// # Errors
 ///
 /// Fails with the list of crate roots and blocks that break the rule.
-pub(crate) fn check(members: &[Member]) -> Result<(), Failure> {
+pub(crate) fn check(root: &Path, members: &[Member]) -> Result<(), Failure> {
     let mut problems = Vec::new();
     for member in members {
         if FFI_CRATES.contains(&member.name.as_str()) {
@@ -26,14 +27,15 @@ pub(crate) fn check(members: &[Member]) -> Result<(), Failure> {
                 for line in unjustified_unsafe_blocks(&source) {
                     problems.push(format!(
                         "{}:{line}: `unsafe` block without a `// SAFETY:` comment",
-                        file.display()
+                        workspace::show(root, &file)
                     ));
                 }
             }
         } else {
-            for root in crate_roots(&member.dir)? {
-                if !forbids_unsafe(&workspace::read(&root)?) {
-                    problems.push(format!("{}: missing `{FORBID}`", root.display()));
+            for file in crate_roots(&member.dir)? {
+                if !forbids_unsafe(&workspace::read(&file)?) {
+                    let shown = workspace::show(root, &file);
+                    problems.push(format!("{shown}: missing `{FORBID}`"));
                 }
             }
         }
@@ -48,7 +50,7 @@ fn crate_roots(dir: &Path) -> Result<Vec<PathBuf>, Failure> {
         .map(|file| dir.join(file))
         .filter(|path| path.is_file())
         .collect();
-    let bin = dir.join("src/bin");
+    let bin = dir.join("src").join("bin");
     if bin.is_dir() {
         for path in workspace::sorted_entries(&bin)? {
             if path.extension().is_some_and(|extension| extension == "rs") {
@@ -114,16 +116,18 @@ mod tests {
 
     #[test]
     fn mg_req_0170_crate_without_forbid_is_reported() {
-        let dir = scratch("unsafe-forbid");
-        fs::create_dir_all(dir.join("src/bin")).unwrap();
+        let root = scratch("unsafe-forbid");
+        let dir = root.join("crates").join("mergus-plan");
+        fs::create_dir_all(dir.join("src").join("bin")).unwrap();
         fs::write(dir.join("src/lib.rs"), "#![forbid(unsafe_code)]\n").unwrap();
         fs::write(dir.join("src/bin/tool.rs"), "fn main() {}\n").unwrap();
         let member = Member {
             name: "mergus-plan".to_owned(),
             dir: dir.clone(),
         };
-        let failure = format!("{:?}", check(&[member]).unwrap_err());
-        assert!(failure.contains("src/bin/tool.rs: missing"), "{failure}");
+        let failure = format!("{:?}", check(&root, &[member]).unwrap_err());
+        let expected = "crates/mergus-plan/src/bin/tool.rs: missing";
+        assert!(failure.contains(expected), "{failure}");
         assert!(!failure.contains("lib.rs"), "{failure}");
     }
 
@@ -147,7 +151,8 @@ unsafe fn declared() {}
 
     #[test]
     fn mg_req_0170_ffi_crate_may_use_unsafe_without_forbid() {
-        let dir = scratch("unsafe-ffi");
+        let root = scratch("unsafe-ffi");
+        let dir = root.join("crates").join("mergus-py");
         fs::create_dir_all(dir.join("src")).unwrap();
         let source = "// SAFETY: checked by the caller.\nunsafe { call() }\n";
         fs::write(dir.join("src/lib.rs"), source).unwrap();
@@ -155,6 +160,6 @@ unsafe fn declared() {}
             name: "mergus-py".to_owned(),
             dir,
         };
-        assert!(check(&[member]).is_ok());
+        assert!(check(&root, &[member]).is_ok());
     }
 }

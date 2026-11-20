@@ -42,7 +42,7 @@ fn findings(root: &Path) -> Result<Vec<Finding>, Failure> {
         };
         let docs = Docs {
             dir: &member.dir,
-            prefix: format!("crates/{}", member.name),
+            root,
             responsibility: row.responsibility,
         };
         docs.source(&mut findings)?;
@@ -63,8 +63,8 @@ fn findings(root: &Path) -> Result<Vec<Finding>, Failure> {
 struct Docs<'a> {
     /// The directory of the crate.
     dir: &'a Path,
-    /// The path of the crate relative to the root, such as `crates/mergus-plan`.
-    prefix: String,
+    /// The workspace root, against which findings show their paths.
+    root: &'a Path,
     /// The crate's responsibility in the crate table.
     responsibility: &'static str,
 }
@@ -72,7 +72,7 @@ struct Docs<'a> {
 impl Docs<'_> {
     fn finding(&self, file: &str, line: usize, message: String) -> Finding {
         Finding {
-            path: format!("{}/{file}", self.prefix),
+            path: workspace::show(self.root, &self.dir.join(file)),
             line,
             check: "crate-docs",
             message,

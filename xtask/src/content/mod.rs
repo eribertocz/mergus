@@ -152,9 +152,12 @@ pub(crate) fn scan(root: &Path, paths: &[String], check: Check) -> Result<Vec<Fi
 /// Returns whether a path is scanned: not under a directory named `fixtures`, and not a
 /// generated file of the specification (MG-REQ-0176).
 fn in_scope(path: &str) -> bool {
-    let mut parts: Vec<&str> = path.split('/').collect();
-    parts.pop();
-    !parts.contains(&"fixtures") && !GENERATED.contains(&path)
+    let path = Path::new(path);
+    let in_fixtures = path
+        .parent()
+        .is_some_and(|dir| dir.components().any(|part| part.as_os_str() == "fixtures"));
+    let generated = GENERATED.iter().any(|name| path == Path::new(name));
+    !in_fixtures && !generated
 }
 
 /// Lists the files tracked by git in `root` (`git ls-files`).
@@ -185,7 +188,7 @@ fn tracked(root: &Path) -> Result<Vec<String>, Failure> {
 
 /// Returns the extension of the last part of a path, if it has one.
 fn extension(path: &str) -> Option<&str> {
-    let name = path.rsplit('/').next().unwrap_or(path);
+    let name = Path::new(path).file_name()?.to_str()?;
     name.rsplit_once('.')
         .and_then(|(stem, extension)| (!stem.is_empty()).then_some(extension))
 }

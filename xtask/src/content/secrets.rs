@@ -1,6 +1,8 @@
 //! The `secrets` check: secrets, secret files, build artifacts, data files and
 //! commented-out code (MG-REQ-0179).
 
+use std::path::Path;
+
 use super::lexer;
 use super::{File, Finding, extension};
 
@@ -76,16 +78,20 @@ pub(super) fn findings(file: &File) -> Vec<Finding> {
 
 /// Returns the problem of a path: a secret file, a build artifact or a data file.
 fn path_problem(path: &str) -> Option<&'static str> {
-    let parts: Vec<&str> = path.split('/').collect();
-    let (name, dirs) = parts.split_last()?;
+    let file = Path::new(path);
+    let name = file.file_name()?.to_str()?;
+    let in_dir = |dir: &str| {
+        file.parent()
+            .is_some_and(|parent| parent.components().any(|part| part.as_os_str() == dir))
+    };
     let extension = extension(path).unwrap_or_default();
-    if *name == ".env" || name.starts_with(".env.") || SECRET_EXTENSIONS.contains(&extension) {
+    if name == ".env" || name.starts_with(".env.") || SECRET_EXTENSIONS.contains(&extension) {
         return Some("secret file (MG-REQ-0179.2)");
     }
-    if dirs.contains(&"target") || ARTIFACT_EXTENSIONS.contains(&extension) {
+    if in_dir("target") || ARTIFACT_EXTENSIONS.contains(&extension) {
         return Some("build artifact (MG-REQ-0179.3)");
     }
-    if !dirs.contains(&"tests") && DATA_EXTENSIONS.contains(&extension) {
+    if !in_dir("tests") && DATA_EXTENSIONS.contains(&extension) {
         return Some("data file outside a `tests/` directory (MG-REQ-0179.4)");
     }
     None
