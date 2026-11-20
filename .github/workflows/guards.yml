@@ -29,7 +29,13 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        guard: [scope, session-identity, issue-format, pr-format, commit-format]
+        guard:
+          - scope
+          - session-identity
+          - issue-format
+          - pr-format
+          - commit-format
+          - repository-settings
     steps:
       - name: Check out the base commit
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -94,6 +100,38 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           REPOSITORY: ${{ github.repository }}
           NUMBER: ${{ github.event.issue.number }}
+
+  deny-rules:
+    # The guard compares the settings file of the base and head commits with `git`, so the
+    # head's objects are fetched into the base checkout as data; nothing from them is
+    # checked out, built or run.
+    name: deny-rules
+    if: github.event_name == 'pull_request_target'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out the base commit
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+          path: base
+          persist-credentials: false
+      - name: Check out the head commit as data
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: ${{ github.event.pull_request.head.repo.full_name }}
+          ref: ${{ github.event.pull_request.head.sha }}
+          path: head
+          persist-credentials: false
+      - name: Fetch the head commit into the base checkout
+        # A local fetch, which needs no credentials; it adds objects and changes no file.
+        run: git -C base fetch --no-tags --quiet ../head HEAD
+      - name: Install the toolchain of the base commit
+        working-directory: base
+        run: rustup toolchain install
+      - name: Run the guard
+        working-directory: base
+        run: cargo xtask deny-rules
 
   spec-check:
     name: spec-check
