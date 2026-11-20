@@ -49,20 +49,40 @@ fn simulated(seed: u64) -> Ports {
         },
         Arc::clone(&clock),
     );
+    let network = network(seed + 2, latency, Arc::clone(&clock));
+    let process = SimProcess::new();
+    process.register("duckdb", output(b"v1.4.0"));
+    Ports {
+        clock,
+        file_system: Arc::new(SimFileSystem::new()),
+        object_store: Arc::new(object_store),
+        network: Arc::new(network),
+        source: Arc::new(source(seed + 3)),
+        random: Arc::new(SimRandom::new(seed + 4)),
+        process: Arc::new(process),
+        environment: Arc::new(SimEnvironment::new([("MERGUS_PROFILE", "dev")], None)),
+    }
+}
+
+fn network(seed: u64, latency: Duration, clock: Arc<SimClock>) -> SimNetwork {
     let network = SimNetwork::new(
-        seed + 2,
+        seed,
         NetworkFaults {
             error: SOMETIMES,
             latency: SOMETIMES,
             latency_duration: latency,
             partial: SOMETIMES,
         },
-        Arc::clone(&clock),
+        clock,
     );
     network.route("https://api.example/items", response(b"[1,2,3,4,5,6,7,8]"));
     network.listen("db.example", 5432, Arc::new(|bytes: &[u8]| bytes.to_vec()));
+    network
+}
+
+fn source(seed: u64) -> SimSourceConnector {
     let source = SimSourceConnector::new(
-        seed + 3,
+        seed,
         SourceFaults {
             fail: SOMETIMES,
             partial: SOMETIMES,
@@ -71,18 +91,7 @@ fn simulated(seed: u64) -> Ports {
     );
     let batches = |tag: &str| (0..4).map(|i| format!("{tag}{i}").into_bytes()).collect();
     source.register("orders", batches("v1-"), Some(batches("v2-")));
-    let process = SimProcess::new();
-    process.register("duckdb", output(b"v1.4.0"));
-    Ports {
-        clock,
-        file_system: Arc::new(SimFileSystem::new()),
-        object_store: Arc::new(object_store),
-        network: Arc::new(network),
-        source: Arc::new(source),
-        random: Arc::new(SimRandom::new(seed + 4)),
-        process: Arc::new(process),
-        environment: Arc::new(SimEnvironment::new([("MERGUS_PROFILE", "dev")], None)),
-    }
+    source
 }
 
 fn response(body: &[u8]) -> HttpResponse {
@@ -101,6 +110,25 @@ fn output(stdout: &[u8]) -> ProcessOutput {
     }
 }
 
+/// Sends one HTTP request and one TCP exchange.
+fn network_round(
+    network: &dyn Network,
+) -> (Result<HttpResponse, PortError>, Result<Vec<u8>, PortError>) {
+    let request = HttpRequest {
+        method: "GET".to_owned(),
+        url: "https://api.example/items".to_owned(),
+        headers: Vec::new(),
+        body: Vec::new(),
+    };
+    let tcp = network
+        .tcp_connect("db.example", 5432)
+        .and_then(|mut connection| {
+            connection.send(b"ping-pong")?;
+            connection.receive(64)
+        });
+    (network.http(&request), tcp)
+}
+
 /// Uses every port many times and records what each call returned.
 fn trace(ports: &Ports) -> Result<String, PortError> {
     let mut trace = String::new();
@@ -114,20 +142,7 @@ fn trace(ports: &Ports) -> Result<String, PortError> {
         let put = ports.object_store.put(&key, b"0123456789");
         let get = ports.object_store.get(&key);
         let list = ports.object_store.list("data/");
-        let request = HttpRequest {
-            method: "GET".to_owned(),
-            url: "https://api.example/items".to_owned(),
-            headers: Vec::new(),
-            body: Vec::new(),
-        };
-        let http = ports.network.http(&request);
-        let tcp = ports
-            .network
-            .tcp_connect("db.example", 5432)
-            .and_then(|mut connection| {
-                connection.send(b"ping-pong")?;
-                connection.receive(64)
-            });
+        let (http, tcp) = network_round(ports.network.as_ref());
         let mut batches = Vec::new();
         if let Ok(mut reader) = ports.source.open("orders") {
             while let Ok(Some(batch)) = reader.next_batch() {
