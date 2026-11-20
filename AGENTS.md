@@ -10,19 +10,21 @@ Your role comes from the label of the issue or pull request you were given:
 | You were asked to | Role | Skill to run |
 |---|---|---|
 | Implement issue #N (label `impl`) | Implementer | `implement-issue` |
-| Review pull request #N | Reviewer | `review-pr` |
+| Review pull request #N | Specifier | `review-pr` |
 | Change the specification, or file issues for a phase | Specifier | `create-issues` / `answer-spec-defect` |
 | Prepare release X.Y.Z | Release preparer | `prepare-release` |
 
-If you cannot tell your role, stop and ask. One session has one role and one issue or pull
-request, never more (MG-REQ-1702, MG-REQ-1703).
+If you cannot tell your role, stop and ask. One session has one role. An implementer session
+has one issue and one pull request, never more (MG-REQ-1702). The specifier also reviews
+implementation pull requests, never one it wrote code in (MG-REQ-1703).
 
 ## 2. What to read (token budget)
 
 1. `spec/kernel.md`, always. It holds the rules every session follows.
-2. **Implementer and reviewer:** run `just spec-context <issue-number>` and read its output.
+2. **Implementer:** run `just spec-context <issue-number>` and read its output.
    It contains every rule you need. Do not open other files under `spec/`.
-3. **Specifier:** `spec/README.md`, `spec/MAP.md`, then only the area you change.
+3. **Specifier:** `spec/README.md`, `spec/MAP.md`, then only the area you change. When
+   reviewing a pull request, start from `just spec-context <issue-number>`.
 4. You may read any code and test in the repository, and other modules' public contracts.
 5. Never read `spec/decisions/`, `spec/roadmap.md` or `spec/status.md` unless you are the
    specifier or the release preparer.

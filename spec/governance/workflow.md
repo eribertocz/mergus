@@ -14,9 +14,8 @@ depends_on: [kernel, governance-enforcement]
 | Role | Actor | Does | Never |
 |---|---|---|---|
 | Owner | The human maintainer | Merges pull requests, creates release tags, answers `needs-owner` issues | — |
-| Specifier | Claude Code session, label `spec` | Changes `spec/`, files issues from the roadmap, answers `spec-defect` issues | Writes implementation code, merges, tags |
+| Specifier | Claude Code session, label `spec` | Changes `spec/`, files issues from the roadmap, answers `spec-defect` issues, reviews implementation pull requests and posts a verdict | Writes implementation code, reviews a pull request it wrote code in, approves, merges, tags |
 | Implementer | A new Claude Code session per issue, label `impl` | Implements one issue: branch, commits, one pull request | Edits `spec/`, reviews, merges, tags |
-| Reviewer | A new Claude Code session per pull request | Reviews one pull request and posts a verdict | Reviews a pull request it wrote, approves, merges |
 | Release preparer | Claude Code session, label `release` | Opens the release pull request | Tags, publishes |
 | CI | GitHub Actions | Runs blocking checks; publishes after a tag | — |
 
@@ -57,7 +56,7 @@ pull request.
 2. **Implementation.** A new implementer session takes the next unblocked issue
    (`just next-issue`), creates `issue-<n>-<short-name>`, writes failing tests first, makes
    them pass, runs `just check`, opens the pull request.
-3. **Review.** A new reviewer session runs the `review-pr` skill and posts one comment with
+3. **Review.** The specifier session runs the `review-pr` skill and posts one comment with
    findings by severity and a verdict: `ready`, `changes-needed` or `spec-defect`.
 4. **Fixes.** On `changes-needed`, the same implementer session pushes new commits. It never
    force-pushes after review started.
@@ -106,6 +105,18 @@ Commits MUST follow Conventional Commits with the issue number, and carry the
 
 - Kind: process
 - Verify: check `commit-format`
+
+### MG-REQ-1714 · Parallel only without conflicts
+
+Each issue MUST be implemented by a new session. Two issues MAY be implemented in parallel
+only when they change no file in common, so that their pull requests cannot conflict; the
+specifier lists them in each other's "Parallel with". Issues that change the same crate or the
+same file MUST NOT be parallel: the later one names the earlier one in "Depends on". An
+implementer session MUST NOT start an issue while an open implementation pull request belongs
+to an issue that is not listed in its "Parallel with".
+
+- Kind: process
+- Verify: review `parallel-without-conflicts`
 
 ## 3. Doubts and escalation
 
