@@ -36,5 +36,8 @@ test:
 reproducible-build:
     cargo xtask reproducible-build
 
+boundaries:
+    cargo xtask check-boundaries
+
 # Every blocking check. Later issues add theirs.
-check: fmt clippy unsafe missing-docs test spec-check
+check: fmt clippy unsafe missing-docs test boundaries spec-check

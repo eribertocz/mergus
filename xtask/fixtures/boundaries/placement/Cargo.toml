@@ -1,0 +1,3 @@
+[workspace]
+members = ["crates/mergus-ops", "crates/group/mergus-plan", "other/mergus-catalog", "crates/mergus-extra", "tools/xtask"]
+resolver = "3"

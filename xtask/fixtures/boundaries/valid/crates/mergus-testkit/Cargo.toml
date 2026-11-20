@@ -1,0 +1,9 @@
+[package]
+name = "mergus-testkit"
+version = "0.0.0"
+edition = "2024"
+publish = false
+
+[dependencies]
+mergus-runtime = { path = "../mergus-runtime" }
+mergus-ports = { path = "../mergus-ports", features = ["real"] }

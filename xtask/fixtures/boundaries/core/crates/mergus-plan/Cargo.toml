@@ -1,0 +1,10 @@
+[package]
+name = "mergus-plan"
+version = "0.0.0"
+edition = "2024"
+publish = false
+
+[dependencies]
+mergus-ops = { path = "../mergus-ops" }
+mergus-ports = { path = "../mergus-ports" }
+mergus-contracts = { path = "../mergus-contracts" }

@@ -1,0 +1,8 @@
+[package]
+name = "mergus-contracts"
+version = "0.0.0"
+edition = "2024"
+publish = false
+
+[dev-dependencies]
+mergus-runtime = { path = "../mergus-runtime" }

@@ -10,12 +10,17 @@
 //! - `missing-docs`: every member inherits the workspace lints, and the documentation builds
 //!   with warnings denied (MG-REQ-0175).
 //! - `reproducible-build`: two release builds produce identical binaries (MG-REQ-0113).
+//! - `check-boundaries`: the crates respect the boundaries that `cargo metadata` shows
+//!   (MG-REQ-0126).
 
 #![forbid(unsafe_code)]
 
+mod boundaries;
 mod cargo;
 mod failure;
+mod json;
 mod lints;
+mod metadata;
 mod reproducible;
 mod unsafe_code;
 mod workspace;
@@ -25,7 +30,8 @@ use std::path::Path;
 
 use failure::Failure;
 
-const USAGE: &str = "usage: cargo xtask <clippy|unsafe|missing-docs|reproducible-build>";
+const USAGE: &str =
+    "usage: cargo xtask <clippy|unsafe|missing-docs|reproducible-build|check-boundaries>";
 
 fn main() -> Result<(), Failure> {
     let root = workspace::root()?;
@@ -35,6 +41,7 @@ fn main() -> Result<(), Failure> {
         "unsafe" => unsafe_code::check(&workspace::members(&root)?),
         "missing-docs" => missing_docs(&root),
         "reproducible-build" => reproducible::check(&root),
+        "check-boundaries" => boundaries::check(&root),
         _ => Err(Failure::new(USAGE)),
     }
 }

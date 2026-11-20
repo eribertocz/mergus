@@ -1,0 +1,14 @@
+[package]
+name = "mergus-plan"
+version = "0.0.0"
+edition = "2024"
+publish = false
+
+[dependencies]
+mergus-project = { path = "../mergus-project" }
+
+[build-dependencies]
+mergus-engine-duckdb = { path = "../mergus-engine-duckdb" }
+
+[dev-dependencies]
+mergus-source = { path = "../mergus-source" }
