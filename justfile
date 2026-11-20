@@ -54,5 +54,8 @@ sql-concatenation:
 crate-docs:
     cargo xtask crate-docs
 
+cargo-deny:
+    cargo deny check
+
 # Every blocking check. Later issues add theirs.
-check: fmt clippy unsafe missing-docs test boundaries language size secrets sql-concatenation crate-docs spec-check
+check: fmt clippy unsafe missing-docs test boundaries language size secrets sql-concatenation crate-docs cargo-deny spec-check
