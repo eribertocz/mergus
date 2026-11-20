@@ -9,4 +9,5 @@ description: File the implementation issues of one roadmap phase from the specif
 2. List the phase's rules not yet `done`. Group them: one crate per issue, one to eight rules (MG-REQ-1705), dependencies first.
 3. For each group, run `just spec-issue <IDs>` and file the issue with its output: milestone = phase, labels `impl` and the crate.
 4. Fill "Depends on" and "Parallel with" (MG-REQ-1714): issues that change the same crate or the same file depend on each other in order; only issues that change no file in common are parallel. Write `None` when there are none.
-5. Report the list of issues filed. Do not implement.
+5. Set `Current phase:` in `spec/roadmap.md` to this phase, in a specification pull request (MG-REQ-0167).
+6. Report the list of issues filed. Do not implement.

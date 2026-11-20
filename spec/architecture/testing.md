@@ -95,6 +95,17 @@ that leaves a behavior rule of its issue without a passing test.
 - Kind: process
 - Verify: check `traceability`
 
+### MG-REQ-0167 · Scope of the traceability report
+
+For MG-REQ-0165, a rule "needs a test" when it is a behavior rule whose `Verify` is `test`;
+rules verified by a check or a review are not listed as missing a test. The current phase is
+read from the line `Current phase: <major>.<minor>` of `spec/roadmap.md`, which the specifier
+advances when it files the issues of the next phase; rules of a later phase are not listed as missing a test.
+
+- Kind: process
+- Verify: check `traceability`
+- Depends: MG-REQ-0165
+
 ## 5. Continuous integration budget
 
 ### MG-REQ-0166 · Pull request CI under ten minutes
