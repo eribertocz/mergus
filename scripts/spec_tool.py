@@ -42,7 +42,8 @@ def slug(text):
 
 
 def spec_files():
-    for path in sorted(SPEC.rglob("*.md")):
+    # Sort by the POSIX relative path: Windows paths compare without case (MG-REQ-0189).
+    for path in sorted(SPEC.rglob("*.md"), key=lambda p: p.relative_to(SPEC).as_posix()):
         rel = path.relative_to(SPEC)
         if path.name in GENERATED and len(rel.parts) == 1:
             continue
