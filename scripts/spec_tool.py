@@ -269,7 +269,7 @@ def issue(docs, ids):
            "Run `just spec-context <this issue number>` and read only its output.", "",
            "## Acceptance criteria", *[f"- {t}" for t in tests], "",
            "## Out of scope", "Everything not required by the rules above.", "",
-           "## Depends on", "<!-- issue numbers -->", "", "## Parallel with", "None (MG-REQ-1714)"]
+           "## Depends on", "<!-- issue numbers -->", "", "## Parallel with", "<!-- issue numbers -->"]
     return "\n".join(out) + "\n"
 
 

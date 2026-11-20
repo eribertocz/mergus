@@ -9,7 +9,7 @@ Use the GitHub REST API through `gh api`; GraphQL is not available.
 
 1. Confirm this session has authored no pull request. If it has, stop: one session, one pull request (MG-REQ-1702).
 2. Read the issue: `gh api repos/{owner}/{repo}/issues/<n>`. Check it has every section of MG-REQ-1704. If one is missing, open a `spec-defect` issue and stop.
-3. Check every issue under "Depends on" is closed and no other implementation pull request is open (MG-REQ-1714). If not, stop and name it.
+3. Check every issue under "Depends on" is closed, and every open implementation pull request belongs to an issue listed under "Parallel with" (MG-REQ-1714). If not, stop and name it.
 4. Read `spec/kernel.md`, then run `just spec-context <n>` and read its output. Read nothing else under `spec/`.
 5. `git switch -c issue-<n>-<short-name>` from an up-to-date `main`.
 6. For each behavior rule, write the test `mg_req_<id>_<what>` first, run it, see it fail.

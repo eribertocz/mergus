@@ -53,8 +53,8 @@ pull request.
 1. **Issues.** For a roadmap phase, the specifier runs `just spec-issue` for each group of
    rules and files the issues: milestone = phase, labels = `impl` plus crate, body with
    "Depends on" and "Parallel with".
-2. **Implementation.** When the previous implementation pull request is merged, a new
-   implementer session takes the next issue (`just next-issue`), creates `issue-<n>-<short-name>`, writes failing tests first, makes
+2. **Implementation.** A new implementer session takes the next unblocked issue
+   (`just next-issue`), creates `issue-<n>-<short-name>`, writes failing tests first, makes
    them pass, runs `just check`, opens the pull request.
 3. **Review.** The specifier session runs the `review-pr` skill and posts one comment with
    findings by severity and a verdict: `ready`, `changes-needed` or `spec-defect`.
@@ -106,15 +106,17 @@ Commits MUST follow Conventional Commits with the issue number, and carry the
 - Kind: process
 - Verify: check `commit-format`
 
-### MG-REQ-1714 · One issue at a time
+### MG-REQ-1714 · Parallel only without conflicts
 
-Implementation issues MUST be implemented one after another, never in parallel, so that pull
-requests do not conflict. An implementer session MUST NOT start an issue while another
-implementation pull request is open, and each issue is implemented by a new session. Every
-issue's "Depends on" names the issue before it, and its "Parallel with" is `None`.
+Each issue MUST be implemented by a new session. Two issues MAY be implemented in parallel
+only when they change no file in common, so that their pull requests cannot conflict; the
+specifier lists them in each other's "Parallel with". Issues that change the same crate or the
+same file MUST NOT be parallel: the later one names the earlier one in "Depends on". An
+implementer session MUST NOT start an issue while an open implementation pull request belongs
+to an issue that is not listed in its "Parallel with".
 
 - Kind: process
-- Verify: review `one-issue-at-a-time`
+- Verify: review `parallel-without-conflicts`
 
 ## 3. Doubts and escalation
 

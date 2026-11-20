@@ -13,7 +13,7 @@ description: Review one Mergus pull request against its issue and the specificat
    - Scope: only the issue's crate and files changed.
    - Behavior: nothing the rules do not define; deviations raised as issues.
    - Kernel: MG-REQ-0001 to MG-REQ-0016.
-   - Sequence: the issue's "Depends on" is closed and no other implementation pull request is open (MG-REQ-1714).
+   - Parallel work: the issue's "Depends on" is closed, and no open implementation pull request outside its "Parallel with" changes the same files (MG-REQ-1714).
    - Determinism, security and bound parameters where the change touches them.
 5. Confirm CI is green: `gh api repos/{owner}/{repo}/commits/<sha>/check-runs`.
 6. Post one comment with findings by severity (blocking, should fix, note), the line `Verdict: ready | changes-needed | spec-defect`, and the trailer `Claude-Session: <id>`.
