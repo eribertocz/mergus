@@ -84,5 +84,15 @@ repository-settings *args:
 deny-rules *args:
     cargo xtask deny-rules {{args}}
 
-# Every blocking check. Later issues add theirs.
-check: fmt clippy unsafe missing-docs test boundaries language size secrets sql-concatenation crate-docs cargo-deny (deny-rules "--base" "main") spec-check
+# Traceability report (MG-REQ-0165). `--issue-rules <IDs>` also fails when a listed behavior
+# rule has no passing test.
+traceability *args:
+    cargo xtask traceability {{args}}
+
+# Every blocking check that needs no GitHub API, in order (MG-REQ-0166). `cargo xtask ci`
+# holds the list, so `check` and CI cannot drift.
+ci:
+    cargo xtask ci
+
+check:
+    cargo xtask ci
