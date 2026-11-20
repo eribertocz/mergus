@@ -81,6 +81,25 @@ Each crate MUST contain `README.md` (what it does, what it does not) and `ARCHIT
 - Kind: process
 - Verify: check `crate-docs`
 
+### MG-REQ-0115 · Crate documentation check
+
+The `crate-docs` check MUST verify every member under `crates/`; `xtask` is exempt. A member
+missing from the table is reported by MG-REQ-0126.1, not here. For each member:
+
+1. MG-REQ-0115.1: the first `//!` line of `src/lib.rs`, or of `src/main.rs` when there is no
+   `src/lib.rs`, equals the member's Responsibility cell in the table above, written as in the
+   table, with an optional final period;
+2. MG-REQ-0115.2: `README.md` contains that text and the headings `## What it does` and
+   `## What it does not`;
+3. MG-REQ-0115.3: `ARCHITECTURE.md` contains the headings `## Main types`, `## Data flow` and
+   `## Dependencies`;
+4. MG-REQ-0115.4: `README.md` and `ARCHITECTURE.md` each have fewer than 150 lines.
+
+- Kind: process
+- Verify: check `crate-docs`
+- Depends: MG-REQ-0111, MG-REQ-0112
+- Decision: 0002
+
 ### MG-REQ-0113 · Pinned toolchain
 
 The repository MUST pin the Rust toolchain in `rust-toolchain.toml`, use edition 2024, and
