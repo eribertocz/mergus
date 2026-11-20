@@ -12,11 +12,19 @@
 //! - `reproducible-build`: two release builds produce identical binaries (MG-REQ-0113).
 //! - `check-boundaries`: the crates respect the boundaries that `cargo metadata` shows
 //!   (MG-REQ-0126).
+//! - `language`: lists the lines with a letter outside ASCII; it only warns (MG-REQ-0177).
+//! - `size`: Rust files and functions stay within the size limits (MG-REQ-0178).
+//! - `secrets`: no secret, secret file, build artifact, data file or commented-out code is
+//!   tracked (MG-REQ-0179).
+//! - `sql-concatenation`: no SQL text is built with formatting macros (MG-REQ-0184).
+//! - `crate-docs`: every crate documents its one responsibility (MG-REQ-0115).
 
 #![forbid(unsafe_code)]
 
 mod boundaries;
 mod cargo;
+mod content;
+mod crate_docs;
 mod failure;
 mod json;
 mod lints;
@@ -30,8 +38,8 @@ use std::path::Path;
 
 use failure::Failure;
 
-const USAGE: &str =
-    "usage: cargo xtask <clippy|unsafe|missing-docs|reproducible-build|check-boundaries>";
+const USAGE: &str = "usage: cargo xtask <clippy|unsafe|missing-docs|reproducible-build|\
+     check-boundaries|language|size|secrets|sql-concatenation|crate-docs>";
 
 fn main() -> Result<(), Failure> {
     let root = workspace::root()?;
@@ -42,6 +50,11 @@ fn main() -> Result<(), Failure> {
         "missing-docs" => missing_docs(&root),
         "reproducible-build" => reproducible::check(&root),
         "check-boundaries" => boundaries::check(&root),
+        "language" => language(&root),
+        "size" => content::check(&root, content::SIZE),
+        "secrets" => content::check(&root, content::SECRETS),
+        "sql-concatenation" => content::check(&root, content::SQL_CONCATENATION),
+        "crate-docs" => crate_docs::check(&root),
         _ => Err(Failure::new(USAGE)),
     }
 }
@@ -65,4 +78,26 @@ fn missing_docs(root: &Path) -> Result<(), Failure> {
     let flags = OsString::from("-D warnings");
     let args = ["doc", "--workspace", "--no-deps", "--locked"];
     cargo::run(root, &args, &[("RUSTDOCFLAGS", &flags)])
+}
+
+/// Prints the findings of the `language` check on standard error, and always succeeds, even
+/// when the files cannot be listed (MG-REQ-0177).
+fn language(root: &Path) -> Result<(), Failure> {
+    match content::warnings(root, content::LANGUAGE) {
+        Ok(findings) => findings
+            .iter()
+            .for_each(|finding| report_warning(&finding.to_string())),
+        Err(failure) => report_warning(&format!("{failure:?}")),
+    }
+    Ok(())
+}
+
+/// Prints one warning on standard error.
+#[expect(
+    clippy::print_stderr,
+    reason = "MG-REQ-0177: the `language` check reports warnings without failing, so it \
+              prints them itself; xtask is a developer tool, not a crate that logs"
+)]
+fn report_warning(warning: &str) {
+    eprintln!("{warning}");
 }

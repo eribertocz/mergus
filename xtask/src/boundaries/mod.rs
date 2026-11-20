@@ -4,7 +4,7 @@
 //! such as `MG-REQ-0126.2: `. A rule that names a crate that is not a member yet is skipped
 //! for that crate.
 
-mod crates;
+pub(crate) mod crates;
 mod graph;
 
 use std::collections::BTreeSet;

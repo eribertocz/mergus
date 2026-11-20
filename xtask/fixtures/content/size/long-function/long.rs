@@ -1,0 +1,113 @@
+//! Long functions.
+
+/// Too long.
+fn too_long() {
+    let _ = 0;
+    let _ = 1;
+    let _ = 2;
+    let _ = 3;
+    let _ = 4;
+    let _ = 5;
+    let _ = 6;
+    let _ = 7;
+    let _ = 8;
+    let _ = 9;
+    let _ = 10;
+    let _ = 11;
+    let _ = 12;
+    let _ = 13;
+    let _ = 14;
+    let _ = 15;
+    let _ = 16;
+    let _ = 17;
+    let _ = 18;
+    let _ = 19;
+    let _ = 20;
+    let _ = 21;
+    let _ = 22;
+    let _ = 23;
+    let _ = 24;
+    let _ = 25;
+    let _ = 26;
+    let _ = 27;
+    let _ = 28;
+    let _ = 29;
+    let _ = 30;
+    let _ = 31;
+    let _ = 32;
+    let _ = 33;
+    let _ = 34;
+    let _ = 35;
+    let _ = 36;
+    let _ = 37;
+    let _ = 38;
+    let _ = 39;
+    let _ = 40;
+    let _ = 41;
+    let _ = 42;
+    let _ = 43;
+    let _ = 44;
+    let _ = 45;
+    let _ = 46;
+    let _ = 47;
+    let _ = 48;
+}
+
+pub trait T {
+    fn declared(&self);
+}
+type F = fn(u8) -> u8;
+struct S;
+impl S {
+    fn inner(&self) {
+    let _ = 0;
+    let _ = 1;
+    let _ = 2;
+    let _ = 3;
+    let _ = 4;
+    let _ = 5;
+    let _ = 6;
+    let _ = 7;
+    let _ = 8;
+    let _ = 9;
+    let _ = 10;
+    let _ = 11;
+    let _ = 12;
+    let _ = 13;
+    let _ = 14;
+    let _ = 15;
+    let _ = 16;
+    let _ = 17;
+    let _ = 18;
+    let _ = 19;
+    let _ = 20;
+    let _ = 21;
+    let _ = 22;
+    let _ = 23;
+    let _ = 24;
+    let _ = 25;
+    let _ = 26;
+    let _ = 27;
+    let _ = 28;
+    let _ = 29;
+    let _ = 30;
+    let _ = 31;
+    let _ = 32;
+    let _ = 33;
+    let _ = 34;
+    let _ = 35;
+    let _ = 36;
+    let _ = 37;
+    let _ = 38;
+    let _ = 39;
+    let _ = 40;
+    let _ = 41;
+    let _ = 42;
+    let _ = 43;
+    let _ = 44;
+    let _ = 45;
+    let _ = 46;
+    let _ = 47;
+    let _ = 48;
+    }
+}
