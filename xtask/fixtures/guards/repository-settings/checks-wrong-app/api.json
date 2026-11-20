@@ -67,6 +67,14 @@
             {
               "context": "spec-check",
               "integration_id": 15368
+            },
+            {
+              "context": "deny-rules",
+              "integration_id": 15368
+            },
+            {
+              "context": "repository-settings",
+              "integration_id": 15368
             }
           ],
           "strict_required_status_checks_policy": false

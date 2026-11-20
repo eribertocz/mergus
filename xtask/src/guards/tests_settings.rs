@@ -174,6 +174,8 @@ fn mg_req_1738_3_the_required_checks_lack_a_guard() {
             &[
                 "MG-REQ-1738.3: the required status checks lack `independent-review`",
                 "MG-REQ-1738.3: the required status checks lack `spec-check`",
+                "MG-REQ-1738.3: the required status checks lack `deny-rules`",
+                "MG-REQ-1738.3: the required status checks lack `repository-settings`",
             ]
         )
     );
