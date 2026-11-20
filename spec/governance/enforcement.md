@@ -76,6 +76,7 @@ CI MUST run these guards on every pull request, all blocking except `language`:
 | `spec-check` | Generated files up to date; `spec_tool lint` passes |
 | `deny-rules` | MG-REQ-1701, MG-REQ-1721 |
 | `repository-settings` | MG-REQ-1720 |
+| `contract-compatibility` | MG-REQ-0204, MG-REQ-0205 |
 | `language` | MG-REQ-0001 (warning only) |
 
 A guard judges the pull request against its base, so it runs only in the guard workflow, from
