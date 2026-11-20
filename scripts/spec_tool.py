@@ -228,6 +228,18 @@ def issue_ids(argument):
     sys.exit(f"not a rule ID or issue number: {argument}")
 
 
+def background(doc):
+    """Explanatory text of a file: everything after the header except rule blocks."""
+    hidden = set()
+    for rule in doc["rules"]:
+        hidden.update(range(rule["line"], rule["line"] + len(rule["body"])))
+    _, start = parse_header(doc["lines"])
+    kept = [line for number, line in enumerate(doc["lines"][start:], start=start + 1)
+            if number not in hidden]
+    text = re.sub(r"\n{3,}", "\n\n", "\n".join(kept)).strip()
+    return text.splitlines()
+
+
 def context(docs, arguments):
     by_id = index_by_id(docs)
     wanted = []
@@ -242,7 +254,10 @@ def context(docs, arguments):
         deps += [d for d in (doc["header"] or {}).get("depends_on", []) if d.startswith("MG-REQ")]
     kernel = (SPEC / "kernel.md").read_text(encoding="utf-8")
     out = ["# Context", "", "## Kernel (always applies)", "", kernel.split("---", 2)[2].strip(),
-           "", "## Rules of this task", ""]
+           "", "## Background of the files of these rules", ""]
+    for doc in dict.fromkeys(by_id[rule_id][1]["rel"] for rule_id in wanted):
+        out += [f"<!-- {doc} -->", *background(next(d for d in docs if d["rel"] == doc)), ""]
+    out += ["## Rules of this task", ""]
     for rule_id in dict.fromkeys(wanted):
         rule, doc = by_id[rule_id]
         out += [f"<!-- {doc['rel']} -->", *rule["body"], ""]

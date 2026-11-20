@@ -144,7 +144,7 @@ generated files and the per-task context. `just` recipes wrap it.
 | `just spec-lint` | Checks headers, sizes, rule shape, unique IDs, ID ranges and links |
 | `just spec-index` | Writes `RULES.md` and `crates.md` |
 | `just spec-status` | Writes `status.md` from the rules and the test names found in the code |
-| `just spec-context <issue \| IDs>` | Prints the kernel, the rules asked for and their direct dependencies |
+| `just spec-context <issue \| IDs>` | Prints the kernel, the explanatory text (tables, diagrams) of the files of the rules asked for, those rules and their direct dependencies |
 | `just spec-issue <IDs>` | Prints an issue body ready to file |
 | `just spec-check` | Fails if any generated file is out of date (CI runs this) |
 
