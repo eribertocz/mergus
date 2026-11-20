@@ -1,0 +1,18 @@
+# Tests may panic and print (MG-REQ-0009).
+allow-unwrap-in-tests = true
+allow-expect-in-tests = true
+allow-panic-in-tests = true
+allow-print-in-tests = true
+allow-dbg-in-tests = true
+
+# MG-REQ-0171: library crates define errors with `thiserror`; `anyhow` is allowed only in
+# `mergus-cli` and `xtask`, which may allow these lints with a written reason.
+disallowed-types = [
+    { path = "anyhow::Error", reason = "library crates define errors with `thiserror` (MG-REQ-0171)", allow-invalid = true },
+    { path = "anyhow::Result", reason = "library crates define errors with `thiserror` (MG-REQ-0171)", allow-invalid = true },
+]
+disallowed-macros = [
+    { path = "anyhow::anyhow", reason = "library crates define errors with `thiserror` (MG-REQ-0171)", allow-invalid = true },
+    { path = "anyhow::bail", reason = "library crates define errors with `thiserror` (MG-REQ-0171)", allow-invalid = true },
+    { path = "anyhow::ensure", reason = "library crates define errors with `thiserror` (MG-REQ-0171)", allow-invalid = true },
+]
