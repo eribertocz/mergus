@@ -1,7 +1,7 @@
 //! Locate the workspace and its members.
 
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::{Component, Path, PathBuf};
 
 use crate::failure::Failure;
 
@@ -87,6 +87,34 @@ pub(crate) fn sorted_entries(dir: &Path) -> Result<Vec<PathBuf>, Failure> {
     Ok(paths)
 }
 
+/// Shows `path` relative to `root` when it is inside it, with `/` between its parts on
+/// every system, so that findings read the same on Linux, macOS and Windows.
+pub(crate) fn show(root: &Path, path: &Path) -> String {
+    let relative = path.strip_prefix(root).unwrap_or(path);
+    let mut text = String::new();
+    for component in relative.components() {
+        match component {
+            Component::RootDir => text.push('/'),
+            Component::Prefix(_) => text.push_str(&component.as_os_str().to_string_lossy()),
+            _ => {
+                if !text.is_empty() && !text.ends_with('/') {
+                    text.push('/');
+                }
+                text.push_str(&component.as_os_str().to_string_lossy());
+            }
+        }
+    }
+    text
+}
+
+/// Shows `path` as [`show`] does, relative to the root of this workspace.
+pub(crate) fn shown(path: &Path) -> String {
+    match root() {
+        Ok(root) => show(&root, path),
+        Err(_) => show(Path::new(""), path),
+    }
+}
+
 fn member(dir: PathBuf) -> Member {
     let name = dir
         .file_name()
@@ -100,7 +128,9 @@ pub(crate) mod tests {
     use std::fs;
     use std::path::PathBuf;
 
-    use super::{members, rust_files};
+    use std::path::Path;
+
+    use super::{members, rust_files, show};
 
     /// Creates an empty temporary directory unique to `name`.
     pub(crate) fn scratch(name: &str) -> PathBuf {
@@ -144,5 +174,15 @@ pub(crate) mod tests {
             files,
             [root.join("src/inner/mod.rs"), root.join("src/lib.rs")]
         );
+    }
+
+    #[test]
+    fn mg_req_0126_paths_are_shown_relative_with_slashes() {
+        let root = Path::new("w");
+        let nested = root.join("other").join("mergus-catalog");
+        assert_eq!(show(root, &nested), "other/mergus-catalog");
+        let outside = Path::new("elsewhere").join("crates").join("a");
+        assert_eq!(show(root, &outside), "elsewhere/crates/a");
+        assert_eq!(show(root, root), "");
     }
 }

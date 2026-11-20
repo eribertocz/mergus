@@ -1,4 +1,6 @@
 //! `cargo xtask ci`: every blocking check that needs no GitHub API, in order (MG-REQ-0166).
+//! It runs the checks that judge the tree alone and never a guard that judges a pull request
+//! against its base (MG-REQ-1724).
 //!
 //! `just check` calls this command instead of listing the steps, so the local run and CI
 //! cannot drift apart.
@@ -7,10 +9,10 @@ use std::path::Path;
 use std::process::{Command, ExitCode};
 
 use crate::failure::Failure;
-use crate::{cargo, guards, traceability, workspace};
+use crate::{cargo, traceability, workspace};
 
 /// The steps, in the order they run.
-pub(crate) const STEPS: [&str; 15] = [
+pub(crate) const STEPS: [&str; 14] = [
     "fmt",
     "clippy",
     "unsafe",
@@ -23,7 +25,6 @@ pub(crate) const STEPS: [&str; 15] = [
     "sql-concatenation",
     "crate-docs",
     "cargo-deny",
-    "deny-rules",
     "spec-check",
     "traceability",
 ];
@@ -62,7 +63,6 @@ fn run_step(root: &Path, step: &str) -> Result<ExitCode, Failure> {
             &[],
         ),
         "cargo-deny" => cargo::run(root, &["deny", "check"], &[]),
-        "deny-rules" => return guards::run_deny_rules(&["--base".to_owned(), "main".to_owned()]),
         "spec-check" => spec_check(root),
         "traceability" => return traceability::run(&[]),
         _ => crate::check(step),
@@ -102,7 +102,58 @@ fn announce(step: &str) {
 #[cfg(test)]
 mod tests {
     use super::STEPS;
+    use crate::guards::BLOCKING_GUARDS;
     use crate::workspace;
+
+    /// The guards of MG-REQ-1724 that judge a pull request against its base. `spec-check`
+    /// judges the tree alone, so it is also a step of `cargo xtask ci`, as `language` is.
+    fn base_guards() -> impl Iterator<Item = &'static str> {
+        BLOCKING_GUARDS
+            .into_iter()
+            .filter(|guard| *guard != "spec-check")
+    }
+
+    #[test]
+    fn mg_req_1724_ci_runs_no_guard() {
+        for guard in base_guards() {
+            assert!(
+                !STEPS.contains(&guard),
+                "`cargo xtask ci` runs the guard `{guard}`"
+            );
+        }
+    }
+
+    #[test]
+    fn mg_req_1724_blocking_guards_are_every_guard_but_language() {
+        assert_eq!(
+            BLOCKING_GUARDS,
+            [
+                "scope",
+                "session-identity",
+                "independent-review",
+                "issue-format",
+                "pr-format",
+                "commit-format",
+                "spec-check",
+                "deny-rules",
+                "repository-settings",
+            ]
+        );
+    }
+
+    #[test]
+    fn mg_req_1724_setup_script_requires_the_blocking_guards() {
+        let root = workspace::root().unwrap();
+        let script = workspace::read(&root.join("scripts").join("setup_repository.sh")).unwrap();
+        let required: Vec<&str> = script
+            .lines()
+            .skip_while(|line| !line.starts_with("readonly REQUIRED_CHECKS=("))
+            .skip(1)
+            .take_while(|line| *line != ")")
+            .map(str::trim)
+            .collect();
+        assert_eq!(required, BLOCKING_GUARDS);
+    }
 
     #[test]
     fn mg_req_0166_ci_runs_the_checks_then_traceability() {

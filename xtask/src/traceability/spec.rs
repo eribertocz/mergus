@@ -80,14 +80,15 @@ pub(crate) fn rules(spec: &Path) -> Result<Vec<Rule>, Failure> {
     for file in files {
         let relative = file.strip_prefix(spec).unwrap_or(&file);
         let top = relative.components().count() == 1;
-        let name = relative.to_string_lossy();
-        if (top && GENERATED.contains(&name.as_ref())) || relative.starts_with("decisions") {
+        let generated = GENERATED.iter().any(|name| relative == Path::new(name));
+        if (top && generated) || relative.starts_with("decisions") {
             continue;
         }
         let text = workspace::read(&file)?;
         rules.extend(
-            parse_file(&text)
-                .map_err(|message| Failure::new(format!("{}: {message}", file.display())))?,
+            parse_file(&text).map_err(|message| {
+                Failure::new(format!("{}: {message}", workspace::shown(&file)))
+            })?,
         );
     }
     Ok(rules)
@@ -111,7 +112,7 @@ pub(crate) fn current_phase(spec: &Path) -> Result<Phase, Failure> {
         .ok_or_else(|| {
             Failure::new(format!(
                 "{}: no line `{CURRENT_PHASE}<major>.<minor>`",
-                path.display()
+                workspace::shown(&path)
             ))
         })
 }

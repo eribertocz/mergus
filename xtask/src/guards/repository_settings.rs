@@ -7,7 +7,7 @@ use crate::failure::Failure;
 use crate::json::Json;
 
 /// The blocking guards of MG-REQ-1724: every guard but `language`, which only warns.
-const BLOCKING_GUARDS: [&str; 7] = [
+pub(crate) const BLOCKING_GUARDS: [&str; 9] = [
     "scope",
     "session-identity",
     "independent-review",
@@ -15,6 +15,8 @@ const BLOCKING_GUARDS: [&str; 7] = [
     "pr-format",
     "commit-format",
     "spec-check",
+    "deny-rules",
+    "repository-settings",
 ];
 
 /// The app id of GitHub Actions.
