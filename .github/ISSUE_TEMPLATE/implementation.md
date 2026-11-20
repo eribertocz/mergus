@@ -17,6 +17,9 @@ labels: impl
 
 ## Out of scope
 
+## Files
+<!-- One path per line; a path ending in / covers everything under it. -->
+
 ## Depends on
 
 ## Parallel with
