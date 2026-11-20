@@ -1,0 +1,16 @@
+{
+  "/repos/owner/repo/contents/.github/PULL_REQUEST_TEMPLATE.md": {
+    "content": "IyMgSXNzdWUKQ2xvc2VzICMKCiMjIFJ1bGVzIGNvdmVyZWQKfCBSdWxlIHwgVGVzdCB8CnwtLS18\nLS0tfAp8IE1HLVJFUS0gfCBgbWdfcmVxX2AgfAoKIyMgRGVjaXNpb25zIHRha2VuIGluc2lkZSB0\naGUgY3JhdGUKPCEtLSBQcml2YXRlIGNob2ljZXMgb25seSAoTUctUkVRLTAwMDIpLiAtLT4KCiMj\nIERldmlhdGlvbnMgcmFpc2VkIGFzIGlzc3Vlcwo8IS0tIExpbmtzLCBvciAibm9uZSIuIC0tPgoK\nIyMgU2VsZi1jaGVjawotIFsgXSBPbmx5IGZpbGVzIGluIHRoZSBpc3N1ZSdzIHNjb3BlIGNoYW5n\nZWQgKE1HLVJFUS0wMDE0KQotIFsgXSBUZXN0cyB3cml0dGVuIGZpcnN0IGFuZCBuYW1lZCBhZnRl\nciB0aGVpciBydWxlIChNRy1SRVEtMDAxMSkKLSBbIF0gYGp1c3QgY2hlY2tgIHBhc3NlcwotIFsg\nXSBObyBjaGVjayB3ZWFrZW5lZCAoTUctUkVRLTAwMTMpCi0gWyBdIENvbW1pdHMgY2FycnkgYENv\nLUF1dGhvcmVkLUJ5YCBhbmQgYENsYXVkZS1TZXNzaW9uYCAoTUctUkVRLTE3MDgpCg==\n",
+    "encoding": "base64",
+    "path": ".github/PULL_REQUEST_TEMPLATE.md"
+  },
+  "/repos/owner/repo/issues/7": {
+    "body": "\u0023\u0023 Rules\n- MG-REQ-1734 \u00b7 Independent-review guard\n- MG-REQ-1738 \u00b7 Repository-settings guard\n\n\u0023\u0023 Crate\nnone\n\n\u0023\u0023 Read\nRun `just spec-context 7`.\n\n\u0023\u0023 Acceptance criteria\n- check `independent-review`\n\n\u0023\u0023 Out of scope\nEverything else.\n\n\u0023\u0023 Files\n<!-- One path per line. -->\nxtask/\n\n\u0023\u0023 Depends on\n\u00233\n\n\u0023\u0023 Parallel with\nNone.\n",
+    "labels": [
+      {
+        "name": "impl"
+      }
+    ],
+    "number": 7
+  }
+}

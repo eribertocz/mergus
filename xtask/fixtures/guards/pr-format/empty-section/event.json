@@ -1,0 +1,18 @@
+{
+  "action": "synchronize",
+  "pull_request": {
+    "base": {
+      "ref": "main",
+      "sha": "0000000000000000000000000000000000000000"
+    },
+    "body": "\u0023\u0023 Issue\nCloses \u00237\n\n\u0023\u0023 Rules covered\n| Rule | Test |\n|---|---|\n| MG-REQ-1734 | `mg_req_1734_x` |\n| MG-REQ-1738 | `mg_req_1738_x` |\n\n\u0023\u0023 Decisions taken inside the crate\nNone.\n\n\u0023\u0023 Deviations raised as issues\n<!-- Links, or \"none\". -->\n\n\u0023\u0023 Self-check\n- [x] `just check` passes\n",
+    "head": {
+      "ref": "issue-7-guards",
+      "sha": "1111111111111111111111111111111111111111"
+    },
+    "number": 5
+  },
+  "repository": {
+    "full_name": "owner/repo"
+  }
+}

@@ -15,7 +15,7 @@ use crate::workspace;
 /// API responses read from a fixture's `api.json`: an object from request path, without its
 /// query, to response. A request for any other path fails, so a guard cannot reach an
 /// endpoint the fixture does not expect.
-struct Fixture(Json);
+pub(super) struct Fixture(pub(super) Json);
 
 impl Api for Fixture {
     fn get(&self, path: &str) -> Result<Json, Failure> {
@@ -27,7 +27,7 @@ impl Api for Fixture {
     }
 }
 
-fn case_dir(guard: Guard, case: &str) -> PathBuf {
+pub(super) fn case_dir(guard: Guard, case: &str) -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("fixtures/guards")
         .join(guard.name)
@@ -35,14 +35,14 @@ fn case_dir(guard: Guard, case: &str) -> PathBuf {
 }
 
 /// Runs a guard on a fixture and returns its printed lines.
-fn run(guard: Guard, case: &str) -> Vec<String> {
+pub(super) fn run(guard: Guard, case: &str) -> Vec<String> {
     let dir = case_dir(guard, case);
     let event = Event::read(&dir.join("event.json")).unwrap();
     let api = Fixture(Json::parse(&workspace::read(&dir.join("api.json")).unwrap()).unwrap());
     findings(guard, &event, &api).unwrap()
 }
 
-fn lines(prefix: &str, messages: &[&str]) -> Vec<String> {
+pub(super) fn lines(prefix: &str, messages: &[&str]) -> Vec<String> {
     messages
         .iter()
         .map(|message| format!("{prefix}: {message}"))

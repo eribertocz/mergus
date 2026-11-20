@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "deny": [
+      "Bash(gh pr merge *)",
+      "Bash(git tag *)",
+      "mcp__*merge*"
+    ]
+  },
+  "other": true
+}
