@@ -63,7 +63,7 @@ owner opens or explicitly authorizes.
 
 ### MG-REQ-1724 · Guard list
 
-CI MUST run these guards on every pull request, all blocking except `language`:
+CI MUST run these guards on every pull request, all blocking:
 
 | Guard | Checks |
 |---|---|
@@ -73,19 +73,29 @@ CI MUST run these guards on every pull request, all blocking except `language`:
 | `issue-format` | MG-REQ-1704 |
 | `pr-format` | MG-REQ-1706 |
 | `commit-format` | MG-REQ-1708 |
-| `spec-check` | Generated files up to date; `spec_tool lint` passes |
 | `deny-rules` | MG-REQ-1701, MG-REQ-1721 |
 | `repository-settings` | MG-REQ-1720 |
 | `contract-compatibility` | MG-REQ-0204, MG-REQ-0205 |
-| `language` | MG-REQ-0001 (warning only) |
 
 A guard judges the pull request against its base, so it runs only in the guard workflow, from
 the base commit (MG-REQ-1722). `cargo xtask ci` runs the checks that judge the tree alone and
-never a guard (MG-REQ-0166).
+never a guard (MG-REQ-0166). Checks of the tree alone, such as `spec-check` and the warning
+`language`, run in `cargo xtask ci` with the head's code, never as guards.
 
 - Kind: process
 - Verify: check `ci-guards`
-- Decision: 0005
+- Decision: 0005, 0007
+
+### MG-REQ-1727 · Required checks
+
+The ruleset on `main` MUST require, from GitHub Actions only: every guard of MG-REQ-1724 that
+has a job in the guard workflow, `ci` on Linux, macOS and Windows, `traceability` and
+`benchmarks`. A guard is added to the required checks in the same change that adds its job.
+
+- Kind: process
+- Verify: check `repository-settings`
+- Depends: MG-REQ-1720, MG-REQ-1724
+- Decision: 0007
 
 ### MG-REQ-1725 · Repository setup script
 
