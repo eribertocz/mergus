@@ -4,7 +4,7 @@
 Usage:
   spec_tool.py lint
   spec_tool.py index            write spec/RULES.md and spec/crates.md
-  spec_tool.py status           write spec/status.md
+  spec_tool.py status           print the status of every rule (never written to the repository)
   spec_tool.py check            fail if generated files are out of date or lint fails
   spec_tool.py context ID|ISSUE...   print the minimal reading for a task
   spec_tool.py issue ID...      print an implementation issue body
@@ -292,7 +292,7 @@ def issue(docs, ids):
 
 def generated(docs):
     return {SPEC / "RULES.md": render_rules(docs), SPEC / "crates.md": render_crates(docs),
-            SPEC / "status.md": render_status(docs)}
+            }
 
 
 def main(argv):
@@ -303,19 +303,18 @@ def main(argv):
         errors = lint(docs)
         print("\n".join(errors) or "spec lint: ok")
         return 1 if errors else 0
-    if command in ("index", "status"):
+    if command == "index":
         for path, text in generated(docs).items():
-            if command == "status" and path.name != "status.md":
-                continue
-            if command == "index" and path.name == "status.md":
-                continue
             path.write_text(text, encoding="utf-8")
+        return 0
+    if command == "status":
+        print(render_status(docs), end="")
         return 0
     if command == "check":
         errors = lint(docs)
         for path, text in generated(docs).items():
             if not path.exists() or path.read_text(encoding="utf-8") != text:
-                errors.append(f"{path.relative_to(ROOT)} is out of date: run just spec-index spec-status")
+                errors.append(f"{path.relative_to(ROOT)} is out of date: run just spec-index")
         print("\n".join(errors) or "spec check: ok")
         return 1 if errors else 0
     if command == "context":

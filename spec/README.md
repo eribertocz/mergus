@@ -33,7 +33,7 @@ other modules only through public contracts.
 | Always | `kernel.md` | Every session, at start |
 | Per task | The output of `just spec-context` | Implementer and reviewer, for their issue |
 | Per area | `MAP.md`, then the files of one area | Specification author |
-| Never for implementing | `decisions/`, `roadmap.md`, `status.md` | Specification author and owner only |
+| Never for implementing | `decisions/`, `roadmap.md`, output of `just spec-status` | Specification author and owner only |
 
 A session that needs a file outside its level stops and opens a `spec-defect` issue saying
 which information is missing from its context. Missing context is a defect of the issue, not
@@ -46,7 +46,7 @@ a reason to read more.
 ```
 spec/
   README.md  kernel.md  MAP.md  glossary.md  roadmap.md
-  RULES.md  crates.md  status.md        generated, never edited by hand
+  RULES.md  crates.md                  generated, never edited by hand
   <area>/<topic>.md                     one topic per file
   decisions/NNNN-<title>.md             architecture decision records
 ```
@@ -143,7 +143,7 @@ generated files and the per-task context. `just` recipes wrap it.
 |---|---|
 | `just spec-lint` | Checks headers, sizes, rule shape, unique IDs, ID ranges and links |
 | `just spec-index` | Writes `RULES.md` and `crates.md` |
-| `just spec-status` | Writes `status.md` from the rules and the test names found in the code |
+| `just spec-status` | Prints the state of every rule from the rules and the test names found in the code; never written to the repository |
 | `just spec-context <issue \| IDs>` | Prints the kernel, the explanatory text (tables, diagrams) of the files of the rules asked for, those rules and their direct dependencies |
 | `just spec-issue <IDs>` | Prints an issue body ready to file |
 | `just spec-check` | Fails if any generated file is out of date (CI runs this) |

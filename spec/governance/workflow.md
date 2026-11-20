@@ -64,7 +64,7 @@ pull request.
 4. **Fixes.** On `changes-needed`, the same implementer session pushes new commits. It never
    force-pushes after review started.
 5. **Merge.** The owner merges pull requests that have green CI and a `ready` verdict.
-6. **Status.** CI on `main` regenerates `spec/status.md`.
+6. **Status.** `just spec-status` prints the state of every rule on demand.
 7. **Release.** When every gate of a phase is green, the release preparer opens
    `release/<version>`. The owner merges it and pushes the tag `v<version>`. CI publishes.
 
