@@ -30,13 +30,9 @@ jobs:
         os: [ubuntu-latest, macos-latest, windows-latest]
     steps:
       - name: Check out
-        # The read-only token stays in the checkout so that the next step can fetch `main`.
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - name: Fetch main
-        # `cargo xtask ci` runs `deny-rules --base main`, which reads the local branch `main`.
-        if: github.ref != 'refs/heads/main'
-        shell: bash
-        run: git fetch --no-tags --depth=1 origin main:main
+        with:
+          persist-credentials: false
       - name: Install the toolchain
         run: rustup toolchain install
       - name: Cache the build
