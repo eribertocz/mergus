@@ -26,7 +26,7 @@ implementation pull requests, never one it wrote code in (MG-REQ-1703).
 3. **Specifier:** `spec/README.md`, `spec/MAP.md`, then only the area you change. When
    reviewing a pull request, start from `just spec-context <issue-number>`.
 4. You may read any code and test in the repository, and other modules' public contracts.
-5. Never read `spec/decisions/`, `spec/roadmap.md` or `spec/status.md` unless you are the
+5. Never read `spec/decisions/`, `spec/roadmap.md` or the output of `just spec-status` unless you are the
    specifier or the release preparer.
 
 If the context is not enough to work without guessing about observable behavior, open a
