@@ -39,5 +39,20 @@ reproducible-build:
 boundaries:
     cargo xtask check-boundaries
 
+language:
+    cargo xtask language
+
+size:
+    cargo xtask size
+
+secrets:
+    cargo xtask secrets
+
+sql-concatenation:
+    cargo xtask sql-concatenation
+
+crate-docs:
+    cargo xtask crate-docs
+
 # Every blocking check. Later issues add theirs.
-check: fmt clippy unsafe missing-docs test boundaries spec-check
+check: fmt clippy unsafe missing-docs test boundaries language size secrets sql-concatenation crate-docs spec-check

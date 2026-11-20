@@ -28,47 +28,132 @@ pub(crate) struct Crate {
     pub(crate) layer: Layer,
     /// Whether it is a pure core crate (MG-REQ-0004).
     pub(crate) core: bool,
+    /// Its one responsibility, written as in the table (MG-REQ-0111).
+    pub(crate) responsibility: &'static str,
 }
 
-const fn row(name: &'static str, layer: u8, core: bool) -> Crate {
+const fn row(name: &'static str, layer: u8, core: bool, responsibility: &'static str) -> Crate {
     Crate {
         name,
         layer: Layer::Number(layer),
         core,
+        responsibility,
     }
 }
 
 /// Every crate of `architecture/crates.md`, in the order of the table.
 const CRATES: [Crate; 22] = [
-    row("mergus-contracts", 0, true),
-    row("mergus-ports", 0, false),
-    row("mergus-project", 1, true),
-    row("mergus-plan", 2, true),
-    row("mergus-engine-duckdb", 3, false),
-    row("mergus-engine-polars", 3, false),
-    row("mergus-source", 3, false),
-    row("mergus-source-rest", 3, false),
-    row("mergus-adapter", 3, false),
-    row("mergus-adapter-ducklake", 3, false),
-    row("mergus-catalog", 3, false),
-    row("mergus-quality", 3, false),
-    row("mergus-ops", 3, false),
-    row("mergus-security", 3, false),
-    row("mergus-menura", 3, false),
-    row("mergus-fetch", 3, false),
-    row("mergus-runtime", 4, false),
-    row("mergus-cli", 5, false),
-    row("mergus-py", 5, false),
-    row("mergus-certify", 3, false),
+    row(
+        "mergus-contracts",
+        0,
+        true,
+        "Rust types generated from `schemas/`",
+    ),
+    row(
+        "mergus-ports",
+        0,
+        false,
+        "I/O traits and their real implementations",
+    ),
+    row(
+        "mergus-project",
+        1,
+        true,
+        "Read and validate the project: files, `project.toml`, folder `mergus.toml`",
+    ),
+    row(
+        "mergus-plan",
+        2,
+        true,
+        "Resolve, order and fingerprint the work; produce the plan",
+    ),
+    row("mergus-engine-duckdb", 3, false, "Execute DuckDB steps"),
+    row("mergus-engine-polars", 3, false, "Execute Polars steps"),
+    row(
+        "mergus-source",
+        3,
+        false,
+        "Extract from databases (ADBC) and files",
+    ),
+    row(
+        "mergus-source-rest",
+        3,
+        false,
+        "Extract from REST APIs declared in TOML",
+    ),
+    row(
+        "mergus-adapter",
+        3,
+        false,
+        "Storage adapter contract (public API for third parties)",
+    ),
+    row(
+        "mergus-adapter-ducklake",
+        3,
+        false,
+        "DuckLake storage adapter",
+    ),
+    row(
+        "mergus-catalog",
+        3,
+        false,
+        "Catalog documents, manifests, pointer compare-and-swap",
+    ),
+    row(
+        "mergus-quality",
+        3,
+        false,
+        "Tests, contracts, monitors, gate decisions",
+    ),
+    row(
+        "mergus-ops",
+        3,
+        false,
+        "Journal, ops tables, logs, OpenTelemetry, OpenLineage",
+    ),
+    row(
+        "mergus-security",
+        3,
+        false,
+        "Secret resolution, PII handling, hash chains",
+    ),
+    row("mergus-menura", 3, false, "Bridge to Menura contracts"),
+    row(
+        "mergus-fetch",
+        3,
+        false,
+        "Download, verify and cache versions and adapters",
+    ),
+    row(
+        "mergus-runtime",
+        4,
+        false,
+        "Run cycle and scheduling; wires ports to crates",
+    ),
+    row(
+        "mergus-cli",
+        5,
+        false,
+        "The `mergus` binary; translates arguments and output only",
+    ),
+    row("mergus-py", 5, false, "Python bindings (maturin)"),
+    row(
+        "mergus-certify",
+        3,
+        false,
+        "Conformance kit every storage adapter must pass",
+    ),
     Crate {
         name: "mergus-sim",
         layer: Layer::Test,
         core: false,
+        responsibility: "Deterministic simulator",
     },
     Crate {
         name: "mergus-testkit",
         layer: Layer::Test,
         core: false,
+        responsibility: "Fixtures, generators, golden datasets",
     },
 ];
 
