@@ -47,3 +47,14 @@ port instances MUST NOT exist.
 
 - Kind: process
 - Verify: review `explicit-ports`
+
+### MG-REQ-0133 · Real implementations behind a feature
+
+`mergus-ports` MUST compile its traits without any feature, and its real implementations
+only under the non-default Cargo feature `real`. Only the crates allowed by MG-REQ-0126.5
+enable it.
+
+- Kind: process
+- Verify: check `boundaries`
+- Decision: 0001
+- Depends: MG-REQ-0126
