@@ -1,0 +1,30 @@
+{
+  "/repos/owner/repo/issues/7": {
+    "body": "\u0023\u0023 Rules\n- MG-REQ-1\n\n\u0023\u0023 Files\n<!-- one path per line -->\nspec/\nAGENTS.md\n.claude/\nxtask/\nscripts/\n\n\u0023\u0023 Depends on\nNone\n",
+    "labels": [
+      {
+        "name": "impl"
+      }
+    ],
+    "number": 7
+  },
+  "/repos/owner/repo/pulls/5/files": [
+    {
+      "filename": "spec/kernel.md",
+      "status": "modified"
+    },
+    {
+      "filename": "AGENTS.md",
+      "status": "modified"
+    },
+    {
+      "filename": ".claude/skills/x.md",
+      "status": "modified"
+    },
+    {
+      "filename": "xtask/b.rs",
+      "previous_filename": "scripts/spec_tool.py",
+      "status": "renamed"
+    }
+  ]
+}

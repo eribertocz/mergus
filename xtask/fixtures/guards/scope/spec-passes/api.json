@@ -1,0 +1,32 @@
+{
+  "/repos/owner/repo/pulls/5/files": [
+    {
+      "filename": "spec/governance/guards.md",
+      "status": "modified"
+    },
+    {
+      "filename": "AGENTS.md",
+      "status": "modified"
+    },
+    {
+      "filename": "CLAUDE.md",
+      "status": "modified"
+    },
+    {
+      "filename": ".claude/skills/a/SKILL.md",
+      "status": "modified"
+    },
+    {
+      "filename": ".github/ISSUE_TEMPLATE/x.md",
+      "status": "modified"
+    },
+    {
+      "filename": ".github/PULL_REQUEST_TEMPLATE.md",
+      "status": "modified"
+    },
+    {
+      "filename": "scripts/spec_tool.py",
+      "status": "modified"
+    }
+  ]
+}

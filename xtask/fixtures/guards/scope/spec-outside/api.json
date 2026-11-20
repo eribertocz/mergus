@@ -1,0 +1,16 @@
+{
+  "/repos/owner/repo/pulls/5/files": [
+    {
+      "filename": "spec/a.md",
+      "status": "modified"
+    },
+    {
+      "filename": "xtask/src/main.rs",
+      "status": "modified"
+    },
+    {
+      "filename": "scripts/other.py",
+      "status": "modified"
+    }
+  ]
+}

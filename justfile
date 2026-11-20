@@ -57,5 +57,15 @@ crate-docs:
 cargo-deny:
     cargo deny check
 
+# Pull request guards (MG-REQ-1730). They read the GitHub API, so `check` does not run them.
+scope *args:
+    cargo xtask scope {{args}}
+
+commit-format *args:
+    cargo xtask commit-format {{args}}
+
+session-identity *args:
+    cargo xtask session-identity {{args}}
+
 # Every blocking check. Later issues add theirs.
 check: fmt clippy unsafe missing-docs test boundaries language size secrets sql-concatenation crate-docs cargo-deny spec-check

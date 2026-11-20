@@ -1,0 +1,9 @@
+{
+  "/repos/owner/repo/pulls/5/files": [
+    {
+      "filename": "spec/a.rs",
+      "patch": "@@ -10,3 +10,5 @@\n \u0023[ignore]\n \u0023[test]\n+\u0023[ignore]\n+\u0023[ignore = \"slow\"]\n fn t() {}",
+      "status": "modified"
+    }
+  ]
+}
