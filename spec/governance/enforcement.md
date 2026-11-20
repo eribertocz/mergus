@@ -74,10 +74,17 @@ CI MUST run these guards on every pull request, all blocking except `language`:
 | `pr-format` | MG-REQ-1706 |
 | `commit-format` | MG-REQ-1708 |
 | `spec-check` | Generated files up to date; `spec_tool lint` passes |
+| `deny-rules` | MG-REQ-1701, MG-REQ-1721 |
+| `repository-settings` | MG-REQ-1720 |
 | `language` | MG-REQ-0001 (warning only) |
+
+A guard judges the pull request against its base, so it runs only in the guard workflow, from
+the base commit (MG-REQ-1722). `cargo xtask ci` runs the checks that judge the tree alone and
+never a guard (MG-REQ-0166).
 
 - Kind: process
 - Verify: check `ci-guards`
+- Decision: 0005
 
 ### MG-REQ-1725 · Repository setup script
 
