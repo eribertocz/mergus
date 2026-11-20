@@ -32,12 +32,15 @@ repository settings MUST be done only by the owner.
 
 ### MG-REQ-1702 · One session, one pull request
 
-Every pull request MUST be written by exactly one session that has authored no other pull
-request. All its commits MUST carry the same `Claude-Session:` trailer, and that value MUST
-NOT appear in any other pull request of the repository.
+Every implementation pull request (branch `issue-…`) MUST be written by exactly one session
+that has authored no other implementation pull request. All its commits MUST carry the same
+`Claude-Session:` trailer, and that value MUST NOT appear in any other implementation pull
+request of the repository. Specification and release pull requests are written by the
+specifier or release preparer session, which MAY author several.
 
 - Kind: process
 - Verify: check `session-identity`
+- Decision: 0003
 
 ### MG-REQ-1703 · Independent review
 
@@ -68,12 +71,13 @@ pull request.
 ### MG-REQ-1704 · Issue contents
 
 Every implementation issue MUST contain: the rule IDs it covers, the crate, the "Read" list
-produced by `just spec-issue`, acceptance criteria as test names, out of scope, "Depends on"
-and "Parallel with". An implementer that finds one missing MUST open a `spec-defect` issue
+produced by `just spec-issue`, acceptance criteria as test names, out of scope, the files it
+may change ("Files"), "Depends on" and "Parallel with". An implementer that finds one missing MUST open a `spec-defect` issue
 and stop.
 
 - Kind: process
 - Verify: check `issue-format`
+- Decision: 0003
 
 ### MG-REQ-1705 · Issue size
 

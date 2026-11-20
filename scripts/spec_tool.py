@@ -284,6 +284,7 @@ def issue(docs, ids):
            "Run `just spec-context <this issue number>` and read only its output.", "",
            "## Acceptance criteria", *[f"- {t}" for t in tests], "",
            "## Out of scope", "Everything not required by the rules above.", "",
+           "## Files", "<!-- one path per line; a path ending in / covers everything under it -->", "",
            "## Depends on", "<!-- issue numbers -->", "", "## Parallel with", "<!-- issue numbers -->"]
     return "\n".join(out) + "\n"
 

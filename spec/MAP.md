@@ -17,6 +17,7 @@ Implementers never use this map: they use `just spec-context`.
 | Rules every session follows | — | [kernel.md](kernel.md) |
 | How the specification is written | — | [README.md](README.md) |
 | Roles, issues, pull requests, reviews, releases | governance | [workflow](governance/workflow.md), [enforcement](governance/enforcement.md) |
+| What each CI guard checks | governance | [guards](governance/guards.md) |
 | Vocabulary | — | [glossary.md](glossary.md) |
 | What Mergus does, data flow, neighbouring modules | architecture | [overview](architecture/overview.md) |
 | Crates and repository layout | architecture | [crates](architecture/crates.md) |
