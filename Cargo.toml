@@ -1,0 +1,38 @@
+[workspace]
+members = ["crates/*", "xtask"]
+resolver = "3"
+
+[workspace.package]
+edition = "2024"
+rust-version = "1.97.0"
+publish = false
+
+[workspace.lints.rust]
+# MG-REQ-0170: no `unsafe` by default. Every crate except the FFI ones also sets
+# `#![forbid(unsafe_code)]`, which `cargo xtask unsafe` verifies.
+unsafe_code = "deny"
+# MG-REQ-0175: every public item is documented.
+missing_docs = "deny"
+
+[workspace.lints.rustdoc]
+broken_intra_doc_links = "deny"
+
+[workspace.lints.clippy]
+# MG-REQ-0009 and MG-REQ-0171: no panics in library code.
+unwrap_used = "deny"
+expect_used = "deny"
+panic = "deny"
+todo = "deny"
+unimplemented = "deny"
+unreachable = "deny"
+# MG-REQ-0172: logs go through `tracing`, never to standard output or error.
+print_stdout = "deny"
+print_stderr = "deny"
+dbg_macro = "deny"
+# MG-REQ-0175: documentation states errors and panics.
+missing_errors_doc = "deny"
+missing_panics_doc = "deny"
+# MG-REQ-0171: `anyhow` is banned outside `mergus-cli` and `xtask` (see `clippy.toml`).
+disallowed_types = "deny"
+disallowed_macros = "deny"
+
