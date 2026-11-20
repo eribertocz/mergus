@@ -20,3 +20,6 @@ prints it on demand. `spec/status.md` is removed, and `spec-check` compares only
 ## Consequences
 
 The specifier and the release preparer run `just spec-status` instead of reading a file.
+- Transition: until the `spec-check` guard leaves `guards.yml` (#46, decision 0007), the base's
+  tool still checks `spec/status.md`, so the file stays, unchanged, until then. The
+  specification pull request after #46 deletes it.
