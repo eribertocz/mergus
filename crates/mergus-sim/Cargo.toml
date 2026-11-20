@@ -1,0 +1,13 @@
+[package]
+name = "mergus-sim"
+version = "0.0.0"
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+description = "Deterministic simulator."
+
+[dependencies]
+mergus-ports = { path = "../mergus-ports" }
+
+[lints]
+workspace = true
