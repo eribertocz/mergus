@@ -1,0 +1,18 @@
+{
+  "action": "synchronize",
+  "pull_request": {
+    "base": {
+      "ref": "main",
+      "sha": "0000000000000000000000000000000000000000"
+    },
+    "body": "",
+    "head": {
+      "ref": "spec/settings",
+      "sha": "1111111111111111111111111111111111111111"
+    },
+    "number": 5
+  },
+  "repository": {
+    "full_name": "owner/repo"
+  }
+}

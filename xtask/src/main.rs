@@ -18,8 +18,9 @@
 //!   tracked (MG-REQ-0179).
 //! - `sql-concatenation`: no SQL text is built with formatting macros (MG-REQ-0184).
 //! - `crate-docs`: every crate documents its one responsibility (MG-REQ-0115).
-//! - `scope`, `commit-format`, `session-identity`: the guards that judge a pull request
-//!   (MG-REQ-1730 to MG-REQ-1733). They print their findings and exit with status 1 when
+//! - `scope`, `commit-format`, `session-identity`, `independent-review`, `issue-format`,
+//!   `pr-format`, `deny-rules`, `repository-settings`: the guards that judge a pull request
+//!   (MG-REQ-1730 to MG-REQ-1738). They print their findings and exit with status 1 when
 //!   they have one.
 
 #![forbid(unsafe_code)]
@@ -45,7 +46,7 @@ use failure::Failure;
 
 const USAGE: &str = "usage: cargo xtask <clippy|unsafe|missing-docs|reproducible-build|\
      check-boundaries|language|size|secrets|sql-concatenation|crate-docs|scope|commit-format|\
-     session-identity>";
+     session-identity|independent-review|issue-format|pr-format|deny-rules|repository-settings>";
 
 fn main() -> Result<ExitCode, Failure> {
     let args: Vec<String> = std::env::args().skip(1).collect();
@@ -56,6 +57,11 @@ fn main() -> Result<ExitCode, Failure> {
         "scope" => guards::run(guards::SCOPE, rest),
         "commit-format" => guards::run(guards::COMMIT_FORMAT, rest),
         "session-identity" => guards::run(guards::SESSION_IDENTITY, rest),
+        "independent-review" => guards::run(guards::INDEPENDENT_REVIEW, rest),
+        "issue-format" => guards::run(guards::ISSUE_FORMAT, rest),
+        "pr-format" => guards::run(guards::PR_FORMAT, rest),
+        "deny-rules" => guards::run_deny_rules(rest),
+        "repository-settings" => guards::run_repository_settings(rest),
         _ => check(command).map(|()| ExitCode::SUCCESS),
     }
 }

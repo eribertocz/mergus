@@ -57,7 +57,8 @@ crate-docs:
 cargo-deny:
     cargo deny check
 
-# Pull request guards (MG-REQ-1730). They read the GitHub API, so `check` does not run them.
+# Pull request guards (MG-REQ-1730). They read the GitHub API, so `check` does not run them,
+# except `deny-rules`, which reads `git` only and runs against `main`.
 scope *args:
     cargo xtask scope {{args}}
 
@@ -67,5 +68,21 @@ commit-format *args:
 session-identity *args:
     cargo xtask session-identity {{args}}
 
+independent-review *args:
+    cargo xtask independent-review {{args}}
+
+issue-format *args:
+    cargo xtask issue-format {{args}}
+
+pr-format *args:
+    cargo xtask pr-format {{args}}
+
+repository-settings *args:
+    cargo xtask repository-settings {{args}}
+
+# Needs no network: with `--base <revision>` it compares the working tree with that revision.
+deny-rules *args:
+    cargo xtask deny-rules {{args}}
+
 # Every blocking check. Later issues add theirs.
-check: fmt clippy unsafe missing-docs test boundaries language size secrets sql-concatenation crate-docs cargo-deny spec-check
+check: fmt clippy unsafe missing-docs test boundaries language size secrets sql-concatenation crate-docs cargo-deny (deny-rules "--base" "main") spec-check

@@ -78,6 +78,8 @@ pub(crate) struct Commit {
     pub(crate) message: String,
     /// How many parents it has.
     pub(crate) parents: usize,
+    /// Its committer date, as GitHub writes it.
+    pub(crate) committed: String,
 }
 
 /// A file a pull request changes.
@@ -142,6 +144,11 @@ pub(crate) fn commits(api: &dyn Api, repo: &str, number: u64) -> Result<Vec<Comm
             parents: item
                 .get("parents")
                 .map_or(0, |parents| parents.items().len()),
+            committed: text(
+                item.get("commit")
+                    .and_then(|commit| commit.get("committer"))
+                    .and_then(|committer| committer.get("date")),
+            ),
         })
         .collect())
 }
@@ -203,7 +210,86 @@ pub(crate) fn pull_requests(api: &dyn Api, repo: &str) -> Result<Vec<PullRequest
         .collect())
 }
 
+/// A comment on a pull request: its body and its creation date.
+pub(crate) struct Comment {
+    /// Its body in Markdown.
+    pub(crate) body: String,
+    /// When it was created, as GitHub writes it.
+    pub(crate) created: String,
+}
+
+/// Returns the comments of a pull request, oldest first.
+///
+/// # Errors
+///
+/// Fails if the API fails.
+pub(crate) fn comments(api: &dyn Api, repo: &str, number: u64) -> Result<Vec<Comment>, Failure> {
+    let items = list(api, &format!("/repos/{repo}/issues/{number}/comments"))?;
+    Ok(items
+        .iter()
+        .map(|item| Comment {
+            body: text(item.get("body")),
+            created: text(item.get("created_at")),
+        })
+        .collect())
+}
+
+/// Returns the text of the file at `path` in the commit `sha`.
+///
+/// # Errors
+///
+/// Fails if the API fails, or the response does not hold base64 text.
+pub(crate) fn file(api: &dyn Api, repo: &str, path: &str, sha: &str) -> Result<String, Failure> {
+    let url = format!("/repos/{repo}/contents/{path}?ref={sha}");
+    let item = api.get(&url)?;
+    let bad = || Failure::new(format!("GET {url} did not return base64 text"));
+    if item.get("encoding").and_then(Json::as_str) != Some("base64") {
+        return Err(bad());
+    }
+    let content = item.get("content").and_then(Json::as_str).ok_or_else(bad)?;
+    base64(content)
+        .and_then(|bytes| String::from_utf8(bytes).ok())
+        .ok_or_else(bad)
+}
+
+/// Decodes base64 text, skipping line breaks; `None` if it is not base64.
+fn base64(text: &str) -> Option<Vec<u8>> {
+    let mut bytes = Vec::new();
+    let mut buffer = 0_u32;
+    let mut bits = 0;
+    for byte in text.bytes().filter(|byte| !byte.is_ascii_whitespace()) {
+        let value = match byte {
+            b'A'..=b'Z' => byte - b'A',
+            b'a'..=b'z' => byte - b'a' + 26,
+            b'0'..=b'9' => byte - b'0' + 52,
+            b'+' => 62,
+            b'/' => 63,
+            b'=' => continue,
+            _ => return None,
+        };
+        buffer = ((buffer << 6) | u32::from(value)) & 0xFFFF;
+        bits += 6;
+        if bits >= 8 {
+            bits -= 8;
+            bytes.push(u8::try_from((buffer >> bits) & 0xFF).ok()?);
+        }
+    }
+    Some(bytes)
+}
+
 /// The text of an optional JSON string, or an empty string.
-fn text(value: Option<&Json>) -> String {
+pub(crate) fn text(value: Option<&Json>) -> String {
     value.and_then(Json::as_str).unwrap_or_default().to_owned()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::base64;
+
+    #[test]
+    fn mg_req_1730_base64_is_decoded() {
+        assert_eq!(base64("aGVs\nbG8=").as_deref(), Some(&b"hello"[..]));
+        assert_eq!(base64("").as_deref(), Some(&b""[..]));
+        assert!(base64("a*b").is_none());
+    }
 }

@@ -1,0 +1,42 @@
+{
+  "/repos/owner/repo/issues/5/comments": [
+    {
+      "body": "Thanks, fixing.",
+      "created_at": "2026-01-02T09:00:00Z"
+    },
+    {
+      "body": "Verdict ready, I think.",
+      "created_at": "2026-01-03T09:00:00Z"
+    }
+  ],
+  "/repos/owner/repo/pulls/5/commits": [
+    {
+      "commit": {
+        "committer": {
+          "date": "2026-01-01T10:00:00Z"
+        },
+        "message": "feat: a (\u00237)\n\nBody.\n\nCo-Authored-By: Claude <noreply@anthropic.com>\nClaude-Session: https://claude.ai/code/session_01Aaaa\n"
+      },
+      "parents": [
+        {
+          "sha": "0000000000000000000000000000000000000000"
+        }
+      ],
+      "sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    },
+    {
+      "commit": {
+        "committer": {
+          "date": "2026-01-02T10:00:00Z"
+        },
+        "message": "fix: b (\u00237)\n\nBody.\n\nCo-Authored-By: Claude <noreply@anthropic.com>\nClaude-Session: https://claude.ai/code/session_01Aaaa\n"
+      },
+      "parents": [
+        {
+          "sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        }
+      ],
+      "sha": "1111111111111111111111111111111111111111"
+    }
+  ]
+}

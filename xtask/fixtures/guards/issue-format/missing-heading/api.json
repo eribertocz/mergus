@@ -1,0 +1,11 @@
+{
+  "/repos/owner/repo/issues/7": {
+    "body": "\u0023\u0023 Rules\n- MG-REQ-1734 \u00b7 Independent-review guard\n\n\u0023\u0023 Crate\nnone\n\n\u0023\u0023 Read\nRun `just spec-context 7`.\n\n\u0023\u0023 Acceptance criteria\n- check `independent-review`\n\nOut of scope\nEverything else.\n\n\u0023\u0023 Files\n<!-- One path per line. -->\nxtask/\n\n\u0023\u0023 Depends on\n\u00233\n\n",
+    "labels": [
+      {
+        "name": "impl"
+      }
+    ],
+    "number": 7
+  }
+}

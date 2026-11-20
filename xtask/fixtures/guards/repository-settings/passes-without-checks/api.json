@@ -1,0 +1,73 @@
+{
+  "/repos/owner/repo": {
+    "default_branch": "main",
+    "full_name": "owner/repo"
+  },
+  "/repos/owner/repo/rulesets": [
+    {
+      "id": 1,
+      "name": "main",
+      "target": "branch"
+    },
+    {
+      "id": 2,
+      "name": "release-tags",
+      "target": "tag"
+    }
+  ],
+  "/repos/owner/repo/rulesets/1": {
+    "bypass_actors": [],
+    "conditions": {
+      "ref_name": {
+        "exclude": [],
+        "include": [
+          "~DEFAULT_BRANCH"
+        ]
+      }
+    },
+    "enforcement": "active",
+    "id": 1,
+    "name": "main",
+    "rules": [
+      {
+        "type": "deletion"
+      },
+      {
+        "type": "non_fast_forward"
+      },
+      {
+        "type": "pull_request"
+      }
+    ],
+    "target": "branch"
+  },
+  "/repos/owner/repo/rulesets/2": {
+    "bypass_actors": [],
+    "conditions": {
+      "ref_name": {
+        "exclude": [],
+        "include": [
+          "refs/tags/v*"
+        ]
+      }
+    },
+    "enforcement": "active",
+    "id": 2,
+    "name": "release-tags",
+    "rules": [
+      {
+        "type": "creation"
+      },
+      {
+        "type": "update"
+      },
+      {
+        "type": "deletion"
+      },
+      {
+        "type": "non_fast_forward"
+      }
+    ],
+    "target": "tag"
+  }
+}
