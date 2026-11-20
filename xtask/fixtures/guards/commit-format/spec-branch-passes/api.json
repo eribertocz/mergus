@@ -1,0 +1,15 @@
+{
+  "/repos/owner/repo/pulls/5/commits": [
+    {
+      "commit": {
+        "message": "docs(spec): define guards\n\nBody.\n\nCo-Authored-By: Claude <noreply@anthropic.com>\nClaude-Session: https://claude.ai/code/session_01Aaaa\n"
+      },
+      "parents": [
+        {
+          "sha": "0000000000000000000000000000000000000000"
+        }
+      ],
+      "sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    }
+  ]
+}

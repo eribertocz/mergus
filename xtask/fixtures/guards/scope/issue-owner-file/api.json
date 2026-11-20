@@ -1,0 +1,25 @@
+{
+  "/repos/owner/repo/issues/7": {
+    "body": "\u0023\u0023 Rules\n- MG-REQ-1\n\n\u0023\u0023 Files\n<!-- one path per line -->\ndeny.toml\n.github/\n\n\u0023\u0023 Depends on\nNone\n",
+    "labels": [
+      {
+        "name": "impl"
+      }
+    ],
+    "number": 7
+  },
+  "/repos/owner/repo/pulls/5/files": [
+    {
+      "filename": "deny.toml",
+      "status": "modified"
+    },
+    {
+      "filename": ".github/workflows/ci.yml",
+      "status": "modified"
+    },
+    {
+      "filename": ".github/CODEOWNERS",
+      "status": "modified"
+    }
+  ]
+}

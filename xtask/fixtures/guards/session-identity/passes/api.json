@@ -1,0 +1,83 @@
+{
+  "/repos/owner/repo/pulls": [
+    {
+      "head": {
+        "ref": "issue-7-guards"
+      },
+      "number": 5,
+      "state": "closed"
+    },
+    {
+      "head": {
+        "ref": "issue-2-other"
+      },
+      "number": 3,
+      "state": "closed"
+    },
+    {
+      "head": {
+        "ref": "spec/guards"
+      },
+      "number": 4,
+      "state": "closed"
+    },
+    {
+      "head": {
+        "ref": "release/0.1.0"
+      },
+      "number": 2,
+      "state": "closed"
+    }
+  ],
+  "/repos/owner/repo/pulls/3/commits": [
+    {
+      "commit": {
+        "message": "feat: d (\u00232)\n\nBody.\n\nCo-Authored-By: Claude <noreply@anthropic.com>\nClaude-Session: https://claude.ai/code/session_01Bbbb\n"
+      },
+      "parents": [
+        {
+          "sha": "0000000000000000000000000000000000000000"
+        }
+      ],
+      "sha": "dddddddddddddddddddddddddddddddddddddddd"
+    }
+  ],
+  "/repos/owner/repo/pulls/5/commits": [
+    {
+      "commit": {
+        "message": "feat: a (\u00237)\n\nBody.\n\nCo-Authored-By: Claude <noreply@anthropic.com>\nClaude-Session: https://claude.ai/code/session_01Aaaa\n"
+      },
+      "parents": [
+        {
+          "sha": "0000000000000000000000000000000000000000"
+        }
+      ],
+      "sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    },
+    {
+      "commit": {
+        "message": "fix: b (\u00237)\n\nBody.\n\nCo-Authored-By: Claude <noreply@anthropic.com>\nClaude-Session: https://claude.ai/code/session_01Aaaa\n"
+      },
+      "parents": [
+        {
+          "sha": "0000000000000000000000000000000000000000"
+        }
+      ],
+      "sha": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+    },
+    {
+      "commit": {
+        "message": "Merge (\u00237)\n\nBody.\n\nClaude-Session: https://claude.ai/code/session_01Bbbb\n"
+      },
+      "parents": [
+        {
+          "sha": "0000000000000000000000000000000000000000"
+        },
+        {
+          "sha": "0000000000000000000000000000000000000000"
+        }
+      ],
+      "sha": "cccccccccccccccccccccccccccccccccccccccc"
+    }
+  ]
+}

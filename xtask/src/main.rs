@@ -18,6 +18,9 @@
 //!   tracked (MG-REQ-0179).
 //! - `sql-concatenation`: no SQL text is built with formatting macros (MG-REQ-0184).
 //! - `crate-docs`: every crate documents its one responsibility (MG-REQ-0115).
+//! - `scope`, `commit-format`, `session-identity`: the guards that judge a pull request
+//!   (MG-REQ-1730 to MG-REQ-1733). They print their findings and exit with status 1 when
+//!   they have one.
 
 #![forbid(unsafe_code)]
 
@@ -26,6 +29,7 @@ mod cargo;
 mod content;
 mod crate_docs;
 mod failure;
+mod guards;
 mod json;
 mod lints;
 mod metadata;
@@ -35,16 +39,31 @@ mod workspace;
 
 use std::ffi::OsString;
 use std::path::Path;
+use std::process::ExitCode;
 
 use failure::Failure;
 
 const USAGE: &str = "usage: cargo xtask <clippy|unsafe|missing-docs|reproducible-build|\
-     check-boundaries|language|size|secrets|sql-concatenation|crate-docs>";
+     check-boundaries|language|size|secrets|sql-concatenation|crate-docs|scope|commit-format|\
+     session-identity>";
 
-fn main() -> Result<(), Failure> {
+fn main() -> Result<ExitCode, Failure> {
+    let args: Vec<String> = std::env::args().skip(1).collect();
+    let (command, rest) = args
+        .split_first()
+        .map_or(("", &[][..]), |(command, rest)| (command.as_str(), rest));
+    match command {
+        "scope" => guards::run(guards::SCOPE, rest),
+        "commit-format" => guards::run(guards::COMMIT_FORMAT, rest),
+        "session-identity" => guards::run(guards::SESSION_IDENTITY, rest),
+        _ => check(command).map(|()| ExitCode::SUCCESS),
+    }
+}
+
+/// Runs a check of the working tree.
+fn check(command: &str) -> Result<(), Failure> {
     let root = workspace::root()?;
-    let command = std::env::args().nth(1).unwrap_or_default();
-    match command.as_str() {
+    match command {
         "clippy" => clippy(&root),
         "unsafe" => unsafe_code::check(&workspace::members(&root)?),
         "missing-docs" => missing_docs(&root),

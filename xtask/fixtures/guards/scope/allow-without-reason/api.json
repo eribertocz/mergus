@@ -1,0 +1,9 @@
+{
+  "/repos/owner/repo/pulls/5/files": [
+    {
+      "filename": "spec/a.rs",
+      "patch": "@@ -1,3 +1,8 @@\n fn a() {}\n+\u0023[allow(dead_code)]\n+fn b() {}\n-// reason: removed\n+\u0023![allow(unused)]\n+\u0023[expect(unused)] // reason:\n+// reason: fine\n+\u0023[allow(unused)]\n fn c() {}\n@@ -20,2 +25,3 @@\n fn d() {}\n+    \u0023[expect(unused)]\n fn e() {}\n\\ No newline at end of file",
+      "status": "modified"
+    }
+  ]
+}

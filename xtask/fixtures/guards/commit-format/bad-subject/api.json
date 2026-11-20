@@ -1,0 +1,29 @@
+{
+  "/repos/owner/repo/pulls/5/commits": [
+    {
+      "commit": {
+        "message": "Add guards (\u00237)\n\nBody.\n\nCo-Authored-By: Claude <noreply@anthropic.com>\nClaude-Session: https://claude.ai/code/session_01Aaaa\n"
+      },
+      "parents": [
+        {
+          "sha": "0000000000000000000000000000000000000000"
+        }
+      ],
+      "sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    },
+    {
+      "commit": {
+        "message": "Merge pull request \u00231 (\u00237)"
+      },
+      "parents": [
+        {
+          "sha": "0000000000000000000000000000000000000000"
+        },
+        {
+          "sha": "0000000000000000000000000000000000000000"
+        }
+      ],
+      "sha": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+    }
+  ]
+}

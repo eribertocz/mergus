@@ -1,18 +1,20 @@
-//! A minimal JSON reader, enough for the output of `cargo metadata`.
+//! A minimal JSON reader, enough for the output of `cargo metadata` and of the GitHub REST
+//! API.
 //!
-//! `xtask` has no dependencies, so it reads JSON itself. Numbers and booleans are recognised
-//! but not kept: no check needs their values.
+//! `xtask` has no dependencies, so it reads JSON itself. Booleans are recognised but not
+//! kept: no check needs their values. Numbers keep their text.
 
 use crate::failure::Failure;
 
 /// A JSON value.
+#[derive(Clone)]
 pub(crate) enum Json {
     /// `null`.
     Null,
     /// `true` or `false`.
     Bool,
-    /// A number.
-    Number,
+    /// A number, as written in the document.
+    Number(String),
     /// A string.
     String(String),
     /// An array.
@@ -57,11 +59,27 @@ impl Json {
         }
     }
 
+    /// Returns the number as an unsigned integer, or `None` for any other value.
+    pub(crate) fn as_u64(&self) -> Option<u64> {
+        match self {
+            Self::Number(text) => text.parse().ok(),
+            _ => None,
+        }
+    }
+
     /// Returns the items of an array, or nothing for any other value.
     pub(crate) fn items(&self) -> &[Self] {
         match self {
             Self::Array(items) => items,
             _ => &[],
+        }
+    }
+
+    /// Takes the items of an array, or returns `None` for any other value.
+    pub(crate) fn into_items(self) -> Option<Vec<Self>> {
+        match self {
+            Self::Array(items) => Some(items),
+            _ => None,
         }
     }
 
@@ -210,7 +228,7 @@ impl Parser<'_> {
         let digits = self.bytes.get(start..self.at).unwrap_or_default();
         let text = std::str::from_utf8(digits).unwrap_or_default();
         if text.parse::<f64>().is_ok() {
-            Ok(Json::Number)
+            Ok(Json::Number(text.to_owned()))
         } else {
             Err(self.error("invalid number"))
         }
@@ -280,6 +298,15 @@ mod tests {
         assert_eq!(inner.get("c").and_then(Json::as_str), Some("d"));
         assert!(json.get("e").unwrap().items().is_empty());
         assert!(json.get("missing").is_none());
+    }
+
+    #[test]
+    fn numbers_keep_their_value() {
+        let json = Json::parse(r#"{"a": 42, "b": -1, "c": [7]}"#).unwrap();
+        assert_eq!(json.get("a").and_then(Json::as_u64), Some(42));
+        assert_eq!(json.get("b").and_then(Json::as_u64), None);
+        let items = json.get("c").unwrap().clone().into_items().unwrap();
+        assert_eq!(items.first().and_then(Json::as_u64), Some(7));
     }
 
     #[test]

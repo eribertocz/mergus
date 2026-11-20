@@ -1,0 +1,12 @@
+{
+  "/repos/owner/repo/pulls/5/files": [
+    {
+      "filename": "Cargo.lock",
+      "status": "modified"
+    },
+    {
+      "filename": "docs/CHANGELOG.md",
+      "status": "modified"
+    }
+  ]
+}
