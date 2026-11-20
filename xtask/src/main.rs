@@ -22,11 +22,15 @@
 //!   `pr-format`, `deny-rules`, `repository-settings`: the guards that judge a pull request
 //!   (MG-REQ-1730 to MG-REQ-1738). They print their findings and exit with status 1 when
 //!   they have one.
+//! - `traceability`: lists the behavior rules without a test, the tests that name no rule and
+//!   the rules whose test fails (MG-REQ-0165, MG-REQ-0167).
+//! - `ci`: runs, in order, every blocking check that needs no GitHub API (MG-REQ-0166).
 
 #![forbid(unsafe_code)]
 
 mod boundaries;
 mod cargo;
+mod ci;
 mod content;
 mod crate_docs;
 mod failure;
@@ -35,6 +39,7 @@ mod json;
 mod lints;
 mod metadata;
 mod reproducible;
+mod traceability;
 mod unsafe_code;
 mod workspace;
 
@@ -46,7 +51,8 @@ use failure::Failure;
 
 const USAGE: &str = "usage: cargo xtask <clippy|unsafe|missing-docs|reproducible-build|\
      check-boundaries|language|size|secrets|sql-concatenation|crate-docs|scope|commit-format|\
-     session-identity|independent-review|issue-format|pr-format|deny-rules|repository-settings>";
+     session-identity|independent-review|issue-format|pr-format|deny-rules|repository-settings|\
+     traceability|ci>";
 
 fn main() -> Result<ExitCode, Failure> {
     let args: Vec<String> = std::env::args().skip(1).collect();
@@ -62,6 +68,8 @@ fn main() -> Result<ExitCode, Failure> {
         "pr-format" => guards::run(guards::PR_FORMAT, rest),
         "deny-rules" => guards::run_deny_rules(rest),
         "repository-settings" => guards::run_repository_settings(rest),
+        "traceability" => traceability::run(rest),
+        "ci" => ci::run(rest),
         _ => check(command).map(|()| ExitCode::SUCCESS),
     }
 }
