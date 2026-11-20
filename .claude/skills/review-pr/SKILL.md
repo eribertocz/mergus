@@ -5,9 +5,9 @@ description: Review one Mergus pull request against its issue and the specificat
 
 # Review a pull request
 
-1. Confirm this session wrote no commit of this pull request and reviewed no other one (MG-REQ-1703).
+1. Confirm this session is the specifier session and wrote no commit of this pull request (MG-REQ-1703).
 2. Read the pull request, its files and its issue with `gh api`.
-3. Read `spec/kernel.md` and the output of `just spec-context <issue>`. Nothing else under `spec/`.
+3. Read `spec/kernel.md` and the output of `just spec-context <issue>`. Open a rule's source file under `spec/` only when the context is not enough.
 4. Check and record each finding with file and line:
    - Traceability: every rule of the issue has a passing test named after it; no test claims a rule the code does not implement.
    - Scope: only the issue's crate and files changed.
