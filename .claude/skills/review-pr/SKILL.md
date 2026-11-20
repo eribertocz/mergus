@@ -19,3 +19,5 @@ description: Review one Mergus pull request against its issue and the specificat
 5. Confirm CI is green: `gh api repos/{owner}/{repo}/commits/<sha>/check-runs`.
 6. Post one comment with findings by severity (blocking, should fix, note), the line `Verdict: ready | changes-needed | spec-defect`, and the trailer `Claude-Session: <id>`.
 7. Never approve, never merge.
+
+Keep findings short and concrete: file, line, problem, fix.
