@@ -1,0 +1,8 @@
+[package]
+name = "mergus-cli"
+version = "0.0.0"
+edition = "2024"
+publish = false
+
+[dependencies]
+mergus-ports = { path = "../mergus-ports", features = ["real"] }

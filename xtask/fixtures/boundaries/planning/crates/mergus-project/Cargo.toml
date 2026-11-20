@@ -1,0 +1,11 @@
+[package]
+name = "mergus-project"
+version = "0.0.0"
+edition = "2024"
+publish = false
+
+[dependencies]
+mergus-runtime = { path = "../mergus-runtime" }
+
+[build-dependencies]
+mergus-adapter = { path = "../mergus-adapter" }

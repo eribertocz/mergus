@@ -1,0 +1,12 @@
+[package]
+name = "mergus-plan"
+version = "0.0.0"
+edition = "2024"
+publish = false
+
+[dependencies]
+mergus-project = { path = "../mergus-project" }
+mergus-ports = { path = "../mergus-ports" }
+
+[dev-dependencies]
+mergus-testkit = { path = "../mergus-testkit" }
