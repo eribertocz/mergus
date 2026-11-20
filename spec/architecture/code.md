@@ -46,6 +46,18 @@ ones (`id`, `sql`, `url`, `io`) MUST NOT be used.
 - Kind: process
 - Verify: review `naming`
 
+### MG-REQ-0189 · Portable paths
+
+Code MUST handle paths with the standard library's path types and compare them by
+components, never as strings joined with `/` or `\`. Every path a tool prints (findings,
+reports, errors) MUST be relative to the workspace root when it lies inside it and MUST use
+`/` as the separator on every operating system. Tests that touch paths MUST pass on Linux,
+macOS and Windows.
+
+- Kind: process
+- Verify: review `portable-paths`
+- Decision: 0004
+
 ### MG-REQ-0174 · Invalid states unrepresentable
 
 Domain values MUST use enums and newtypes rather than strings and boolean flags when the set
