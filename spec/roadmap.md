@@ -28,7 +28,7 @@ prints every rule with its phase and state. The specifier files the issues of a 
 | 0.5 | Test and publish | quality, publish, contracts (manifest, Menura catalog and inputs) | First verified publication with catalog validated by Menura; `init --demo` | 0.2.0 (schema); 0.6.0 for state and summaries |
 | 0.6 | Protect | security (identities, PII, protection) | PII handled at the door, gold gate, audit chain | — |
 | 0.7 | Operate | observability, environments, run/scheduling, contracts/ops-tables | `status`, `lineage`, environments, `promote`, `rollback`, `schedule` | 0.7.0 for `describe`/`explain` links |
-| 0.8 | Reach | extract/rest, project/tools, governance/docs | REST APIs, project tools, documentation site | — |
+| 0.8 | Reach | extract/rest, project/tools, governance/docs, MCP adapter (MG-REQ-0290) | REST APIs, project tools, documentation site, agent guide, MCP adapter | — |
 | 0.9 | Harden and ship | ops, distribution, cli/performance, governance/privacy | Recovery, upgrades, signed channels, performance targets met | — |
 | **1.0** | **MVP** | No new rules | Release candidate becomes 1.0.0 | 1.0.0 (`menura.*` names) |
 
@@ -64,7 +64,7 @@ A phase is released only when every gate passes in CI on `main`.
 | 1.1 | UI (observe, then operate), server-mode sandbox (MG-REQ-1051), `forget` (MG-REQ-1056) |
 | 1.2 | Iceberg and Delta adapters; levels B, C, C+; quarantine action; quality score |
 | 1.3 | CDC sources; cloud secret managers; Airbyte declarative manifests; Python escape for REST |
-| 1.4 | MCP adapter (MG-REQ-0290); editor extension; HTTP API for server mode |
+| 1.4 | Editor extension; HTTP API for server mode |
 | 1.5 | ClickHouse adapter; triggers on other projects' publications; shared packages; translations |
 | later | LTS channel; WinGet, Scoop, apt/rpm, conda-forge, Nix, Helm; browser playground |
 
