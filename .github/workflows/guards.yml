@@ -72,11 +72,19 @@ jobs:
   independent-review-rerun:
     # The verdict is a comment. A run started by `issue_comment` attaches its checks to the
     # default branch, so this job re-runs the `independent-review` job of the pull request's
-    # head instead; the guard reads the comments again when it re-runs.
+    # head instead; the guard reads the comments again when it re-runs. GitHub re-runs a job
+    # only once its whole run has completed, so the job first waits for that, for at most
+    # `WAIT_SECONDS`, which stays below the job's timeout.
     name: independent-review-rerun
     if: github.event_name == 'issue_comment' && github.event.issue.pull_request
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 30
+    # Two comments close together would both find the run completed, and the second re-run
+    # would fail on the run the first one restarted. One job per pull request runs at a
+    # time; the next waits for it, and then for the run it restarted.
+    concurrency:
+      group: independent-review-rerun-${{ github.event.issue.number }}
+      cancel-in-progress: false
     permissions:
       actions: write
       pull-requests: read
@@ -90,6 +98,17 @@ jobs:
             echo "::error::no guards run of pull_request_target for $head"
             exit 1
           fi
+          deadline=$((SECONDS + WAIT_SECONDS))
+          status="$(gh run view "$run" --repo "$REPOSITORY" --json status --jq .status)"
+          while [ "$status" != "completed" ]; do
+            if [ "$SECONDS" -ge "$deadline" ]; then
+              echo "::error::run $run is still $status after $WAIT_SECONDS seconds"
+              exit 1
+            fi
+            echo "run $run is $status; waiting"
+            sleep 15
+            status="$(gh run view "$run" --repo "$REPOSITORY" --json status --jq .status)"
+          done
           job="$(gh run view "$run" --repo "$REPOSITORY" --json jobs \
             --jq '.jobs[] | select(.name == "independent-review") | .databaseId')"
           if [ -z "$job" ]; then
@@ -101,6 +120,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           REPOSITORY: ${{ github.repository }}
           NUMBER: ${{ github.event.issue.number }}
+          WAIT_SECONDS: 1500
 
   deny-rules:
     # The guard compares the settings file of the base and head commits with `git`, so the
