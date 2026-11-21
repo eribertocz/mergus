@@ -156,3 +156,19 @@ does not fail; the owner adds the rule once the guards run in CI (MG-REQ-1725).
 - Verify: check `repository-settings`
 - Depends: MG-REQ-1720
 - Decision: 0003
+
+### MG-REQ-1739 · Release pull request check
+
+On a `release/<version>` branch, the `pr-format` guard MUST also fail when:
+
+1. MG-REQ-1739.1: the workspace version in the root `Cargo.toml` differs from `<version>`;
+2. MG-REQ-1739.2: `CHANGELOG.md` has no `## <version>` section;
+3. MG-REQ-1739.3: the body lacks a `## Gates` section naming every gate of section 2 of
+   `roadmap.md`, each followed by a link to its evidence;
+4. MG-REQ-1739.4: `cargo xtask traceability` reports a behavior rule of the released phase or
+   an earlier one without a passing test.
+
+- Kind: process
+- Verify: check `release-gates`
+- Depends: MG-REQ-1711, MG-REQ-1736
+- Decision: 0009

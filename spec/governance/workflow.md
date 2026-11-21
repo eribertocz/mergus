@@ -178,3 +178,14 @@ verdict, the open `needs-owner` issues, and any merged release pull request with
 
 - Kind: process
 - Verify: test `mg_req_1713_owner_queue_lists_ready_items`
+
+### MG-REQ-1715 · Release trigger check
+
+The `release-trigger` check of `cargo xtask ci` MUST fail when a workflow under
+`.github/workflows/` grants `contents: write`, `packages: write` or `id-token: write` and is
+triggered by anything other than `push` of tags matching `v*`.
+
+- Kind: process
+- Verify: check `release-trigger`
+- Depends: MG-REQ-1712
+- Decision: 0009
