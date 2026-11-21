@@ -12,7 +12,7 @@ use crate::failure::Failure;
 use crate::{cargo, traceability, workspace};
 
 /// The steps, in the order they run.
-pub(crate) const STEPS: [&str; 18] = [
+pub(crate) const STEPS: [&str; 19] = [
     "fmt",
     "contracts-generated",
     "clippy",
@@ -25,6 +25,7 @@ pub(crate) const STEPS: [&str; 18] = [
     "secrets",
     "sql-concatenation",
     "crate-docs",
+    "error-catalog",
     "license-headers",
     "governance-files",
     "release-trigger",
@@ -210,6 +211,19 @@ mod tests {
     fn mg_req_1715_ci_runs_the_release_trigger_check() {
         assert!(STEPS.contains(&"release-trigger"));
         assert!(crate::check("release-trigger").is_ok());
+    }
+
+    #[test]
+    fn mg_req_1335_ci_runs_the_error_catalog_check_after_crate_docs() {
+        let position = |step: &str| STEPS.iter().position(|other| *other == step);
+        assert_eq!(
+            position("error-catalog"),
+            position("crate-docs").map(|index| index + 1)
+        );
+        assert!(crate::check("error-catalog").is_ok());
+        let root = workspace::root().unwrap();
+        let justfile = workspace::read(&root.join("justfile")).unwrap();
+        assert!(justfile.contains("\nerror-catalog:\n    cargo xtask error-catalog\n"));
     }
 
     #[test]
