@@ -88,3 +88,26 @@ the file system. Such statements are rejected at validation.
 
 - Kind: behavior
 - Verify: test `mg_req_0308_side_effect_sql_rejected`
+
+### MG-REQ-0359 · Closest known name
+
+When an error names the closest known name (MG-REQ-0307, MG-REQ-0316, MG-REQ-0331), Mergus MUST
+choose, among the candidates of that error, the one with the smallest Levenshtein distance,
+counted in Unicode scalar values, to the name given; ties are broken by byte order. It MUST
+suggest it only when that distance is at most `max(2, n / 3)`, `n` being the number of scalar
+values of the name given and the division rounding down. Otherwise the error has no suggestion.
+
+- Kind: behavior
+- Verify: test `mg_req_0359_closest_name_by_edit_distance`
+- Decision: 0017
+
+### MG-REQ-0360 · Suggested valid name
+
+The suggestion of MG-REQ-0305 MUST be the name given after these steps, in order: ASCII
+letters lowercased; every run of characters outside `a-z`, `0-9` and `_` replaced by one `_`;
+leading and trailing `_` removed; `n_` prepended when the result is empty or starts with a
+digit; the result cut to 63 characters.
+
+- Kind: behavior
+- Verify: test `mg_req_0360_invalid_name_gets_valid_suggestion`
+- Decision: 0017
