@@ -1,0 +1,19 @@
+{
+  "/repos/owner/repo/pulls/5/commits": [
+    {
+      "commit": {
+        "author": {
+          "email": "ann@example.com",
+          "name": "Ann Dev"
+        },
+        "message": "feat: add guards (#7)\n\nCo-Authored-By: Claude <noreply@anthropic.com>\nClaude-Session: https://claude.ai/code/session_01Aaaa\n"
+      },
+      "parents": [
+        {
+          "sha": "0000000000000000000000000000000000000000"
+        }
+      ],
+      "sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    }
+  ]
+}

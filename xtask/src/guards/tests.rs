@@ -308,6 +308,42 @@ fn mg_req_1732_3_trailers() {
     );
 }
 
+/// The MG-REQ-1748 finding on a commit without a valid sign-off.
+const UNSIGNED: &str = "lacks a `Signed-off-by: <name> <email>` line with the author's email";
+
+#[test]
+fn mg_req_1748_dco_same_repository_or_signed_fork_passes() {
+    for case in ["passes", "fork-signed"] {
+        assert_eq!(run(COMMIT_FORMAT, case), Vec::<String>::new(), "{case}");
+    }
+}
+
+#[test]
+fn mg_req_1748_dco_fork_commit_without_sign_off_fails() {
+    let expected: Vec<String> = ["aaaaaaa", "bbbbbbb", "ccccccc"]
+        .iter()
+        .map(|sha| format!("MG-REQ-1748: commit {sha}: {UNSIGNED}"))
+        .collect();
+    assert_eq!(
+        run(COMMIT_FORMAT, "fork-unsigned"),
+        lines(
+            "commit-format",
+            &expected.iter().map(String::as_str).collect::<Vec<_>>()
+        )
+    );
+}
+
+#[test]
+fn mg_req_1748_dco_deleted_head_repository_is_a_fork() {
+    assert_eq!(
+        run(COMMIT_FORMAT, "deleted-fork-unsigned"),
+        lines(
+            "commit-format",
+            &[&format!("MG-REQ-1748: commit aaaaaaa: {UNSIGNED}")]
+        )
+    );
+}
+
 #[test]
 fn mg_req_1733_one_new_session_passes() {
     for case in ["passes", "spec-branch-passes"] {

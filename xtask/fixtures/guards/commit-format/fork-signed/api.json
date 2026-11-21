@@ -1,0 +1,52 @@
+{
+  "/repos/owner/repo/pulls/5/commits": [
+    {
+      "commit": {
+        "author": {
+          "email": "ann@example.com",
+          "name": "Ann Dev"
+        },
+        "message": "feat(xtask): add guards (#7)\n\nBody.\n\nCo-Authored-By: Claude <noreply@anthropic.com>\nClaude-Session: https://claude.ai/code/session_01Aaaa\nSigned-off-by: Ann Dev <ann@example.com>\n"
+      },
+      "parents": [
+        {
+          "sha": "0000000000000000000000000000000000000000"
+        }
+      ],
+      "sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    },
+    {
+      "commit": {
+        "author": {
+          "email": "ann@example.com",
+          "name": "Ann Dev"
+        },
+        "message": "feat: more (#7)\n\nSigned-off-by: Ann Dev <ann@example.com>\n\nCo-Authored-By: Claude <noreply@anthropic.com>\nClaude-Session: https://claude.ai/code/session_01Aaaa\n"
+      },
+      "parents": [
+        {
+          "sha": "0000000000000000000000000000000000000000"
+        }
+      ],
+      "sha": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+    },
+    {
+      "commit": {
+        "author": {
+          "email": "ann@example.com",
+          "name": "Ann Dev"
+        },
+        "message": "Merge branch 'main' into issue-7-guards"
+      },
+      "parents": [
+        {
+          "sha": "0000000000000000000000000000000000000000"
+        },
+        {
+          "sha": "0000000000000000000000000000000000000000"
+        }
+      ],
+      "sha": "cccccccccccccccccccccccccccccccccccccccc"
+    }
+  ]
+}

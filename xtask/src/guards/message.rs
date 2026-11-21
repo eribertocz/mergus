@@ -68,9 +68,47 @@ pub(crate) fn is_session(value: &str) -> bool {
         .is_some_and(|id| !id.is_empty() && id.bytes().all(|byte| byte.is_ascii_alphanumeric()))
 }
 
+/// Returns whether a message has a line `Signed-off-by: <name> <email>`, the key in any case,
+/// with a name and whose email equals `email` (MG-REQ-1748).
+pub(crate) fn is_signed_off(message: &str, email: &str) -> bool {
+    !email.is_empty()
+        && message
+            .lines()
+            .filter_map(|line| line.trim().split_once(':'))
+            .filter(|(key, _)| key.eq_ignore_ascii_case("Signed-off-by"))
+            .filter_map(|(_, value)| value.trim().strip_suffix('>')?.rsplit_once('<'))
+            .any(|(name, signed)| !name.trim().is_empty() && signed == email)
+}
+
 #[cfg(test)]
 mod tests {
-    use super::{is_conventional, is_session, values};
+    use super::{is_conventional, is_session, is_signed_off, values};
+
+    #[test]
+    fn mg_req_1748_sign_off_names_the_author() {
+        let email = "ann@example.com";
+        assert!(is_signed_off(
+            "x\n\nSigned-off-by: Ann Dev <ann@example.com>",
+            email
+        ));
+        assert!(is_signed_off(
+            "x\n\nsigned-off-by: Ann <ann@example.com>\n",
+            email
+        ));
+        assert!(!is_signed_off(
+            "x\n\nSigned-off-by: Ann <bob@example.com>",
+            email
+        ));
+        assert!(!is_signed_off(
+            "x\n\nSigned-off-by: <ann@example.com>",
+            email
+        ));
+        assert!(!is_signed_off(
+            "x\n\nSigned-off-by: Ann ann@example.com",
+            email
+        ));
+        assert!(!is_signed_off("x\n\nSigned-off-by: Ann <>", ""));
+    }
 
     #[test]
     fn mg_req_1732_subjects_follow_conventional_commits() {

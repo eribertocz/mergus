@@ -1,0 +1,3 @@
+[package]
+name = "mergus-c"
+license = "MIT OR Apache-2.0"

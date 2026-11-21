@@ -3,6 +3,7 @@ name = "xtask"
 version = "0.0.0"
 edition.workspace = true
 rust-version.workspace = true
+license.workspace = true
 publish.workspace = true
 description = "Repository automation for Mergus, run as `cargo xtask <command>`."
 

@@ -1,0 +1,4 @@
+[package]
+name = "mergus-d"
+license = { workspace = true }
+publish = { workspace = true }

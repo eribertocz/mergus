@@ -46,6 +46,9 @@ pub(crate) struct Event {
     pub(crate) number: u64,
     /// Its head branch.
     pub(crate) branch: String,
+    /// The repository of its head branch, as `owner/name`, or `None` when the event gives
+    /// none, as for a fork that was deleted.
+    pub(crate) head_repository: Option<String>,
     /// Its base commit.
     pub(crate) base: String,
     /// Its head commit.
@@ -84,10 +87,22 @@ impl Event {
                 .and_then(Json::as_str)
                 .ok_or_else(|| missing("pull_request.head.ref"))?
                 .to_owned(),
+            head_repository: pull_request
+                .get("head")
+                .and_then(|head| head.get("repo"))
+                .and_then(|repo| repo.get("full_name"))
+                .and_then(Json::as_str)
+                .map(str::to_owned),
             base: sha(pull_request, "base").ok_or_else(|| missing("pull_request.base.sha"))?,
             head: sha(pull_request, "head").ok_or_else(|| missing("pull_request.head.sha"))?,
             body: github::text(pull_request.get("body")),
         })
+    }
+
+    /// Whether the pull request comes from a fork: its head repository is not its base
+    /// repository, or is unknown (MG-REQ-1748).
+    pub(crate) fn is_from_fork(&self) -> bool {
+        self.head_repository.as_deref() != Some(self.repository.as_str())
     }
 }
 
