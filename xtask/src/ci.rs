@@ -12,8 +12,9 @@ use crate::failure::Failure;
 use crate::{cargo, traceability, workspace};
 
 /// The steps, in the order they run.
-pub(crate) const STEPS: [&str; 14] = [
+pub(crate) const STEPS: [&str; 15] = [
     "fmt",
+    "contracts-generated",
     "clippy",
     "unsafe",
     "missing-docs",

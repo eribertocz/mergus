@@ -57,6 +57,13 @@ crate-docs:
 cargo-deny:
     cargo deny check
 
+# Contract types (MG-REQ-0202): write them from `schemas/`, or fail when they are out of date.
+contracts-generate:
+    cargo xtask contracts-generate
+
+contracts-generated:
+    cargo xtask contracts-generated
+
 # Pull request guards (MG-REQ-1730). They judge a pull request against its base, so `check`
 # never runs them (MG-REQ-1724).
 scope *args:
