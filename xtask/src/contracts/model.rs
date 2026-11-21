@@ -134,16 +134,10 @@ fn type_of(name: &str, node: &Json, pointer: &str, items: &mut Vec<Item>) -> Res
         return object(name, node, pointer, items);
     }
     if let Some(choices) = node.get("enum") {
-        let values =
-            strings(choices).ok_or_else(|| format!("{pointer}: `enum` must list strings"))?;
         if kind.is_some_and(|kind| kind != "string") {
             return Err(format!("{pointer}: `enum` must have `type` string"));
         }
-        let values = values
-            .into_iter()
-            .map(|value| pascal(&value).map(|variant| (value, variant)))
-            .collect::<Option<Vec<_>>>()
-            .ok_or_else(|| format!("{pointer}: every value of `enum` must be snake_case"))?;
+        let values = variants(choices, pointer)?;
         items.push(Item::Enum {
             name: name.to_owned(),
             doc,
@@ -151,6 +145,28 @@ fn type_of(name: &str, node: &Json, pointer: &str, items: &mut Vec<Item>) -> Res
         });
         return Ok(Type::Named(name.to_owned()));
     }
+    scalar(name, node, kind, pointer, items)
+}
+
+/// Returns each value of an `enum` and its variant name.
+fn variants(choices: &Json, pointer: &str) -> Result<Vec<(String, String)>, String> {
+    strings(choices)
+        .ok_or_else(|| format!("{pointer}: `enum` must list strings"))?
+        .into_iter()
+        .map(|value| pascal(&value).map(|variant| (value, variant)))
+        .collect::<Option<Vec<_>>>()
+        .ok_or_else(|| format!("{pointer}: every value of `enum` must be snake_case"))
+}
+
+/// Returns the type of a node that is neither an object, an enum nor a reference: from its
+/// `type`, or from the value of its `const`.
+fn scalar(
+    name: &str,
+    node: &Json,
+    kind: Option<&str>,
+    pointer: &str,
+    items: &mut Vec<Item>,
+) -> Result<Type, String> {
     let kind = match (kind, node.get("const")) {
         (Some(kind), _) => kind,
         (None, Some(Json::String(_))) => "string",
@@ -168,12 +184,8 @@ fn type_of(name: &str, node: &Json, pointer: &str, items: &mut Vec<Item>) -> Res
             let items_node = node
                 .get("items")
                 .ok_or_else(|| format!("{pointer}: an array needs `items`"))?;
-            let item = type_of(
-                &format!("{name}Item"),
-                items_node,
-                &format!("{pointer}/items"),
-                items,
-            )?;
+            let at = format!("{pointer}/items");
+            let item = type_of(&format!("{name}Item"), items_node, &at, items)?;
             Ok(Type::List(Box::new(item)))
         }
         _ => Err(format!("{pointer}: unsupported type `{kind}`")),
