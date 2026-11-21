@@ -119,3 +119,16 @@ environment, source and tag names dynamically.
 - Kind: behavior
 - Verify: test `mg_req_1311_dynamic_completions`
 - Phase: 0.8
+
+### MG-REQ-1312 · describe --json
+
+`mergus describe --json` MUST print a versioned contract document with the models, tables,
+columns (name, logical type, nullability) and actions the current identity is allowed to see or
+run, and nothing else. An object the identity cannot see MUST be indistinguishable from one
+that does not exist. The document MUST contain no data values and no secrets.
+
+- Kind: behavior
+- Verify: test `mg_req_1312_describe_shows_only_what_is_visible`
+- Phase: 0.6
+- Depends: MG-REQ-1404
+- Decision: 0008

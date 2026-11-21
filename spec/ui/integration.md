@@ -74,3 +74,15 @@ send no telemetry and work without internet.
 
 - Kind: behavior
 - Verify: test `mg_req_1406_ui_offline_and_strict_csp`
+
+### MG-REQ-1407 · Trusted ecosystem pieces
+
+The mini-host MUST mount a piece of another module (for example the shared AI chat) only when
+the host's or the installation's UI manifest declares it, with its origin and integrity hash;
+it MUST never load an undeclared piece. Declared pieces follow MG-REQ-1403 to MG-REQ-1405; this
+is the only exception to "no third-party scripts" of MG-REQ-1406.
+
+- Kind: behavior
+- Verify: test `mg_req_1407_only_declared_pieces_mount`
+- Depends: MG-REQ-1402, MG-REQ-1406
+- Decision: 0008

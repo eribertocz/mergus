@@ -116,3 +116,18 @@ Windows. `cargo xtask ci` MUST run locally exactly what CI runs.
 - Kind: process
 - Verify: check `ci-duration`
 - Phase: 0.1
+
+### MG-REQ-0168 · External agent compatibility
+
+1. MG-REQ-0168.1: a nightly, non-blocking job MUST drive Mergus as an external agent would,
+   through the CLI with `--json` only: `describe`, a change on a branch, `validate`, `plan`,
+   and a denied permission that ends with its exit code. The agent is a deterministic stub, so
+   the job needs no AI provider.
+2. MG-REQ-0168.2: the 1.0 release notes MUST include a compatibility table of the agents
+   tested against Mergus.
+
+- Kind: process
+- Verify: check `agent-compatibility`
+- Phase: 0.9
+- Depends: MG-REQ-0182, MG-REQ-1312
+- Decision: 0008
