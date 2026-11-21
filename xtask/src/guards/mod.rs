@@ -18,7 +18,7 @@ mod repository_settings;
 mod scope;
 mod session_identity;
 #[cfg(test)]
-pub(crate) use repository_settings::BLOCKING_GUARDS;
+pub(crate) use repository_settings::{GUARD_JOBS, REQUIRED_CHECKS};
 #[cfg(test)]
 mod tests;
 #[cfg(test)]
