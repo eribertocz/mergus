@@ -50,6 +50,13 @@ jobs:
         env:
           GUARD: ${{ matrix.guard }}
           GITHUB_TOKEN: ${{ github.token }}
+      - name: Run the contract-compatibility guard
+        # It blocks through the `scope` check, so it needs no required check of its own
+        # (MG-REQ-1724). The step runs even when the scope guard fails, so both report.
+        if: matrix.guard == 'scope' && !cancelled()
+        run: cargo xtask contract-compatibility
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
 
   independent-review:
     name: independent-review
