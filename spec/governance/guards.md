@@ -39,7 +39,7 @@ The `scope` guard MUST fail when:
    `owner-authorized`;
 3. MG-REQ-1731.3: on a `spec/` branch, a changed file is outside the specification scope;
 4. MG-REQ-1731.4: on a `release/` branch, a changed file is not a `Cargo.toml`, a
-   `pyproject.toml` or `CHANGELOG.md`;
+   `pyproject.toml`, the root `Cargo.lock` or `CHANGELOG.md`;
 5. MG-REQ-1731.5: in a Rust file (`*.rs`), an added `allow` or `expect` attribute, at item or
    crate level, has no written reason: neither a `reason = "<text>"` argument inside the
    attribute, which may span several lines, nor a `// reason: <text>` comment on the line
@@ -51,7 +51,7 @@ Only the owner adds the label `owner-authorized`, by hand. Sessions MUST NOT add
 - Kind: process
 - Verify: check `scope`
 - Depends: MG-REQ-1707, MG-REQ-1723, MG-REQ-0013, MG-REQ-0014
-- Decision: 0003
+- Decision: 0003, 0016
 
 ### MG-REQ-1732 · Commit-format guard
 
@@ -166,7 +166,9 @@ On a `release/<version>` branch, the `pr-format` guard MUST also fail when:
 3. MG-REQ-1739.3: the body lacks a `## Gates` section with, for every gate in the first
    column of the table in section 2 of `roadmap.md` (read from the base commit), a list item
    on one line: `- `, the gate's name, `: `, then an inline Markdown link (text in square
-   brackets, then a URL that starts with `https://` in parentheses). Items may come in any order; other lines are ignored.
+   brackets, then a URL that starts with `https://` in parentheses). Items may come in any order; other lines are ignored;
+5. MG-REQ-1739.5: a member `Cargo.toml` of the workspace sets its own `version` instead of
+   `version.workspace = true`, so one bump of the root `Cargo.toml` versions every crate.
 
 `release-gates` is the name of this extension of `pr-format`, not a command or a required check
 of its own; its findings are printed as `pr-format: MG-REQ-1739.<n>: <message>`. Tests of the
@@ -178,4 +180,4 @@ code of the head (MG-REQ-1722).
 - Kind: process
 - Verify: check `release-gates`
 - Depends: MG-REQ-1711, MG-REQ-1736
-- Decision: 0009, 0013
+- Decision: 0009, 0013, 0016
