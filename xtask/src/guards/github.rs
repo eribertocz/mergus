@@ -88,6 +88,9 @@ pub(crate) struct ChangedFile {
     pub(crate) paths: Vec<String>,
     /// Its unified diff, when GitHub gives one.
     pub(crate) patch: Option<String>,
+    /// How it changes: `added`, `removed`, `modified`, `renamed`, `copied`, `changed` or
+    /// `unchanged`.
+    pub(crate) status: String,
 }
 
 /// An issue: its body and the names of its labels.
@@ -169,6 +172,7 @@ pub(crate) fn files(api: &dyn Api, repo: &str, number: u64) -> Result<Vec<Change
                 .map(str::to_owned)
                 .collect(),
             patch: item.get("patch").and_then(Json::as_str).map(str::to_owned),
+            status: text(item.get("status")),
         })
         .collect())
 }

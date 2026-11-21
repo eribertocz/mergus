@@ -5,6 +5,7 @@
 //! schema directory and the directory its types are generated into: the contracts of
 //! `schemas/`, and the fixture contracts the tests of `mergus-contracts` compile.
 
+mod compatibility;
 mod layout;
 mod model;
 mod render;
@@ -16,6 +17,8 @@ use crate::failure::Failure;
 use crate::json::Json;
 use crate::workspace;
 use render::Module;
+
+pub(crate) use compatibility::incompatibilities;
 
 /// Each schema directory and its generated directory, relative to the workspace root.
 const PAIRS: [(&[&str], &[&str]); 2] = [
