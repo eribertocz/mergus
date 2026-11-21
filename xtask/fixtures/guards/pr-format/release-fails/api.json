@@ -10,13 +10,23 @@
     "path": "CHANGELOG.md"
   },
   "/repos/owner/repo/contents/Cargo.toml?ref=1111111111111111111111111111111111111111": {
-    "content": "W3dvcmtzcGFjZV0KbWVtYmVycyA9IFsieHRhc2siXQoKW3BhY2thZ2VdCnZlcnNpb24gPSAiMC4x\nLjAiCgpbd29ya3NwYWNlLnBhY2thZ2VdCnZlcnNpb24gPSAiMC4yLjAiICMgYnVtcGVkCg==\n",
+    "content": "W3dvcmtzcGFjZV0KbWVtYmVycyA9IFsieHRhc2siLCAiY3JhdGVzL2IiXQoKW3BhY2thZ2VdCnZlcnNpb24gPSAiMC4xLjAiCgpbd29ya3NwYWNlLnBhY2thZ2VdCnZlcnNpb24gPSAiMC4yLjAiICMgYnVtcGVkCg==\n",
     "encoding": "base64",
     "path": "Cargo.toml"
+  },
+  "/repos/owner/repo/contents/crates/b/Cargo.toml?ref=1111111111111111111111111111111111111111": {
+    "content": "W3BhY2thZ2VdCm5hbWUgPSAiYiIKdmVyc2lvbi53b3Jrc3BhY2UgPSB0cnVlCg==\n",
+    "encoding": "base64",
+    "path": "crates/b/Cargo.toml"
   },
   "/repos/owner/repo/contents/spec/roadmap.md?ref=0000000000000000000000000000000000000000": {
     "content": "IyBSb2FkbWFwCgpDdXJyZW50IHBoYXNlOiAwLjEKCiMjIDEuIFBoYXNlcwp8IFBoYXNlIHwgVGhl\nbWUgfAp8LS0tfC0tLXwKfCAwLjEgfCBGb3VuZGF0aW9ucyB8CgojIyAyLiBHYXRlcwpFdmVyeSBy\nZWxlYXNlIHNob3dzIGVhY2ggZ2F0ZSBwYXNzaW5nLgoKfCBHYXRlIHwgRXZpZGVuY2UgfAp8LS0t\nfC0tLXwKfCBUZXN0cyBncmVlbiB8IENJIHJ1biB8CnwgKipCZW5jaG1hcmtzKiogfCByZXBvcnQg\nfAoKfCBPdGhlciB8IHRhYmxlIHwKfC0tLXwtLS18CnwgTm90IGEgZ2F0ZSB8IHggfAoKIyMgMy4g\nUG9zdC1NVlAKfCBHYXRlIHwgeCB8CnwtLS18LS0tfAp8IE5vdCBhIGdhdGUgZWl0aGVyIHwgeCB8\nCg==\n",
     "encoding": "base64",
     "path": "spec/roadmap.md"
+  },
+  "/repos/owner/repo/contents/xtask/Cargo.toml?ref=1111111111111111111111111111111111111111": {
+    "content": "W3BhY2thZ2VdCm5hbWUgPSAieHRhc2siCnZlcnNpb24gPSAiMC4xLjAiCg==\n",
+    "encoding": "base64",
+    "path": "xtask/Cargo.toml"
   }
 }

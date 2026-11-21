@@ -18,5 +18,10 @@
     "content": "IyBSb2FkbWFwCgpDdXJyZW50IHBoYXNlOiAwLjEKCiMjIDEuIFBoYXNlcwp8IFBoYXNlIHwgVGhl\nbWUgfAp8LS0tfC0tLXwKfCAwLjEgfCBGb3VuZGF0aW9ucyB8CgojIyAyLiBHYXRlcwpFdmVyeSBy\nZWxlYXNlIHNob3dzIGVhY2ggZ2F0ZSBwYXNzaW5nLgoKfCBHYXRlIHwgRXZpZGVuY2UgfAp8LS0t\nfC0tLXwKfCBUZXN0cyBncmVlbiB8IENJIHJ1biB8CnwgKipCZW5jaG1hcmtzKiogfCByZXBvcnQg\nfAoKfCBPdGhlciB8IHRhYmxlIHwKfC0tLXwtLS18CnwgTm90IGEgZ2F0ZSB8IHggfAoKIyMgMy4g\nUG9zdC1NVlAKfCBHYXRlIHwgeCB8CnwtLS18LS0tfAp8IE5vdCBhIGdhdGUgZWl0aGVyIHwgeCB8\nCg==\n",
     "encoding": "base64",
     "path": "spec/roadmap.md"
+  },
+  "/repos/owner/repo/contents/xtask/Cargo.toml?ref=1111111111111111111111111111111111111111": {
+    "content": "W3BhY2thZ2VdCm5hbWUgPSAieHRhc2siCnZlcnNpb24gPSAiMC4wLjAiCg==\n",
+    "encoding": "base64",
+    "path": "xtask/Cargo.toml"
   }
 }

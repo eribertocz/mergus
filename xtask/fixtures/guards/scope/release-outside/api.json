@@ -5,6 +5,10 @@
       "status": "modified"
     },
     {
+      "filename": "crates/a/Cargo.lock",
+      "status": "modified"
+    },
+    {
       "filename": "docs/CHANGELOG.md",
       "status": "modified"
     }

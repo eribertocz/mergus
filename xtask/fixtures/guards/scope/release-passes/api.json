@@ -5,6 +5,10 @@
       "status": "modified"
     },
     {
+      "filename": "Cargo.lock",
+      "status": "modified"
+    },
+    {
       "filename": "crates/a/Cargo.toml",
       "status": "modified"
     },
