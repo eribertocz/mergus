@@ -1,8 +1,7 @@
 //! A minimal JSON reader, enough for the output of `cargo metadata` and of the GitHub REST
 //! API.
 //!
-//! `xtask` has no dependencies, so it reads JSON itself. Booleans are recognised but not
-//! kept: no check needs their values. Numbers keep their text.
+//! `xtask` has no dependencies, so it reads JSON itself. Numbers keep their text.
 
 use crate::failure::Failure;
 
@@ -12,7 +11,7 @@ pub(crate) enum Json {
     /// `null`.
     Null,
     /// `true` or `false`.
-    Bool,
+    Bool(bool),
     /// A number, as written in the document.
     Number(String),
     /// A string.
@@ -104,8 +103,8 @@ impl Parser<'_> {
             Some(b'{') => self.object(),
             Some(b'[') => self.array(),
             Some(b'"') => self.string().map(Json::String),
-            Some(b't') => self.literal("true", Json::Bool),
-            Some(b'f') => self.literal("false", Json::Bool),
+            Some(b't') => self.literal("true", Json::Bool(true)),
+            Some(b'f') => self.literal("false", Json::Bool(false)),
             Some(b'n') => self.literal("null", Json::Null),
             Some(b'-' | b'0'..=b'9') => self.number(),
             _ => Err(self.error("expected a value")),

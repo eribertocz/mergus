@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "description": "A contract that breaks MG-REQ-0201.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "contract"
+  ],
+  "properties": {
+    "contract": {
+      "description": "The name of the contract.",
+      "const": "no_version"
+    }
+  }
+}

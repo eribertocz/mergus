@@ -18,6 +18,8 @@
 //!   tracked (MG-REQ-0179).
 //! - `sql-concatenation`: no SQL text is built with formatting macros (MG-REQ-0184).
 //! - `crate-docs`: every crate documents its one responsibility (MG-REQ-0115).
+//! - `contracts-generate`: writes the Rust types of every contract from its schema;
+//!   `contracts-generated` fails when they are out of date (MG-REQ-0202).
 //! - `scope`, `commit-format`, `session-identity`, `independent-review`, `issue-format`,
 //!   `pr-format`, `deny-rules`, `repository-settings`: the guards that judge a pull request
 //!   (MG-REQ-1730 to MG-REQ-1738). They print their findings and exit with status 1 when
@@ -38,6 +40,7 @@ mod boundaries;
 mod cargo;
 mod ci;
 mod content;
+mod contracts;
 mod crate_docs;
 mod failure;
 mod guards;
@@ -56,7 +59,8 @@ use std::process::ExitCode;
 use failure::Failure;
 
 const USAGE: &str = "usage: cargo xtask <clippy|unsafe|missing-docs|reproducible-build|\
-     check-boundaries|language|size|secrets|sql-concatenation|crate-docs|scope|commit-format|\
+     check-boundaries|language|size|secrets|sql-concatenation|crate-docs|contracts-generate|\
+     contracts-generated|scope|commit-format|\
      session-identity|independent-review|issue-format|pr-format|deny-rules|repository-settings|\
      traceability|ci>";
 
@@ -94,6 +98,8 @@ fn check(command: &str) -> Result<(), Failure> {
         "secrets" => content::check(&root, content::SECRETS),
         "sql-concatenation" => content::check(&root, content::SQL_CONCATENATION),
         "crate-docs" => crate_docs::check(&root),
+        "contracts-generate" => contracts::generate(&root),
+        "contracts-generated" => contracts::check(&root),
         _ => Err(Failure::new(USAGE)),
     }
 }
