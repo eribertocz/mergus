@@ -1,4 +1,74 @@
 {
+  "/repos/owner/repo/commits/9999999999999999999999999999999999999999/check-runs": {
+    "check_runs": [
+      {
+        "conclusion": "success",
+        "name": "scope",
+        "status": "completed"
+      },
+      {
+        "conclusion": "success",
+        "name": "session-identity",
+        "status": "completed"
+      },
+      {
+        "conclusion": "success",
+        "name": "independent-review",
+        "status": "completed"
+      },
+      {
+        "conclusion": "success",
+        "name": "issue-format",
+        "status": "completed"
+      },
+      {
+        "conclusion": "success",
+        "name": "pr-format",
+        "status": "completed"
+      },
+      {
+        "conclusion": "success",
+        "name": "commit-format",
+        "status": "completed"
+      },
+      {
+        "conclusion": "success",
+        "name": "deny-rules",
+        "status": "completed"
+      },
+      {
+        "conclusion": "success",
+        "name": "repository-settings",
+        "status": "completed"
+      },
+      {
+        "conclusion": "success",
+        "name": "ci (ubuntu-latest)",
+        "status": "completed"
+      },
+      {
+        "conclusion": "success",
+        "name": "ci (macos-latest)",
+        "status": "completed"
+      },
+      {
+        "conclusion": "success",
+        "name": "ci (windows-latest)",
+        "status": "completed"
+      },
+      {
+        "conclusion": "neutral",
+        "name": "traceability",
+        "status": "completed"
+      },
+      {
+        "conclusion": "success",
+        "name": "benchmarks",
+        "status": "completed"
+      }
+    ],
+    "total_count": 13
+  },
   "/repos/owner/repo/commits/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/check-runs": {
     "check_runs": [
       {
@@ -337,7 +407,7 @@
         "status": "completed"
       },
       {
-        "conclusion": "success",
+        "conclusion": "skipped",
         "name": "traceability",
         "status": "completed"
       },
@@ -551,6 +621,21 @@
       "merged_at": null,
       "number": 16,
       "title": "No benchmarks"
+    },
+    {
+      "base": {
+        "ref": "main",
+        "sha": "0000000000000000000000000000000000000000"
+      },
+      "body": "",
+      "head": {
+        "ref": "spec/neutral",
+        "sha": "9999999999999999999999999999999999999999"
+      },
+      "html_url": "https://github.com/owner/repo/pull/17",
+      "merged_at": null,
+      "number": 17,
+      "title": "Neutral check"
     }
   ],
   "/repos/owner/repo/tags": [

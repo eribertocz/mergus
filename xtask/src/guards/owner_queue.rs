@@ -20,6 +20,9 @@ use crate::json::Json;
 /// The label of the issues that wait for the owner.
 const NEEDS_OWNER: &str = "needs-owner";
 
+/// The conclusions of a check run that count as green (MG-REQ-1713.1).
+const PASSING: [&str; 2] = ["success", "skipped"];
+
 /// Items asked for in each page of check runs.
 const PAGE_SIZE: usize = 100;
 
@@ -77,8 +80,9 @@ pub(crate) fn items(api: &dyn Api, repo: &str) -> Result<Vec<String>, Failure> {
     Ok(lines)
 }
 
-/// Whether every required check of MG-REQ-1727 has a check run with conclusion `success` on
-/// the commit `sha` (MG-REQ-1713.1). The API gives the latest run of each name.
+/// Whether every required check of MG-REQ-1727 has a check run with conclusion `success` or
+/// `skipped` on the commit `sha`, as the ruleset accepts (MG-REQ-1713.1). The API gives the
+/// latest run of each name.
 fn is_green(api: &dyn Api, repo: &str, sha: &str) -> Result<bool, Failure> {
     let mut succeeded = BTreeSet::new();
     for page in 1.. {
@@ -91,7 +95,11 @@ fn is_green(api: &dyn Api, repo: &str, sha: &str) -> Result<bool, Failure> {
             .items();
         succeeded.extend(
             runs.iter()
-                .filter(|run| run.get("conclusion").and_then(Json::as_str) == Some("success"))
+                .filter(|run| {
+                    run.get("conclusion")
+                        .and_then(Json::as_str)
+                        .is_some_and(|conclusion| PASSING.contains(&conclusion))
+                })
                 .map(|run| github::text(run.get("name"))),
         );
         if runs.len() < PAGE_SIZE {
