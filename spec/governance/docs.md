@@ -65,3 +65,15 @@ generated from `mergus schema --all` and `describe --json`. It shows the approva
 - Verify: check `docs-agent-guide`
 - Depends: MG-REQ-1785, MG-REQ-0191
 - Decision: 0010
+
+### MG-REQ-1788 · Agent skills
+
+Mergus MUST ship versioned agent skills, one task recipe per common job (add a source, add a
+model, fix a failing test, investigate a failed run, promote a change), that use only the CLI
+and MCP doors and the approval-by-Git flow (MG-REQ-0191). Each skill MUST have an example that
+runs in CI.
+
+- Kind: process
+- Verify: check `docs-agent-skills`
+- Depends: MG-REQ-1787
+- Decision: 0011

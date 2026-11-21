@@ -131,3 +131,15 @@ Windows. `cargo xtask ci` MUST run locally exactly what CI runs.
 - Phase: 0.9
 - Depends: MG-REQ-0182, MG-REQ-1312
 - Decision: 0008
+
+### MG-REQ-0169 · Agent benchmark
+
+A fixed, versioned set of agent tasks with checkable outcomes MUST run against the agents
+listed in MG-REQ-0168.2, and the 1.0 release notes MUST publish each agent's success rate. The
+job never blocks a release.
+
+- Kind: process
+- Verify: check `agent-benchmark`
+- Phase: 0.9
+- Depends: MG-REQ-0168
+- Decision: 0011

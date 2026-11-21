@@ -17,7 +17,7 @@ import sys
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 SPEC = ROOT / "spec"
-GENERATED = {"RULES.md", "crates.md", "status.md"}
+GENERATED = {"RULES.md", "crates.md"}
 HEADER_FIELDS = ["id", "title", "crate", "phase", "status", "depends_on"]
 STATUSES = {"draft", "stable", "retired"}
 KINDS = {"behavior", "process"}

@@ -24,7 +24,7 @@ catalog/
 
 | Field | Content |
 |---|---|
-| `contract`, `contract_version` | `mergus.manifest`, semantic version |
+| `contract`, `contract_version` | `mergus.manifest`, major version (MG-REQ-0204) |
 | `manifest_id` | Unique identifier |
 | `environment` | Environment name |
 | `previous_manifest_id` | The manifest it replaces; null for the first |

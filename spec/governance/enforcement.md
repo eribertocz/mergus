@@ -75,7 +75,7 @@ CI MUST run these guards on every pull request, all blocking:
 | `commit-format` | MG-REQ-1708 |
 | `deny-rules` | MG-REQ-1701, MG-REQ-1721 |
 | `repository-settings` | MG-REQ-1720 |
-| `contract-compatibility` | MG-REQ-0204, MG-REQ-0205 |
+| `contract-compatibility` | MG-REQ-0204, MG-REQ-0205 (runs inside the `scope` job, so it needs no required check of its own) |
 
 A guard judges the pull request against its base, so it runs only in the guard workflow, from
 the base commit (MG-REQ-1722). `cargo xtask ci` runs the checks that judge the tree alone and
