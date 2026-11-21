@@ -38,6 +38,6 @@ identity that calls it.
 
 - Kind: process
 - Verify: review `mcp-thin-adapter`
-- Phase: 1.4
+- Phase: 0.8
 - Depends: MG-REQ-0182
 - Decision: 0008

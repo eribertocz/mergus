@@ -132,3 +132,14 @@ that does not exist. The document MUST contain no data values and no secrets.
 - Phase: 0.6
 - Depends: MG-REQ-1404
 - Decision: 0008
+
+### MG-REQ-1313 · Idempotency keys
+
+Every command that changes state MUST accept `--idempotency-key <key>`. A second call with the
+same key and the same arguments MUST return the first call's result without new effects; the
+same key with other arguments MUST fail with a typed error.
+
+- Kind: behavior
+- Verify: test `mg_req_1313_same_key_has_no_second_effect`
+- Phase: 0.4
+- Decision: 0010

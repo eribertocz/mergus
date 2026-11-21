@@ -13,6 +13,7 @@ description: Review one Mergus pull request against its issue and the specificat
    - Scope: only the issue's crate and files changed.
    - Behavior: nothing the rules do not define; deviations raised as issues.
    - Kernel: MG-REQ-0001 to MG-REQ-0016.
+   - AI-native: a new command has `--json`, a `mergus schema` entry, `--dry-run` and an idempotency key when it changes state, stable identifiers and actionable diagnostics (MG-REQ-0192).
    - No AI inside: no language model, AI SDK or AI provider dependency or call (MG-REQ-0190); agent changes arrive only as reviewed branches (MG-REQ-0191).
    - Portability: paths handled as path types, printed with `/`; CI green on Linux, macOS and Windows (MG-REQ-0189).
    - Review items: for every rule of the issue verified by `review <item>`, the diff meets the rule's statement.

@@ -89,3 +89,14 @@ hashing.
 
 - Kind: behavior
 - Verify: test `mg_req_0208_hash_uses_canonical_json`
+
+### MG-REQ-0209 · Stable identifiers
+
+Every model, table, column, source, run, publication and diagnostic that a contract document
+names MUST carry a stable identifier that does not change when the object is renamed or moved
+(`mergus mv` keeps it) and is never reused for another object.
+
+- Kind: behavior
+- Verify: test `mg_req_0209_identifiers_survive_renames`
+- Phase: 0.2
+- Decision: 0010

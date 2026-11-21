@@ -21,7 +21,7 @@ error.
 | `plan_ready` | The plan is computed | `steps[]` with model, action, reason |
 | `step_started` | A step starts | `step_id`, `model`, `engine` |
 | `step_finished` | A step ends | `step_id`, `status`, `rows`, `bytes`, `duration_ms` |
-| `diagnostic` | An error or warning is found | `code`, `severity`, `message`, `location` |
+| `diagnostic` | An error or warning is found | `code`, `severity`, `message`, `location`, `hint`; optional `next` (MG-REQ-1334) |
 | `quality_result` | A test or check ends | `test`, `model`, `status`, `failing_rows` |
 | `published` | The pointer moved | `environment`, `manifest_id` |
 | `run_finished` | The command ends | `status`, `exit_code`, `duration_ms` |

@@ -48,3 +48,14 @@ A code MUST be in the range of the area of the rule it enforces.
 
 - Kind: process
 - Verify: check `error-catalog`
+
+### MG-REQ-1334 · Actionable errors
+
+Every `diagnostic` event MUST carry `hint`, one sentence that says what to do next, and MAY
+carry `next`, a list of CLI invocations (each a list of arguments) that address it, such as
+`["mergus", "explain", "sales"]`. `hint` and `next` MUST come from deterministic templates,
+MUST NOT contain secrets or data values, and are never run automatically.
+
+- Kind: behavior
+- Verify: test `mg_req_1334_diagnostics_are_actionable`
+- Decision: 0010

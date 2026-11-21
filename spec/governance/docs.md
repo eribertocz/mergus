@@ -53,3 +53,15 @@ linter in CI flags forbidden synonyms.
 
 - Kind: process
 - Verify: check `vocabulary`
+
+### MG-REQ-1787 · Agent guide
+
+The documentation MUST include a page "Use Mergus from an agent", linked from `llms.txt`,
+generated from `mergus schema --all` and `describe --json`. It shows the approval-by-Git flow
+(MG-REQ-0191), the exit codes, `hint` and `next` (MG-REQ-1334) and the MCP adapter
+(MG-REQ-0290), with one example that runs in CI.
+
+- Kind: process
+- Verify: check `docs-agent-guide`
+- Depends: MG-REQ-1785, MG-REQ-0191
+- Decision: 0010
