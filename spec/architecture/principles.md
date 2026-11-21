@@ -65,3 +65,17 @@ reviews (`validate`, `plan`, `explain`) and merges; production is promoted only 
 - Verify: review `approval-by-git`
 - Depends: MG-REQ-0182, MG-REQ-1225
 - Decision: 0008
+
+### MG-REQ-0192 · AI-native by contract
+
+Everything a person can do with Mergus MUST be reachable by an agent through a
+machine-readable contract, with the same permissions and controls. Every command MUST support
+`--json` and appear in `mergus schema` (MG-REQ-0263); every command that changes state MUST
+support `--dry-run` and an idempotency key (MG-REQ-1313); every object it names MUST carry a
+stable identifier (MG-REQ-0209); every diagnostic MUST be actionable (MG-REQ-1334). A new
+command that misses one of these is not accepted.
+
+- Kind: process
+- Verify: review `ai-native-contract`
+- Depends: MG-REQ-0182, MG-REQ-0190
+- Decision: 0010

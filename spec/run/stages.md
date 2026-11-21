@@ -97,3 +97,13 @@ the run report and send notifications.
 
 - Kind: behavior
 - Verify: test `mg_req_0709_finalizer_runs_on_failure`
+
+### MG-REQ-0718 · Run limits
+
+A run MUST accept limits on wall time, rows written and bytes scanned, from `project.toml` or
+the command line, the stricter one winning. Before a limit is exceeded the run MUST stop the
+step, publish nothing, and end with a typed error naming the limit.
+
+- Kind: behavior
+- Verify: test `mg_req_0718_run_stops_at_limit_without_publishing`
+- Decision: 0010

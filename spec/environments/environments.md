@@ -83,3 +83,14 @@ their pull request closes or after a configurable idle time.
 
 - Kind: behavior
 - Verify: test `mg_req_1207_cleanup_by_reference`
+
+### MG-REQ-1208 · Branch environments
+
+`mergus dev --branch` MUST create an isolated environment for the current Git branch, with the
+dev sample of MG-REQ-1205 and no write access outside it, and MUST remove it when the branch
+is merged or deleted. An agent tests a proposed change there before review (MG-REQ-0191).
+
+- Kind: behavior
+- Verify: test `mg_req_1208_branch_environment_is_isolated_and_cleaned`
+- Depends: MG-REQ-1205, MG-REQ-0191
+- Decision: 0010
