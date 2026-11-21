@@ -26,6 +26,8 @@ pub(crate) struct Module {
     pub(crate) name: String,
     pub(crate) contract: String,
     pub(crate) version: u32,
+    /// Its full version `MAJOR.MINOR.PATCH`, from its `VERSION` file.
+    pub(crate) semver: String,
     /// The schema path shown in the header, relative to the workspace root.
     pub(crate) shown_schema: String,
     /// The schema path relative to the generated file, for `include_str!`.
@@ -62,10 +64,12 @@ pub(crate) fn module(module: &Module) -> String {
         "\nimpl crate::Contract for {} {{\n\
          const NAME: &'static str = {:?};\n\
          const VERSION: u32 = {};\n\
+         const SEMANTIC_VERSION: &'static str = {:?};\n\
          const SCHEMA: &'static str = include_str!({:?});\n}}\n",
         module.root(),
         module.contract,
         module.version,
+        module.semver,
         module.include
     );
     out

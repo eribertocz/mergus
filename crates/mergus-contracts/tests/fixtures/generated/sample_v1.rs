@@ -64,5 +64,6 @@ pub struct Owner {
 impl crate::Contract for Sample {
     const NAME: &'static str = "sample";
     const VERSION: u32 = 1;
+    const SEMANTIC_VERSION: &'static str = "1.0.0";
     const SCHEMA: &'static str = include_str!("../schemas/sample/v1/schema.json");
 }

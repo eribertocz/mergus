@@ -29,7 +29,8 @@
 //!   (MG-REQ-1730 to MG-REQ-1738). They print their findings and exit with status 1 when
 //!   they have one.
 //! - `contract-compatibility`: the guard that fails when a pull request changes a schema
-//!   incompatibly without a new major version (MG-REQ-0204, MG-REQ-0205).
+//!   incompatibly without a new major version, or without the `VERSION` bump its kind of
+//!   change needs (MG-REQ-0204, MG-REQ-0205).
 //! - `traceability`: lists the behavior rules without a test, the tests that name no rule and
 //!   the rules whose test fails (MG-REQ-0165, MG-REQ-0167).
 //! - `owner-queue`: lists the pull requests ready to merge, the `needs-owner` issues and the

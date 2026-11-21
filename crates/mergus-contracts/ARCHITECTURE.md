@@ -4,7 +4,7 @@
 
 | Type | Role |
 |---|---|
-| `Contract` | Trait of every generated contract type: `NAME`, `VERSION`, `SCHEMA` |
+| `Contract` | Trait of every generated contract type: `NAME`, `VERSION`, `SEMANTIC_VERSION`, `SCHEMA` |
 | `ContractSchema` | One entry of the registry `generated::CONTRACTS` |
 | `Schema` | A parsed JSON Schema, reduced to the supported keywords (`KEYWORDS`) |
 | `SchemaError` | Why a schema cannot be used, with its JSON pointer |

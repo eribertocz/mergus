@@ -17,6 +17,9 @@ pub trait Contract: Serialize {
     const NAME: &'static str;
     /// The version of its schema: the `v<version>` directory in `schemas/<name>/`.
     const VERSION: u32;
+    /// The full semantic version of its schema, `MAJOR.MINOR.PATCH`: the text of the file
+    /// `VERSION` next to it (MG-REQ-0204). Its major part is [`Contract::VERSION`].
+    const SEMANTIC_VERSION: &'static str;
     /// The text of its JSON Schema.
     const SCHEMA: &'static str;
 }
