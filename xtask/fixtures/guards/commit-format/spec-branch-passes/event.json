@@ -8,6 +8,9 @@
     "body": "",
     "head": {
       "ref": "spec/guards",
+      "repo": {
+        "full_name": "owner/repo"
+      },
       "sha": "1111111111111111111111111111111111111111"
     },
     "number": 5

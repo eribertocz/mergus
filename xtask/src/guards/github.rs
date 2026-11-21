@@ -76,6 +76,8 @@ pub(crate) struct Commit {
     pub(crate) sha: String,
     /// Its full message.
     pub(crate) message: String,
+    /// The email of its author.
+    pub(crate) author_email: String,
     /// How many parents it has.
     pub(crate) parents: usize,
     /// Its committer date, as GitHub writes it.
@@ -144,6 +146,11 @@ pub(crate) fn commits(api: &dyn Api, repo: &str, number: u64) -> Result<Vec<Comm
         .map(|item| Commit {
             sha: text(item.get("sha")),
             message: text(item.get("commit").and_then(|commit| commit.get("message"))),
+            author_email: text(
+                item.get("commit")
+                    .and_then(|commit| commit.get("author"))
+                    .and_then(|author| author.get("email")),
+            ),
             parents: item
                 .get("parents")
                 .map_or(0, |parents| parents.items().len()),
