@@ -87,6 +87,10 @@ pr-format *args:
 repository-settings *args:
     cargo xtask repository-settings {{args}}
 
+# Compares each schema the pull request changes in place with its text at the base (MG-REQ-0205).
+contract-compatibility *args:
+    cargo xtask contract-compatibility {{args}}
+
 # Needs no network: with `--base <revision>` it compares the working tree with that revision.
 deny-rules *args:
     cargo xtask deny-rules {{args}}

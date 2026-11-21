@@ -1,4 +1,5 @@
-//! The guards that judge a pull request (MG-REQ-1730 to MG-REQ-1738).
+//! The guards that judge a pull request (MG-REQ-1730 to MG-REQ-1738, and
+//! `contract-compatibility` for MG-REQ-0205).
 //!
 //! Each guard reads the pull request from the GitHub event file named by `GITHUB_EVENT_PATH`,
 //! or from the file given with `--event <path>`, and anything else through the GitHub REST
@@ -7,6 +8,7 @@
 
 mod branch;
 mod commit_format;
+mod contract_compatibility;
 mod deny_rules;
 mod github;
 mod independent_review;
@@ -21,6 +23,8 @@ mod session_identity;
 pub(crate) use repository_settings::{GUARD_JOBS, REQUIRED_CHECKS};
 #[cfg(test)]
 mod tests;
+#[cfg(test)]
+mod tests_compatibility;
 #[cfg(test)]
 mod tests_format;
 #[cfg(test)]
@@ -138,6 +142,12 @@ pub(crate) const ISSUE_FORMAT: Guard = Guard {
 pub(crate) const PR_FORMAT: Guard = Guard {
     name: "pr-format",
     judge: pr_format::judge,
+};
+
+/// The `contract-compatibility` guard (MG-REQ-0204, MG-REQ-0205).
+pub(crate) const CONTRACT_COMPATIBILITY: Guard = Guard {
+    name: "contract-compatibility",
+    judge: contract_compatibility::judge,
 };
 
 /// What a guard found: findings, which fail it, and warnings, which do not.

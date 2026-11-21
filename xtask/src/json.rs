@@ -6,7 +6,7 @@
 use crate::failure::Failure;
 
 /// A JSON value.
-#[derive(Clone)]
+#[derive(Clone, Debug, PartialEq)]
 pub(crate) enum Json {
     /// `null`.
     Null,

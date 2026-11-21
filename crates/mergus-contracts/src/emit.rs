@@ -61,6 +61,11 @@ impl ValidDocument {
         &self.value
     }
 
+    /// The bytes to hash or sign: the canonical JSON of the document (MG-REQ-0208).
+    pub fn hash_input(&self) -> Vec<u8> {
+        crate::canonical::canonical_json(&self.value).into_bytes()
+    }
+
     /// Takes the document as a JSON value.
     pub fn into_value(self) -> Value {
         self.value

@@ -9,6 +9,10 @@ Rust types generated from `schemas/`.
   registry `generated::CONTRACTS` of their schemas.
 - Validates a contract document against its schema before it can be emitted: `validate`
   returns a `ValidDocument`, the only form code may write or print (MG-REQ-0203).
+- Reads a contract document with `read`, which accepts every older minor version of the
+  major version it knows (MG-REQ-0206).
+- Serializes a document as canonical JSON (RFC 8785) with `canonical_json`; a
+  `ValidDocument` gives the bytes to hash or sign with `hash_input` (MG-REQ-0208).
 - Defines, in `names`, every name Mergus uses from another module (MG-REQ-0207).
 
 ## What it does not
@@ -17,5 +21,9 @@ Rust types generated from `schemas/`.
 - It holds no hand-written contract type (MG-REQ-0202).
 - It supports only the JSON Schema keywords listed in `schemas/README.md`; a schema that uses
   another keyword is refused rather than half-checked.
-- It does not map an `EmitError` to a user-facing error code; the caller ends the run with
-  an internal error.
+- It does not map an `EmitError` or a `ReadError` to a user-facing error code; the caller
+  does.
+- It does not choose a hash algorithm: it gives the canonical bytes, and the caller hashes
+  them.
+- It does not judge schema changes: the `contract-compatibility` guard of `xtask` does
+  (MG-REQ-0205).

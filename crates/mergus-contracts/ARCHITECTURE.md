@@ -11,6 +11,7 @@
 | `Violation` | One way a document breaks its schema, with its JSON pointer |
 | `ValidDocument` | A document that passed validation; the only emittable form |
 | `EmitError` | Why a document cannot be emitted; always an internal error |
+| `ReadError` | Why a document cannot be read as a contract, with every `Violation` |
 | `names::*` | Constants for every external name (MG-REQ-0207) |
 
 ## Data flow
@@ -24,13 +25,23 @@
    `EmitError` listing every `Violation`, emits nothing, and ends the run with an internal
    error.
 
+4. A consuming crate passes a JSON value to `read`, which validates it against the latest
+   schema of the major version and deserializes it. A minor version only adds optional
+   fields, and the `contract-compatibility` guard refuses any other in-place change of a
+   schema, so documents of older minor versions pass (MG-REQ-0206).
+5. Before hashing or signing a document, a crate takes `ValidDocument::hash_input`, or
+   `canonical_json` of a value it read: RFC 8785 canonical JSON, written in-house
+   (MG-REQ-0185, MG-REQ-0208). Members are sorted by UTF-16 code units, and numbers are
+   written as ECMAScript writes doubles, from the shortest digits that read back.
+
 The tests compile the types generated from `tests/fixtures/schemas/` into
 `tests/fixtures/generated/`, so the generated code itself is built and checked.
 
 ## Dependencies
 
 - `serde` and `serde_json`: the generated types derive `Serialize` and `Deserialize`, and
-  documents are validated as `serde_json::Value`.
+  documents are validated as `serde_json::Value`. The feature `float_roundtrip` reads every
+  number as its closest double, which canonical JSON needs.
 - `thiserror`: derives `SchemaError` and `EmitError`.
 - A dev-dependency on `mergus-ports` with the feature `real`: the tests read the schemas and
   their examples through `RealFileSystem`. Dev-dependencies are not linked into other crates.

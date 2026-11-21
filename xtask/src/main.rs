@@ -24,6 +24,8 @@
 //!   `pr-format`, `deny-rules`, `repository-settings`: the guards that judge a pull request
 //!   (MG-REQ-1730 to MG-REQ-1738). They print their findings and exit with status 1 when
 //!   they have one.
+//! - `contract-compatibility`: the guard that fails when a pull request changes a schema
+//!   incompatibly without a new major version (MG-REQ-0204, MG-REQ-0205).
 //! - `traceability`: lists the behavior rules without a test, the tests that name no rule and
 //!   the rules whose test fails (MG-REQ-0165, MG-REQ-0167).
 //! - `ci`: runs, in order, every blocking check that needs no GitHub API (MG-REQ-0166).
@@ -60,7 +62,7 @@ use failure::Failure;
 
 const USAGE: &str = "usage: cargo xtask <clippy|unsafe|missing-docs|reproducible-build|\
      check-boundaries|language|size|secrets|sql-concatenation|crate-docs|contracts-generate|\
-     contracts-generated|scope|commit-format|\
+     contracts-generated|scope|commit-format|contract-compatibility|\
      session-identity|independent-review|issue-format|pr-format|deny-rules|repository-settings|\
      traceability|ci>";
 
@@ -76,6 +78,7 @@ fn main() -> Result<ExitCode, Failure> {
         "independent-review" => guards::run(guards::INDEPENDENT_REVIEW, rest),
         "issue-format" => guards::run(guards::ISSUE_FORMAT, rest),
         "pr-format" => guards::run(guards::PR_FORMAT, rest),
+        "contract-compatibility" => guards::run(guards::CONTRACT_COMPATIBILITY, rest),
         "deny-rules" => guards::run_deny_rules(rest),
         "repository-settings" => guards::run_repository_settings(rest),
         "traceability" => traceability::run(rest),
