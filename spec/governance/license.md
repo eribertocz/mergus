@@ -67,3 +67,38 @@ a specification change and the owner's approval of `deny.toml` (MG-REQ-1723).
 - Verify: check `cargo-deny`
 - Depends: MG-REQ-0125, MG-REQ-1745
 - Decision: 0003
+
+### MG-REQ-1747 · License check
+
+The `license-headers` check of `cargo xtask ci` MUST fail when a workspace member's
+`Cargo.toml` does not declare `license = "Apache-2.0"`, directly or through
+`license.workspace = true` with that value in the root `Cargo.toml`, or when a member that may
+be published (`publish` not `false`) does not declare `MIT OR Apache-2.0`. Source files carry
+no license header.
+
+- Kind: process
+- Verify: check `license-headers`
+- Depends: MG-REQ-1741
+- Decision: 0009
+
+### MG-REQ-1748 · DCO check
+
+The `commit-format` guard MUST also fail when the pull request comes from a fork (its head
+repository differs from its base repository) and a single-parent commit lacks a
+`Signed-off-by: <name> <email>` line whose email equals the commit author's email.
+
+- Kind: process
+- Verify: check `dco`
+- Depends: MG-REQ-1742, MG-REQ-1732
+- Decision: 0009
+
+### MG-REQ-1749 · Governance files check
+
+The `governance-files` check of `cargo xtask ci` MUST fail when a file listed in MG-REQ-1744 or
+`LICENSE-PLEDGE.md` is missing or empty, or when `CODE_OF_CONDUCT.md` does not contain
+`Contributor Covenant`.
+
+- Kind: process
+- Verify: check `governance-files`
+- Depends: MG-REQ-1744, MG-REQ-1743
+- Decision: 0009
