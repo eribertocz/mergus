@@ -77,11 +77,12 @@ codes of a command; `mergus schema --all` MUST print it for the whole CLI.
 ### MG-REQ-0264 · Actor
 
 Every event MAY carry `actor`, set only by the host or by the authenticated CLI, that names who
-started the command: an object with `id` (the person or agent) and, when an agent acts for a
-person, `on_behalf_of` (that person's identifier). It MUST be used only for
+started the command: an object with `id`, `kind` (`person`, `agent` or `service`) and, when an
+agent or a service acts for a person, `on_behalf_of` (that person's identifier). The format is
+shared by every module of the ecosystem. It MUST be used only for
 audit and MUST NOT change permissions, plans or results. An actor written in a project file,
 an argument or a request body MUST NOT be trusted or recorded as the actor.
 
 - Kind: behavior
 - Verify: test `mg_req_0264_actor_changes_nothing_but_audit`
-- Decision: 0008, 0014
+- Decision: 0008, 0014, 0015
