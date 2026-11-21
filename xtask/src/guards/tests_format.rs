@@ -186,3 +186,35 @@ fn mg_req_1736_rules_covered_lacks_a_rule_of_the_issue() {
         )
     );
 }
+
+#[test]
+fn mg_req_1739_a_complete_release_pull_request_passes() {
+    assert_eq!(run(PR_FORMAT, "release-passes"), Vec::<String>::new());
+}
+
+#[test]
+fn mg_req_1739_release_version_changelog_and_gates() {
+    assert_eq!(
+        run(PR_FORMAT, "release-fails"),
+        lines(
+            "pr-format",
+            &[
+                "MG-REQ-1739.1: the workspace version in `Cargo.toml` is `0.2.0`, not `0.1.0`",
+                "MG-REQ-1739.2: `CHANGELOG.md` has no `## 0.1.0` section",
+                "MG-REQ-1739.3: `## Gates` has no item `- Tests green: [<text>](https://<url>)`",
+                "MG-REQ-1739.3: `## Gates` has no item `- **Benchmarks**: [<text>](https://<url>)`",
+            ]
+        )
+    );
+}
+
+#[test]
+fn mg_req_1739_3_the_body_lacks_the_gates_section() {
+    assert_eq!(
+        run(PR_FORMAT, "release-no-gates"),
+        lines(
+            "pr-format",
+            &["MG-REQ-1739.3: the body lacks the heading `## Gates`"]
+        )
+    );
+}

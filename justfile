@@ -54,6 +54,11 @@ sql-concatenation:
 crate-docs:
     cargo xtask crate-docs
 
+# Fails when a workflow grants a release write permission without being triggered only by a
+# push of `v*` tags (MG-REQ-1715).
+release-trigger:
+    cargo xtask release-trigger
+
 cargo-deny:
     cargo deny check
 
@@ -99,6 +104,11 @@ deny-rules *args:
 # rule has no passing test.
 traceability *args:
     cargo xtask traceability {{args}}
+
+# What waits for the owner: pull requests to merge, `needs-owner` issues, releases to tag
+# (MG-REQ-1713). Reads the GitHub REST API with `GITHUB_TOKEN`.
+owner-queue:
+    cargo xtask owner-queue
 
 # Every blocking check that needs no GitHub API, in order (MG-REQ-0166). `cargo xtask ci`
 # holds the list, so `check` and CI cannot drift.
