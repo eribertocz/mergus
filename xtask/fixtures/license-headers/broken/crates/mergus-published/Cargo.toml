@@ -1,0 +1,4 @@
+[package]
+name = "mergus-published"
+license.workspace = true
+publish = true

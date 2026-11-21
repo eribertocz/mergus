@@ -1,0 +1,4 @@
+[package]
+name = "mergus-mit"
+license = "MIT"
+publish = false

@@ -12,7 +12,7 @@ use crate::failure::Failure;
 use crate::{cargo, traceability, workspace};
 
 /// The steps, in the order they run.
-pub(crate) const STEPS: [&str; 15] = [
+pub(crate) const STEPS: [&str; 17] = [
     "fmt",
     "contracts-generated",
     "clippy",
@@ -25,6 +25,8 @@ pub(crate) const STEPS: [&str; 15] = [
     "secrets",
     "sql-concatenation",
     "crate-docs",
+    "license-headers",
+    "governance-files",
     "cargo-deny",
     "spec-check",
     "traceability",
@@ -190,6 +192,17 @@ mod tests {
             .map(|line| line.trim().trim_matches('"'))
             .collect();
         assert_eq!(required, REQUIRED_CHECKS);
+    }
+
+    #[test]
+    fn mg_req_1747_mg_req_1749_ci_runs_the_license_and_governance_checks() {
+        for check in ["license-headers", "governance-files"] {
+            assert!(STEPS.contains(&check), "`cargo xtask ci` lacks `{check}`");
+            assert!(
+                crate::check(check).is_ok(),
+                "`{check}` fails on this repository"
+            );
+        }
     }
 
     #[test]

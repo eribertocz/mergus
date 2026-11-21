@@ -1,0 +1,1 @@
+Adopts the Contributor Covenant.

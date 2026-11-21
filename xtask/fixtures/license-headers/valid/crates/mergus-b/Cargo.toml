@@ -1,0 +1,4 @@
+[package]
+name = "mergus-b"
+license = "Apache-2.0" # direct
+publish = false

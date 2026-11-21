@@ -3,6 +3,7 @@ name = "mergus-contracts"
 version = "0.0.0"
 edition.workspace = true
 rust-version.workspace = true
+license.workspace = true
 publish.workspace = true
 description = "Rust types generated from `schemas/`."
 

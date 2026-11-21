@@ -1,0 +1,6 @@
+[package]
+name = "mergus-missing"
+publish = false
+
+[dependencies]
+license = "1"
