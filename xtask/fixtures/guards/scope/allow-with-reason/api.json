@@ -1,0 +1,9 @@
+{
+  "/repos/owner/repo/pulls/5/files": [
+    {
+      "filename": "spec/a.rs",
+      "patch": "@@ -1,1 +1,14 @@\n fn a() {}\n+\u0023[allow(dead_code, reason = \"kept for the next phase\")]\n+fn b() {}\n+\u0023![expect(unused, reason = \"crate level\")]\n+\u0023[expect(\n+    clippy::too_many_lines,\n+    reason = \"one table; splitting it hides the order\"\n+)]\n+fn c() {}\n+// reason: the comment form still counts\n+\u0023[allow(unused)]\n+\u0023[allow(\n+    unused, reason = \"on an argument line\"\n+)]",
+      "status": "modified"
+    }
+  ]
+}

@@ -58,3 +58,13 @@ manifest or the reason for not publishing, and the failing-row samples.
 
 - Kind: behavior
 - Verify: test `mg_req_1106_run_report_contents`
+
+### MG-REQ-1107 · Actor in the journal and the audit chain
+
+The journal and the hash-chained audit entries (MG-REQ-1054) MUST record the `actor` of
+MG-REQ-0264 when one is set, under the same trust rule.
+
+- Kind: behavior
+- Verify: test `mg_req_1107_audit_records_trusted_actor`
+- Depends: MG-REQ-0264, MG-REQ-1054
+- Decision: 0008

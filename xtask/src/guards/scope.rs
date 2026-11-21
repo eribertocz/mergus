@@ -1,5 +1,5 @@
 //! The `scope` guard: a pull request changes only the files its branch allows, and adds no
-//! unexplained lint exception or ignored test (MG-REQ-1731).
+//! unexplained lint exception or ignored test in a Rust file (MG-REQ-1731).
 
 use std::ffi::OsStr;
 use std::path::Path;
@@ -27,12 +27,13 @@ const OWNER_FILES: [&str; 2] = [".github/workflows/", "deny.toml"];
 /// The label that authorizes an issue to change owner files (MG-REQ-1731).
 const OWNER_AUTHORIZED: &str = "owner-authorized";
 
-/// Lint attributes that need a `// reason:` comment. Written in two parts so that this file
-/// does not trip the guard it defines.
-const LINT_ATTRIBUTES: [&str; 3] = [
+/// Lint attributes that need a written reason, at item or crate level. Written in two parts
+/// so that this file does not trip the guard it defines.
+const LINT_ATTRIBUTES: [&str; 4] = [
     concat!("#", "[allow("),
     concat!("#", "![allow("),
     concat!("#", "[expect("),
+    concat!("#", "![expect("),
 ];
 
 /// The attribute that ignores a test, written in two parts for the same reason.
@@ -40,6 +41,9 @@ const IGNORE: &str = concat!("#", "[ignore");
 
 /// The comment that explains a lint attribute.
 const REASON: &str = "// reason:";
+
+/// The argument that explains a lint attribute inside it.
+const REASON_ARGUMENT: &str = "reason";
 
 /// Returns the findings of the `scope` guard.
 ///
@@ -177,20 +181,28 @@ fn file_name(path: &str) -> &str {
         .unwrap_or(path)
 }
 
-/// The findings of MG-REQ-1731.5 in the added lines of a file.
+/// The findings of MG-REQ-1731.5 in the added lines of a Rust file. Other files are not
+/// checked.
 fn attribute_findings(file: &ChangedFile) -> Vec<String> {
     let (Some(path), Some(patch)) = (file.paths.first(), &file.patch) else {
         return Vec::new();
     };
+    if Path::new(path).extension() != Some(OsStr::new("rs")) {
+        return Vec::new();
+    }
+    let lines = new_lines(patch);
     let mut findings = Vec::new();
     let mut previous = "";
-    for (number, line, added) in new_lines(patch) {
+    for (index, &(number, line, added)) in lines.iter().enumerate() {
         if added {
-            let lint = LINT_ATTRIBUTES.iter().any(|text| line.contains(text));
-            if lint && !has_reason(line) && !has_reason(previous) {
+            if let Some(start) = lint_start(line)
+                && !has_reason(line)
+                && !has_reason(previous)
+                && !has_reason_argument(&attribute(lines.get(index..).unwrap_or_default(), start))
+            {
                 findings.push(format!(
                     "MG-REQ-1731.5: {path}:{number} adds an allow or expect attribute \
-                     without a `// reason: <text>` comment"
+                     without a `reason = \"<text>\"` argument or a `// reason: <text>` comment"
                 ));
             }
             if line.contains(IGNORE) {
@@ -202,6 +214,80 @@ fn attribute_findings(file: &ChangedFile) -> Vec<String> {
         previous = line;
     }
     findings
+}
+
+/// Where the first lint attribute of a line starts, if it has one.
+fn lint_start(line: &str) -> Option<usize> {
+    LINT_ATTRIBUTES
+        .iter()
+        .filter_map(|text| line.find(text))
+        .min()
+}
+
+/// The text of the attribute that starts at byte `start` of the first line, up to the `]`
+/// that closes it. It may span the following lines of the new file, as long as they follow
+/// one another; it stops where they end if it is not closed. A `]` inside a string literal
+/// does not close it.
+fn attribute(lines: &[(usize, &str, bool)], start: usize) -> String {
+    let mut text = String::new();
+    let mut depth = 0_usize;
+    let mut in_string = false;
+    let mut escaped = false;
+    let mut expected = None;
+    for &(number, line, _) in lines {
+        if expected.is_some_and(|next| next != number) {
+            break;
+        }
+        let part = if expected.is_none() {
+            line.get(start..).unwrap_or_default()
+        } else {
+            line
+        };
+        for character in part.chars() {
+            text.push(character);
+            if in_string {
+                match character {
+                    _ if escaped => escaped = false,
+                    '\\' => escaped = true,
+                    '"' => in_string = false,
+                    _ => {}
+                }
+                continue;
+            }
+            match character {
+                '"' => in_string = true,
+                '[' => depth += 1,
+                ']' => {
+                    depth = depth.saturating_sub(1);
+                    if depth == 0 {
+                        return text;
+                    }
+                }
+                _ => {}
+            }
+        }
+        text.push('\n');
+        expected = Some(number + 1);
+    }
+    text
+}
+
+/// Whether an attribute's text has a `reason = "<text>"` argument with some text.
+fn has_reason_argument(attribute: &str) -> bool {
+    attribute.match_indices(REASON_ARGUMENT).any(|(at, _)| {
+        let before = attribute
+            .get(..at)
+            .and_then(|text| text.chars().next_back());
+        if before.is_some_and(|character| character.is_alphanumeric() || character == '_') {
+            return false;
+        }
+        attribute
+            .get(at + REASON_ARGUMENT.len()..)
+            .and_then(|rest| rest.trim_start().strip_prefix('='))
+            .and_then(|rest| rest.trim_start().strip_prefix('"'))
+            .and_then(|rest| rest.split('"').next())
+            .is_some_and(|text| !text.trim().is_empty())
+    })
 }
 
 /// Whether a line carries `// reason:` followed by some text.

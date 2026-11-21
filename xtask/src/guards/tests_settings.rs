@@ -173,9 +173,10 @@ fn mg_req_1738_3_the_required_checks_lack_a_guard() {
             "repository-settings",
             &[
                 "MG-REQ-1738.3: the required status checks lack `independent-review`",
-                "MG-REQ-1738.3: the required status checks lack `spec-check`",
                 "MG-REQ-1738.3: the required status checks lack `deny-rules`",
                 "MG-REQ-1738.3: the required status checks lack `repository-settings`",
+                "MG-REQ-1738.3: the required status checks lack `ci (windows-latest)`",
+                "MG-REQ-1738.3: the required status checks lack `benchmarks`",
             ]
         )
     );
@@ -191,6 +192,7 @@ fn mg_req_1738_3_a_required_check_is_not_tied_to_github_actions() {
             &[
                 &format!("MG-REQ-1738.3: `scope` {message}"),
                 &format!("MG-REQ-1738.3: `commit-format` {message}"),
+                &format!("MG-REQ-1738.3: `ci (macos-latest)` {message}"),
             ]
         )
     );

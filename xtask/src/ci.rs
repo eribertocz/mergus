@@ -102,20 +102,28 @@ fn announce(step: &str) {
 #[cfg(test)]
 mod tests {
     use super::STEPS;
-    use crate::guards::BLOCKING_GUARDS;
+    use crate::guards::{GUARD_JOBS, REQUIRED_CHECKS};
     use crate::workspace;
 
-    /// The guards of MG-REQ-1724 that judge a pull request against its base. `spec-check`
-    /// judges the tree alone, so it is also a step of `cargo xtask ci`, as `language` is.
-    fn base_guards() -> impl Iterator<Item = &'static str> {
-        BLOCKING_GUARDS
-            .into_iter()
-            .filter(|guard| *guard != "spec-check")
+    /// The job names of the guard workflow: each `name:` of a job, and each guard of a
+    /// matrix, whose job is named after it.
+    fn guard_workflow_jobs() -> Vec<String> {
+        let root = workspace::root().unwrap();
+        let path = root.join(".github").join("workflows").join("guards.yml");
+        let workflow = workspace::read(&path).unwrap();
+        workflow
+            .lines()
+            .filter_map(|line| {
+                line.strip_prefix("    name: ")
+                    .or_else(|| line.strip_prefix("          - "))
+            })
+            .map(str::to_owned)
+            .collect()
     }
 
     #[test]
     fn mg_req_1724_ci_runs_no_guard() {
-        for guard in base_guards() {
+        for guard in GUARD_JOBS {
             assert!(
                 !STEPS.contains(&guard),
                 "`cargo xtask ci` runs the guard `{guard}`"
@@ -124,9 +132,32 @@ mod tests {
     }
 
     #[test]
-    fn mg_req_1724_blocking_guards_are_every_guard_but_language() {
+    fn mg_req_1724_checks_of_the_tree_run_in_ci_not_as_guards() {
+        let jobs = guard_workflow_jobs();
+        for check in ["spec-check", "language"] {
+            assert!(STEPS.contains(&check), "`cargo xtask ci` lacks `{check}`");
+            assert!(
+                !jobs.iter().any(|job| job == check),
+                "the guard workflow runs `{check}`"
+            );
+        }
+    }
+
+    #[test]
+    fn mg_req_1724_the_guard_workflow_runs_every_guard_job() {
+        let jobs = guard_workflow_jobs();
+        for guard in GUARD_JOBS {
+            assert!(
+                jobs.iter().any(|job| job == guard),
+                "the guard workflow has no job `{guard}`"
+            );
+        }
+    }
+
+    #[test]
+    fn mg_req_1727_required_checks() {
         assert_eq!(
-            BLOCKING_GUARDS,
+            REQUIRED_CHECKS,
             [
                 "scope",
                 "session-identity",
@@ -134,15 +165,20 @@ mod tests {
                 "issue-format",
                 "pr-format",
                 "commit-format",
-                "spec-check",
                 "deny-rules",
                 "repository-settings",
+                "ci (ubuntu-latest)",
+                "ci (macos-latest)",
+                "ci (windows-latest)",
+                "traceability",
+                "benchmarks",
             ]
         );
+        assert_eq!(REQUIRED_CHECKS[..GUARD_JOBS.len()], GUARD_JOBS);
     }
 
     #[test]
-    fn mg_req_1724_setup_script_requires_the_blocking_guards() {
+    fn mg_req_1727_setup_script_requires_the_required_checks() {
         let root = workspace::root().unwrap();
         let script = workspace::read(&root.join("scripts").join("setup_repository.sh")).unwrap();
         let required: Vec<&str> = script
@@ -150,9 +186,9 @@ mod tests {
             .skip_while(|line| !line.starts_with("readonly REQUIRED_CHECKS=("))
             .skip(1)
             .take_while(|line| *line != ")")
-            .map(str::trim)
+            .map(|line| line.trim().trim_matches('"'))
             .collect();
-        assert_eq!(required, BLOCKING_GUARDS);
+        assert_eq!(required, REQUIRED_CHECKS);
     }
 
     #[test]

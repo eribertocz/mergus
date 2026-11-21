@@ -44,3 +44,24 @@ trust page MUST show it.
 - Kind: behavior
 - Verify: test `mg_req_0183_owner_shown_on_incident`
 - Phase: 0.7
+
+### MG-REQ-0190 · No AI inside Mergus
+
+Mergus MUST NOT embed or call a language model, an AI SDK or an AI provider. Explanations
+(MG-REQ-1425) and suggestions (MG-REQ-0353) are deterministic cases of this rule. AI lives in
+separate modules that use Mergus like a person does (MG-REQ-0182).
+
+- Kind: behavior
+- Verify: review `no-ai-inside`
+- Decision: 0008
+
+### MG-REQ-0191 · Approval by Git
+
+A change proposed by an agent MUST reach a project only as a commit on a branch that a person
+reviews (`validate`, `plan`, `explain`) and merges; production is promoted only from `main`
+(MG-REQ-1225). The runtime has no separate approval step and no path that skips the branch.
+
+- Kind: process
+- Verify: review `approval-by-git`
+- Depends: MG-REQ-0182, MG-REQ-1225
+- Decision: 0008

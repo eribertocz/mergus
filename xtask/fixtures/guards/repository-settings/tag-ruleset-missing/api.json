@@ -71,15 +71,31 @@
               "integration_id": 15368
             },
             {
-              "context": "spec-check",
-              "integration_id": 15368
-            },
-            {
               "context": "deny-rules",
               "integration_id": 15368
             },
             {
               "context": "repository-settings",
+              "integration_id": 15368
+            },
+            {
+              "context": "ci (ubuntu-latest)",
+              "integration_id": 15368
+            },
+            {
+              "context": "ci (macos-latest)",
+              "integration_id": 15368
+            },
+            {
+              "context": "ci (windows-latest)",
+              "integration_id": 15368
+            },
+            {
+              "context": "traceability",
+              "integration_id": 15368
+            },
+            {
+              "context": "benchmarks",
               "integration_id": 15368
             },
             {

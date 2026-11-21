@@ -73,3 +73,14 @@ codes of a command; `mergus schema --all` MUST print it for the whole CLI.
 
 - Kind: behavior
 - Verify: test `mg_req_0263_schema_describes_every_command`
+
+### MG-REQ-0264 · Actor
+
+Every event MAY carry `actor`: a string set only by the host or by the authenticated CLI, that
+names who started the command (a person or an agent acting for one). It MUST be used only for
+audit and MUST NOT change permissions, plans or results. An actor written in a project file,
+an argument or a request body MUST NOT be trusted or recorded as the actor.
+
+- Kind: behavior
+- Verify: test `mg_req_0264_actor_changes_nothing_but_audit`
+- Decision: 0008
