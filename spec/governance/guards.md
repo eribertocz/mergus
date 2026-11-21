@@ -163,12 +163,19 @@ On a `release/<version>` branch, the `pr-format` guard MUST also fail when:
 
 1. MG-REQ-1739.1: the workspace version in the root `Cargo.toml` differs from `<version>`;
 2. MG-REQ-1739.2: `CHANGELOG.md` has no `## <version>` section;
-3. MG-REQ-1739.3: the body lacks a `## Gates` section naming every gate of section 2 of
-   `roadmap.md`, each followed by a link to its evidence;
-4. MG-REQ-1739.4: `cargo xtask traceability` reports a behavior rule of the released phase or
-   an earlier one without a passing test.
+3. MG-REQ-1739.3: the body lacks a `## Gates` section with, for every gate in the first
+   column of the table in section 2 of `roadmap.md` (read from the base commit), a list item
+   on one line: `- `, the gate's name, `: `, then an inline Markdown link (text in square
+   brackets, then a URL that starts with `https://` in parentheses). Items may come in any order; other lines are ignored.
+
+`release-gates` is the name of this extension of `pr-format`, not a command or a required check
+of its own; its findings are printed as `pr-format: MG-REQ-1739.<n>: <message>`. Tests of the
+released phase are not checked here: on the release pull request the released phase is the
+current phase, so the required `traceability` check (MG-REQ-0167, MG-REQ-1727) already fails
+on a behavior rule of that phase or an earlier one without a passing test. The guard never runs
+code of the head (MG-REQ-1722).
 
 - Kind: process
 - Verify: check `release-gates`
 - Depends: MG-REQ-1711, MG-REQ-1736
-- Decision: 0009
+- Decision: 0009, 0013
