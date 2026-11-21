@@ -1,0 +1,9 @@
+{
+  "contract": "sample",
+  "contract_version": 1,
+  "name": "orders",
+  "kind": "view",
+  "location": { "path": "sales/orders" },
+  "ratio": 0.25,
+  "public": false
+}

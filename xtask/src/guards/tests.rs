@@ -12,16 +12,17 @@ use crate::failure::Failure;
 use crate::json::Json;
 use crate::workspace;
 
-/// API responses read from a fixture's `api.json`: an object from request path, without its
-/// query, to response. A request for any other path fails, so a guard cannot reach an
-/// endpoint the fixture does not expect.
+/// API responses read from a fixture's `api.json`: an object from request path, with its
+/// query or else without it, to response. A request for any other path fails, so a guard
+/// cannot reach an endpoint the fixture does not expect.
 pub(super) struct Fixture(pub(super) Json);
 
 impl Api for Fixture {
     fn get(&self, path: &str) -> Result<Json, Failure> {
         let key = path.split('?').next().unwrap_or(path);
         self.0
-            .get(key)
+            .get(path)
+            .or_else(|| self.0.get(key))
             .cloned()
             .ok_or_else(|| Failure::new(format!("no fixture for {key}")))
     }
