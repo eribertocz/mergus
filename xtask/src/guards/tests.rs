@@ -188,13 +188,13 @@ fn mg_req_1731_3_spec_branch_outside_the_specification_scope() {
 
 #[test]
 fn mg_req_1731_4_release_branch_outside_its_files() {
-    let message = "is not a Cargo.toml, a pyproject.toml or CHANGELOG.md";
+    let message = "is not a Cargo.toml, a pyproject.toml, the root Cargo.lock or CHANGELOG.md";
     assert_eq!(
         run(SCOPE, "release-outside"),
         lines(
             "scope",
             &[
-                &format!("MG-REQ-1731.4: `Cargo.lock` {message}"),
+                &format!("MG-REQ-1731.4: `crates/a/Cargo.lock` {message}"),
                 &format!("MG-REQ-1731.4: `docs/CHANGELOG.md` {message}"),
             ]
         )

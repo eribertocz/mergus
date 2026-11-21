@@ -81,7 +81,8 @@ enum Allowed {
     },
     /// A `spec/` branch: the specification scope (MG-REQ-1731.3).
     Spec,
-    /// A `release/` branch: version files and the changelog (MG-REQ-1731.4).
+    /// A `release/` branch: version files, the root lock file and the changelog
+    /// (MG-REQ-1731.4).
     Release,
     /// Any other branch, already reported by MG-REQ-1731.1.
     Any,
@@ -135,8 +136,8 @@ impl Allowed {
                 .then(|| format!("MG-REQ-1731.3: `{path}` is outside the specification scope")),
             Self::Release => (!is_release_file(path)).then(|| {
                 format!(
-                    "MG-REQ-1731.4: `{path}` is not a Cargo.toml, a pyproject.toml or \
-                     CHANGELOG.md"
+                    "MG-REQ-1731.4: `{path}` is not a Cargo.toml, a pyproject.toml, the root \
+                     Cargo.lock or CHANGELOG.md"
                 )
             }),
             Self::Any => None,
@@ -170,8 +171,11 @@ fn is_owner_file(path: &str) -> bool {
     OWNER_FILES.iter().any(|entry| covers(entry, path)) || file_name(path) == "CODEOWNERS"
 }
 
+/// Whether a release branch may change `path`: any `Cargo.toml` or `pyproject.toml`, and the
+/// root `Cargo.lock` and `CHANGELOG.md` only.
 fn is_release_file(path: &str) -> bool {
-    matches!(file_name(path), "Cargo.toml" | "pyproject.toml") || path == "CHANGELOG.md"
+    matches!(file_name(path), "Cargo.toml" | "pyproject.toml")
+        || matches!(path, "Cargo.lock" | "CHANGELOG.md")
 }
 
 fn file_name(path: &str) -> &str {

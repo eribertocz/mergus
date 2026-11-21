@@ -203,6 +203,8 @@ fn mg_req_1739_release_version_changelog_and_gates() {
                 "MG-REQ-1739.2: `CHANGELOG.md` has no `## 0.1.0` section",
                 "MG-REQ-1739.3: `## Gates` has no item `- Tests green: [<text>](https://<url>)`",
                 "MG-REQ-1739.3: `## Gates` has no item `- **Benchmarks**: [<text>](https://<url>)`",
+                "MG-REQ-1739.5: `xtask/Cargo.toml` sets its own `version` instead of \
+                 `version.workspace = true`",
             ]
         )
     );
@@ -214,7 +216,11 @@ fn mg_req_1739_3_the_body_lacks_the_gates_section() {
         run(PR_FORMAT, "release-no-gates"),
         lines(
             "pr-format",
-            &["MG-REQ-1739.3: the body lacks the heading `## Gates`"]
+            &[
+                "MG-REQ-1739.3: the body lacks the heading `## Gates`",
+                "MG-REQ-1739.5: `xtask/Cargo.toml` sets its own `version` instead of \
+                 `version.workspace = true`",
+            ]
         )
     );
 }

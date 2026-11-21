@@ -6,6 +6,7 @@
 use super::github::{self, Api};
 use super::{Event, markdown};
 use crate::failure::Failure;
+use crate::json::Json;
 
 /// The prefix of a release branch.
 pub(crate) const RELEASE_BRANCH: &str = "release/";
@@ -25,11 +26,21 @@ const GATES: &str = "## Gates";
 /// The table of the workspace package in the manifest.
 const WORKSPACE_PACKAGE: &str = "[workspace.package]";
 
+/// The table of the workspace in the manifest, which lists its members.
+const WORKSPACE: &str = "[workspace]";
+
+/// The table of a package in a member's manifest.
+const PACKAGE: &str = "[package]";
+
+/// The characters of a glob pattern other than a final `/*`.
+const GLOB: [char; 4] = ['*', '?', '[', '{'];
+
 /// Returns the findings of MG-REQ-1739 on a pull request from `release/<version>`.
 ///
 /// # Errors
 ///
-/// Fails if the API cannot be read, or the roadmap at the base has no gate table.
+/// Fails if the API cannot be read, the roadmap at the base has no gate table, or a member
+/// pattern of the workspace is a glob other than `<directory>/*`.
 pub(crate) fn judge(event: &Event, api: &dyn Api, version: &str) -> Result<Vec<String>, Failure> {
     let repo = &event.repository;
     let mut findings = Vec::new();
@@ -50,6 +61,7 @@ pub(crate) fn judge(event: &Event, api: &dyn Api, version: &str) -> Result<Vec<S
         ));
     }
     findings.extend(gate_findings(event, api)?);
+    findings.extend(member_findings(event, api, &manifest)?);
     Ok(findings)
 }
 
@@ -74,6 +86,114 @@ fn gate_findings(event: &Event, api: &dyn Api) -> Result<Vec<String>, Failure> {
             format!("MG-REQ-1739.3: `{GATES}` has no item `- {gate}: [<text>](https://<url>)`")
         })
         .collect())
+}
+
+/// The findings of MG-REQ-1739.5: every member manifest at the head inherits the workspace
+/// version.
+fn member_findings(event: &Event, api: &dyn Api, manifest: &str) -> Result<Vec<String>, Failure> {
+    let mut findings = Vec::new();
+    for member in members(api, event, manifest)? {
+        let path = format!("{member}/{MANIFEST}");
+        if sets_own_version(&github::file(api, &event.repository, &path, &event.head)?) {
+            findings.push(format!(
+                "MG-REQ-1739.5: `{path}` sets its own `version` instead of \
+                 `version.workspace = true`"
+            ));
+        }
+    }
+    Ok(findings)
+}
+
+/// The member directories of the workspace at the head, sorted: the `members` of the
+/// `[workspace]` table, where `<directory>/*` stands for every directory under it, less its
+/// `exclude` entries.
+fn members(api: &dyn Api, event: &Event, manifest: &str) -> Result<Vec<String>, Failure> {
+    let mut members = Vec::new();
+    for pattern in workspace_array(manifest, "members") {
+        let pattern = pattern.trim_end_matches('/');
+        let unsupported = || {
+            Failure::new(format!(
+                "{MANIFEST}: the member pattern `{pattern}` is a glob other than \
+                 `<directory>/*`"
+            ))
+        };
+        match pattern.strip_suffix("/*") {
+            Some(directory) if !directory.contains(GLOB) => {
+                members.extend(directories(api, event, directory)?);
+            }
+            _ if pattern.contains(GLOB) => return Err(unsupported()),
+            _ => members.push(pattern.to_owned()),
+        }
+    }
+    let excluded = workspace_array(manifest, "exclude");
+    members.retain(|member| !excluded.contains(member));
+    members.sort();
+    members.dedup();
+    Ok(members)
+}
+
+/// The paths of the directories directly under `directory` at the head.
+fn directories(api: &dyn Api, event: &Event, directory: &str) -> Result<Vec<String>, Failure> {
+    let url = format!(
+        "/repos/{}/contents/{directory}?ref={}",
+        event.repository, event.head
+    );
+    let items = api
+        .get(&url)?
+        .into_items()
+        .ok_or_else(|| Failure::new(format!("GET {url} did not return a list")))?;
+    Ok(items
+        .iter()
+        .filter(|item| item.get("type").and_then(Json::as_str) == Some("dir"))
+        .map(|item| github::text(item.get("path")))
+        .collect())
+}
+
+/// The strings of the array `key` of the `[workspace]` table of a manifest, which may span
+/// several lines; empty when there is none.
+fn workspace_array(manifest: &str, key: &str) -> Vec<String> {
+    let mut lines = manifest
+        .lines()
+        .map(|line| line.split('#').next().unwrap_or_default().trim())
+        .skip_while(|line| *line != WORKSPACE)
+        .skip(1)
+        .take_while(|line| !line.starts_with('['));
+    let Some(first) = lines.find_map(|line| {
+        let (name, value) = line.split_once('=')?;
+        (name.trim() == key).then_some(value)
+    }) else {
+        return Vec::new();
+    };
+    let mut text = first.to_owned();
+    for line in lines {
+        if text.contains(']') {
+            break;
+        }
+        text.push_str(line);
+    }
+    let text = text.split(']').next().unwrap_or_default();
+    text.split('"')
+        .skip(1)
+        .step_by(2)
+        .map(str::to_owned)
+        .collect()
+}
+
+/// Whether the `[package]` table of a member manifest sets a `version` key to anything but
+/// `{ workspace = true }`. `version.workspace = true` is another key.
+fn sets_own_version(manifest: &str) -> bool {
+    manifest
+        .lines()
+        .map(str::trim)
+        .skip_while(|line| *line != PACKAGE)
+        .skip(1)
+        .take_while(|line| !line.starts_with('['))
+        .filter_map(|line| line.split_once('='))
+        .filter(|(key, _)| key.trim() == "version")
+        .any(|(_, value)| {
+            let value = value.split('#').next().unwrap_or_default();
+            value.split_whitespace().collect::<String>() != "{workspace=true}"
+        })
 }
 
 /// The `version` of the `[workspace.package]` table of a manifest, `None` when it has none.
@@ -161,7 +281,7 @@ fn is_inline_link(text: &str) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use super::{gates, is_gate_item, workspace_version};
+    use super::{gates, is_gate_item, sets_own_version, workspace_array, workspace_version};
     use crate::workspace;
 
     #[test]
@@ -203,5 +323,39 @@ mod tests {
         let roadmap = workspace::read(&root.join("spec").join("roadmap.md")).unwrap();
         assert!(gates(&roadmap).is_some_and(|gates| !gates.is_empty()));
         assert_eq!(gates("## 20. X\n| G |\n|---|\n| a |\n"), None);
+    }
+
+    #[test]
+    fn mg_req_1739_5_members_are_read_from_the_workspace_table() {
+        let manifest = "[package]\nmembers = [\"no\"]\n[workspace]\nmembers = [\n  \"crates/*\", # all\n  \"xtask\",\n]\nexclude = [\"crates/old\"]\n[x]\n";
+        assert_eq!(workspace_array(manifest, "members"), ["crates/*", "xtask"]);
+        assert_eq!(workspace_array(manifest, "exclude"), ["crates/old"]);
+        assert!(workspace_array("[workspace]\nresolver = \"3\"\n", "members").is_empty());
+    }
+
+    #[test]
+    fn mg_req_1739_5_a_member_version_must_be_inherited() {
+        assert!(!sets_own_version("[package]\nversion.workspace = true\n"));
+        assert!(!sets_own_version(
+            "[package]\nversion = { workspace = true } # x\n"
+        ));
+        assert!(!sets_own_version(
+            "[package]\nname = \"a\"\n[dependencies]\nversion = \"1\"\n"
+        ));
+        assert!(sets_own_version("[package]\nversion = \"0.0.0\"\n"));
+        assert!(sets_own_version(
+            "[package]\nversion = { workspace = false }\n"
+        ));
+    }
+
+    #[test]
+    fn mg_req_1739_5_every_member_of_this_workspace_inherits_its_version() {
+        let root = workspace::root().unwrap();
+        let manifest = workspace::read(&root.join("Cargo.toml")).unwrap();
+        assert_eq!(workspace_array(&manifest, "members"), ["crates/*", "xtask"]);
+        for member in workspace::members(&root).unwrap() {
+            let text = workspace::read(&member.dir.join("Cargo.toml")).unwrap();
+            assert!(!sets_own_version(&text), "{}", member.name);
+        }
     }
 }

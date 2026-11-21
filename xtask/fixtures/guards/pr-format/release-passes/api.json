@@ -10,13 +10,33 @@
     "path": "CHANGELOG.md"
   },
   "/repos/owner/repo/contents/Cargo.toml?ref=1111111111111111111111111111111111111111": {
-    "content": "W3dvcmtzcGFjZV0KbWVtYmVycyA9IFsieHRhc2siXQoKW3dvcmtzcGFjZS5wYWNrYWdlXQplZGl0\naW9uID0gIjIwMjQiCnZlcnNpb24gPSAiMC4xLjAiCgpbd29ya3NwYWNlLmxpbnRzLnJ1c3RdCnZl\ncnNpb24gPSAiOS45LjkiCg==\n",
+    "content": "W3dvcmtzcGFjZV0KbWVtYmVycyA9IFsKICAgICJjcmF0ZXMvKiIsCiAgICAieHRhc2siLApdCgpbd29ya3NwYWNlLnBhY2thZ2VdCmVkaXRpb24gPSAiMjAyNCIKdmVyc2lvbiA9ICIwLjEuMCIKClt3b3Jrc3BhY2UubGludHMucnVzdF0KdmVyc2lvbiA9ICI5LjkuOSIK\n",
     "encoding": "base64",
     "path": "Cargo.toml"
   },
+  "/repos/owner/repo/contents/crates/a/Cargo.toml?ref=1111111111111111111111111111111111111111": {
+    "content": "W3BhY2thZ2VdCm5hbWUgPSAiYSIKdmVyc2lvbi53b3Jrc3BhY2UgPSB0cnVlCgpbZGVwZW5kZW5jaWVzXQpzZXJkZSA9IHsgdmVyc2lvbiA9ICIxIiB9Cg==\n",
+    "encoding": "base64",
+    "path": "crates/a/Cargo.toml"
+  },
+  "/repos/owner/repo/contents/crates?ref=1111111111111111111111111111111111111111": [
+    {
+      "type": "dir",
+      "path": "crates/a"
+    },
+    {
+      "type": "file",
+      "path": "crates/README.md"
+    }
+  ],
   "/repos/owner/repo/contents/spec/roadmap.md?ref=0000000000000000000000000000000000000000": {
     "content": "IyBSb2FkbWFwCgpDdXJyZW50IHBoYXNlOiAwLjEKCiMjIDEuIFBoYXNlcwp8IFBoYXNlIHwgVGhl\nbWUgfAp8LS0tfC0tLXwKfCAwLjEgfCBGb3VuZGF0aW9ucyB8CgojIyAyLiBHYXRlcwpFdmVyeSBy\nZWxlYXNlIHNob3dzIGVhY2ggZ2F0ZSBwYXNzaW5nLgoKfCBHYXRlIHwgRXZpZGVuY2UgfAp8LS0t\nfC0tLXwKfCBUZXN0cyBncmVlbiB8IENJIHJ1biB8CnwgKipCZW5jaG1hcmtzKiogfCByZXBvcnQg\nfAoKfCBPdGhlciB8IHRhYmxlIHwKfC0tLXwtLS18CnwgTm90IGEgZ2F0ZSB8IHggfAoKIyMgMy4g\nUG9zdC1NVlAKfCBHYXRlIHwgeCB8CnwtLS18LS0tfAp8IE5vdCBhIGdhdGUgZWl0aGVyIHwgeCB8\nCg==\n",
     "encoding": "base64",
     "path": "spec/roadmap.md"
+  },
+  "/repos/owner/repo/contents/xtask/Cargo.toml?ref=1111111111111111111111111111111111111111": {
+    "content": "W3BhY2thZ2VdCm5hbWUgPSAieHRhc2siCnZlcnNpb24gPSB7IHdvcmtzcGFjZSA9IHRydWUgfQo=\n",
+    "encoding": "base64",
+    "path": "xtask/Cargo.toml"
   }
 }
