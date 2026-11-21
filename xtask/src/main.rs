@@ -27,6 +27,12 @@
 //! - `ci`: runs, in order, every blocking check that needs no GitHub API (MG-REQ-0166).
 
 #![forbid(unsafe_code)]
+#![allow(
+    clippy::disallowed_methods,
+    clippy::disallowed_types,
+    reason = "MG-REQ-0130: `xtask` is repository automation, not product code; it reads files, \
+              runs `cargo` and `git` and reads its arguments directly (spec-defect #37)"
+)]
 
 mod boundaries;
 mod cargo;

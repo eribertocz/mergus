@@ -1,0 +1,23 @@
+[package]
+name = "mergus-ports"
+version = "0.0.0"
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+description = "I/O traits and their real implementations."
+
+[features]
+default = []
+# MG-REQ-0133: the real implementations compile only with this feature.
+real = []
+
+[dependencies]
+thiserror = "2.0.21"
+
+[lints]
+workspace = true
+
+# The tests of the real implementations need the feature `real`. Dev-dependencies are not
+# linked into other crates, so this does not enable it anywhere else (MG-REQ-0126.5).
+[dev-dependencies]
+mergus-ports = { path = ".", features = ["real"] }
