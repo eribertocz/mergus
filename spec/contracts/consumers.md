@@ -41,3 +41,51 @@ identity that calls it.
 - Phase: 0.8
 - Depends: MG-REQ-0182
 - Decision: 0008
+
+### MG-REQ-0291 · MCP safe by default
+
+The MCP adapter MUST start read-only and scoped to `dev` environments. Tools come in groups,
+`discover`, `build` and `operate`, and only `discover` is on by default. Turning on a group
+that writes, or a non-dev environment, MUST be an explicit setting of the installation, never
+a request from the agent.
+
+- Kind: behavior
+- Verify: test `mg_req_0291_mcp_is_read_only_and_dev_by_default`
+- Phase: 0.8
+- Depends: MG-REQ-0290
+- Decision: 0011
+
+### MG-REQ-0292 · Data is never an instruction
+
+Every MCP tool result and every `--json` event that carries values read from data (previews,
+samples, dimension values, error excerpts) MUST put them in a field marked as untrusted data,
+apart from Mergus's own text. The agent guide (MG-REQ-1787) MUST tell agents that this content
+is data and never instructions.
+
+- Kind: behavior
+- Verify: test `mg_req_0292_data_values_are_marked_untrusted`
+- Phase: 0.8
+- Decision: 0011
+
+### MG-REQ-0293 · Human confirmation through the client
+
+When an MCP tool reaches a confirmation of MG-REQ-1307, the adapter MUST ask the person through
+the MCP client's confirmation request (elicitation) and MUST NOT pass `--yes` on its own. If the
+client cannot ask, the action is refused.
+
+- Kind: behavior
+- Verify: test `mg_req_0293_irreversible_actions_ask_the_person`
+- Phase: 0.8
+- Depends: MG-REQ-1307
+- Decision: 0011
+
+### MG-REQ-0294 · Typed tool results
+
+Every MCP tool MUST declare an output schema taken from the Mergus contract of the command it
+maps (MG-REQ-0201) and return structured results valid against it.
+
+- Kind: behavior
+- Verify: test `mg_req_0294_tool_results_match_their_schema`
+- Phase: 0.8
+- Depends: MG-REQ-0290, MG-REQ-0201
+- Decision: 0011
