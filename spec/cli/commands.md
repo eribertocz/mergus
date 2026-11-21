@@ -143,3 +143,42 @@ same key with other arguments MUST fail with a typed error.
 - Verify: test `mg_req_1313_same_key_has_no_second_effect`
 - Phase: 0.4
 - Decision: 0010
+
+### MG-REQ-1314 · describe shows state
+
+The document of MG-REQ-1312 MUST also give, for each visible model and table, the stable
+identifiers of its upstream and downstream objects (MG-REQ-1122), its tests, its health with the
+reason (MG-REQ-1121), the status and identifier of its last run, and the PII label of each column
+(MG-REQ-1035), still with no data values.
+
+- Kind: behavior
+- Verify: test `mg_req_1314_describe_includes_state`
+- Phase: 0.7
+- Depends: MG-REQ-1312
+- Decision: 0014
+
+### MG-REQ-1315 · profile
+
+`mergus profile <table> --json` MUST print, for a table the identity may read, its row count and
+for each column the profile of MG-REQ-0818, plus the count of duplicate values of each declared
+key. Minimum and maximum MUST be omitted for a column with a PII label, and columns the identity
+cannot see MUST be absent.
+
+- Kind: behavior
+- Verify: test `mg_req_1315_profile_respects_pii_and_visibility`
+- Phase: 0.7
+- Depends: MG-REQ-0818, MG-REQ-1312
+- Decision: 0014
+
+### MG-REQ-1316 · run status
+
+`mergus run status <run_id> --json` MUST print the run's status, its current step and its
+`run_finished` event once it ended. With `--wait --timeout <duration>` it MUST return as soon as
+the run ends, or at the timeout with the status at that moment, so an agent waits without
+polling. The command exits 0 whenever it printed a status; the run's own exit code is in its
+`run_finished` event.
+
+- Kind: behavior
+- Verify: test `mg_req_1316_run_status_waits_until_end_or_timeout`
+- Phase: 0.7
+- Decision: 0014

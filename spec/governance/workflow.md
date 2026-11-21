@@ -177,7 +177,7 @@ and a release ready to tag. It is the only list the owner needs.
 verdict, the open `needs-owner` issues, and any merged release pull request without a tag:
 
 1. MG-REQ-1713.1: green CI means every required check of MG-REQ-1727 has a check run with
-   conclusion `success` on the head commit;
+   conclusion `success` or `skipped` on the head commit, as GitHub's ruleset counts them;
 2. MG-REQ-1713.2: a `ready` verdict is read as the `independent-review` guard reads it
    (MG-REQ-1734); a pull request outside that guard's branches needs none;
 3. MG-REQ-1713.3: a release pull request without a tag is a merged pull request whose head

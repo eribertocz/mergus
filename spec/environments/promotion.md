@@ -64,3 +64,15 @@ incremental run fills data that arrived in between.
 
 - Kind: behavior
 - Verify: test `mg_req_1227_dev_not_scheduled`
+
+### MG-REQ-1228 · diff of a branch environment
+
+`mergus diff` MUST accept a branch environment of MG-REQ-1208 as either side. Its row
+differences MUST give, per affected table, the counts of rows added, removed and changed,
+matched by the table's declared key; a table without a declared key gives only the row counts
+of both sides. With `--json` it prints the same as a versioned contract document.
+
+- Kind: behavior
+- Verify: test `mg_req_1228_branch_diff_counts_by_key`
+- Depends: MG-REQ-1208, MG-REQ-1221
+- Decision: 0014
