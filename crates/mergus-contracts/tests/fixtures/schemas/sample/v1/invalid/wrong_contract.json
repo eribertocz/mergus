@@ -1,0 +1,7 @@
+{
+  "contract": "other",
+  "contract_version": 1,
+  "name": "orders",
+  "kind": "table",
+  "location": { "path": "sales/orders" }
+}
