@@ -42,6 +42,10 @@ pub(super) fn run(guard: Guard, case: &str) -> Vec<String> {
     findings(guard, &event, &api).unwrap()
 }
 
+/// The end of the MG-REQ-1731.5 finding on an allow or expect attribute.
+const NO_REASON: &str = "adds an allow or expect attribute without a `reason = \"<text>\"` \
+                         argument or a `// reason: <text>` comment";
+
 pub(super) fn lines(prefix: &str, messages: &[&str]) -> Vec<String> {
     messages
         .iter()
@@ -198,19 +202,44 @@ fn mg_req_1731_4_release_branch_outside_its_files() {
 
 #[test]
 fn mg_req_1731_5_lint_attribute_without_a_reason() {
-    let message = "adds an allow or expect attribute without a `// reason: <text>` comment";
     assert_eq!(
         run(SCOPE, "allow-without-reason"),
         lines(
             "scope",
             &[
-                &format!("MG-REQ-1731.5: spec/a.rs:2 {message}"),
-                &format!("MG-REQ-1731.5: spec/a.rs:4 {message}"),
-                &format!("MG-REQ-1731.5: spec/a.rs:5 {message}"),
-                &format!("MG-REQ-1731.5: spec/a.rs:26 {message}"),
+                &format!("MG-REQ-1731.5: spec/a.rs:2 {NO_REASON}"),
+                &format!("MG-REQ-1731.5: spec/a.rs:4 {NO_REASON}"),
+                &format!("MG-REQ-1731.5: spec/a.rs:5 {NO_REASON}"),
+                &format!("MG-REQ-1731.5: spec/a.rs:26 {NO_REASON}"),
             ]
         )
     );
+}
+
+#[test]
+fn mg_req_1731_5_a_reason_argument_on_one_or_several_lines_passes() {
+    assert_eq!(run(SCOPE, "allow-with-reason"), Vec::<String>::new());
+}
+
+#[test]
+fn mg_req_1731_5_a_reason_that_is_empty_or_outside_the_attribute() {
+    assert_eq!(
+        run(SCOPE, "allow-reason-missing"),
+        lines(
+            "scope",
+            &[
+                &format!("MG-REQ-1731.5: spec/a.rs:2 {NO_REASON}"),
+                &format!("MG-REQ-1731.5: spec/a.rs:3 {NO_REASON}"),
+                &format!("MG-REQ-1731.5: spec/a.rs:4 {NO_REASON}"),
+                &format!("MG-REQ-1731.5: spec/a.rs:8 {NO_REASON}"),
+            ]
+        )
+    );
+}
+
+#[test]
+fn mg_req_1731_5_only_rust_files_are_checked() {
+    assert_eq!(run(SCOPE, "markdown-attribute"), Vec::<String>::new());
 }
 
 #[test]
