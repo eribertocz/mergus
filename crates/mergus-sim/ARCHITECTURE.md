@@ -13,6 +13,10 @@
 | `SimRandom` | Seeded random numbers |
 | `SimProcess` | Programs answer with outputs set by the test |
 | `SimEnvironment` | Variables and a configuration directory set by the test |
+| `Scenario` | What a caller simulates: how a seed draws steps, the world, one step |
+| `Simulator` | Runs, replays and shrinks a scenario from a seed |
+| `Replay`, `StepRecord` | A run replayed one step at a time, and each step's result |
+| `Outcome`, `Failure`, `Violation` | A run's result; a failing case and what it broke |
 
 ## Data flow
 
@@ -23,6 +27,12 @@
    draws the same numbers whatever the rates, so the sequence depends only on the seed and
    the calls.
 4. State lives in `BTreeMap`s, so listings are sorted and never depend on hashing.
+5. `Simulator::run(seed)` draws the steps from a generator derived from the seed, builds a
+   fresh world with `Scenario::start(seed)` and applies the steps until one breaks an
+   invariant. The same seed gives the same steps and the same world, so `replay` repeats a
+   failure step by step.
+6. `Simulator::shrink` removes runs of steps, halving their length down to one, and keeps
+   each removal after which the case still fails, until no single step can be removed.
 
 ## Dependencies
 
