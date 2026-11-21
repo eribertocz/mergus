@@ -49,27 +49,31 @@ pub(crate) fn judge(event: &Event, api: &dyn Api, version: &str) -> Result<Vec<S
             "MG-REQ-1739.2: `{CHANGELOG}` has no `## {version}` section"
         ));
     }
-    let roadmap = github::file(api, repo, ROADMAP, &event.base)?;
+    findings.extend(gate_findings(event, api)?);
+    Ok(findings)
+}
+
+/// The findings of MG-REQ-1739.3: every gate of the roadmap at the base needs an item in the
+/// `## Gates` section of the body.
+fn gate_findings(event: &Event, api: &dyn Api) -> Result<Vec<String>, Failure> {
+    let roadmap = github::file(api, &event.repository, ROADMAP, &event.base)?;
     let gates = gates(&roadmap).ok_or_else(|| {
         Failure::new(format!(
             "{ROADMAP}: section 2 has no table with gates in its first column"
         ))
     })?;
     let Some(section) = markdown::section(&event.body, GATES) else {
-        findings.push(format!(
+        return Ok(vec![format!(
             "MG-REQ-1739.3: the body lacks the heading `{GATES}`"
-        ));
-        return Ok(findings);
+        )]);
     };
-    findings.extend(
-        gates
-            .iter()
-            .filter(|gate| !section.lines().any(|line| is_gate_item(line, gate)))
-            .map(|gate| {
-                format!("MG-REQ-1739.3: `{GATES}` has no item `- {gate}: [<text>](https://<url>)`")
-            }),
-    );
-    Ok(findings)
+    Ok(gates
+        .iter()
+        .filter(|gate| !section.lines().any(|line| is_gate_item(line, gate)))
+        .map(|gate| {
+            format!("MG-REQ-1739.3: `{GATES}` has no item `- {gate}: [<text>](https://<url>)`")
+        })
+        .collect())
 }
 
 /// The `version` of the `[workspace.package]` table of a manifest, `None` when it has none.
