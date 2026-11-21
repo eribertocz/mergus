@@ -15,7 +15,7 @@ use std::process::Command;
 use crate::failure::Failure;
 
 /// The generated files of the specification, never scanned (MG-REQ-0176).
-const GENERATED: [&str; 3] = ["spec/RULES.md", "spec/crates.md", "spec/status.md"];
+const GENERATED: [&str; 2] = ["spec/RULES.md", "spec/crates.md"];
 
 /// One problem found in a file, printed as `<path>:<line>: <check>: <message>`.
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]
@@ -255,7 +255,7 @@ pub(crate) mod tests {
         assert!(!in_scope("fixtures/a.rs"));
         assert!(!in_scope("spec/RULES.md"));
         assert!(!in_scope("spec/crates.md"));
-        assert!(!in_scope("spec/status.md"));
+        assert!(in_scope("spec/status.md"));
     }
 
     #[test]
