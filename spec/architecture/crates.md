@@ -52,6 +52,7 @@ mergus/
 | `mergus-runtime` | 4 | no | Run cycle and scheduling; wires ports to crates |
 | `mergus-cli` | 5 | no | The `mergus` binary; translates arguments and output only |
 | `mergus-py` | 5 | no | Python bindings (maturin) |
+| `mergus-mcp` | 5 | no | MCP server: maps MCP tools onto `mergus` commands (MG-REQ-0290) |
 | `mergus-certify` | 3 | no | Conformance kit every storage adapter must pass |
 | `mergus-sim` | test | no | Deterministic simulator |
 | `mergus-testkit` | test | no | Fixtures, generators, golden datasets |

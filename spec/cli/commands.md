@@ -182,3 +182,17 @@ polling. The command exits 0 whenever it printed a status; the run's own exit co
 - Verify: test `mg_req_1316_run_status_waits_until_end_or_timeout`
 - Phase: 0.7
 - Decision: 0014
+
+### MG-REQ-1317 · review
+
+`mergus review <branch> --json` MUST print, without changing state, one versioned contract
+document for a proposed change on `<branch>`: the project files changed against `main`, the
+result of `validate`, the plan, the data diff of its branch environment against prod
+(MG-REQ-1228) and the test results. It is what a host shows a person before approval
+(MG-REQ-0191); approving, merging and reverting belong to the host.
+
+- Kind: behavior
+- Verify: test `mg_req_1317_review_reports_a_branch`
+- Phase: 0.7
+- Depends: MG-REQ-1208, MG-REQ-1228
+- Decision: 0015

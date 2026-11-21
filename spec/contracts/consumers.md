@@ -19,8 +19,9 @@ they rely on, so that Mergus keeps providing it. Mergus's obligations are the ru
 | Executor | Runs each Menura plan in a pinned session where each logical `source` resolves to the physical table and version of the manifest, without changing SQL or parameters | Pin recipe per table (MG-REQ-0249) |
 | Executor credentials | Read-only on gold and on `connect`/`live` sources; catalog name equal to the `source` prefix | Identities (`security/identities.md`) |
 | Host as UI host | Owns frame, sign-in, search, notifications, theme; mounts module pieces from their UI manifests | `ui/integration.md` |
+| Host proposals | Owns change proposals: hides Git from the user, creates the branch and commit, mirrors a proposal as a pull request on an external Git provider, lets only a person with permission approve, merges and reverts (MG-REQ-0191) | `review --json` (MG-REQ-1317), `dev --branch` (MG-REQ-1208) |
 | Mimus | Optional AI module of the ecosystem: turns requests into proposed project changes on a branch and into Menura typed queries; it only proposes (MG-REQ-0191). It uses the contracts directly, not MCP | `describe --json` (MG-REQ-1312, MG-REQ-1314), `profile` (MG-REQ-1315), `diff` (MG-REQ-1228), `run status` (MG-REQ-1316), CLI `--json` and exit codes, `actor` (MG-REQ-0264) |
-| `mergus-mcp` | Exposes Mergus commands to agents as MCP tools (MG-REQ-0290); Menura publishes its own server | CLI `--json`, `mergus schema` (MG-REQ-0263) |
+| `mergus-mcp` | Exposes Mergus commands to agents as MCP tools (MG-REQ-0290); Menura ships its own server | CLI `--json`, `mergus schema` (MG-REQ-0263) |
 | Distribution | Compatibility manifest of versions that work together and levels each executor supports | Manifest `mergus_version`, levels |
 
 | Storage | Pinned read used by the executor |
@@ -32,16 +33,17 @@ they rely on, so that Mergus keeps providing it. Mergus's obligations are the ru
 
 ### MG-REQ-0290 · MCP adapter is a thin, separate module
 
-Mergus's MCP server `mergus-mcp` MUST live in its own repository, be released with the same
-version as the CLI, map MCP tools one to one onto CLI commands with `--json`, hold no logic of
-its own, and run with the permissions of the identity that calls it. It exposes only Mergus;
-every other module publishes its own server.
+Mergus's MCP server MUST be the crate `mergus-mcp` in the Mergus repository, released and tested
+with the CLI under the same version. It MUST map MCP tools one to one onto CLI commands with
+`--json` by running the `mergus` binary, hold no logic of its own, depend on no Mergus crate
+but `mergus-contracts`, and run with the permissions of the identity that calls it. It exposes
+only Mergus; every other module ships its own server in its own repository.
 
 - Kind: process
 - Verify: review `mcp-thin-adapter`
 - Phase: 0.8
 - Depends: MG-REQ-0182
-- Decision: 0008, 0014
+- Decision: 0008, 0014, 0015
 
 ### MG-REQ-0291 · MCP safe by default
 
