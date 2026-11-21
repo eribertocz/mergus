@@ -1,0 +1,9 @@
+{
+  "/repos/owner/repo/pulls/5/files": [
+    {
+      "filename": "spec/governance/guards.md",
+      "patch": "@@ -1,1 +1,4 @@\n \u0023 Guards\n+An `\u0023[allow(...)]` or `\u0023[expect(...)]` attribute needs a reason.\n+    \u0023[allow(unused)]\n+    \u0023[ignore]",
+      "status": "modified"
+    }
+  ]
+}

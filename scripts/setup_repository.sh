@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Configure the Mergus GitHub repository (MG-REQ-1725, MG-REQ-1720, MG-REQ-1724).
+# Configure the Mergus GitHub repository (MG-REQ-1725, MG-REQ-1720, MG-REQ-1727).
 #
 # Only the owner runs this script. Sessions never run it.
 
@@ -12,17 +12,23 @@ readonly TAG_RULESET="release-tags"
 # check run posted by anyone else, such as a session using the owner's token, never counts.
 readonly GITHUB_ACTIONS_APP_ID=15368
 
-# Blocking guards of MG-REQ-1724. `language` is a warning only, so it is not required.
+# Required checks of MG-REQ-1727: every guard of MG-REQ-1724 that has a job in the guard
+# workflow, `ci` on each runner, `traceability` and `benchmarks`. A guard joins this list in
+# the change that adds its job.
 readonly REQUIRED_CHECKS=(
-  scope
-  session-identity
-  independent-review
-  issue-format
-  pr-format
-  commit-format
-  spec-check
-  deny-rules
-  repository-settings
+  "scope"
+  "session-identity"
+  "independent-review"
+  "issue-format"
+  "pr-format"
+  "commit-format"
+  "deny-rules"
+  "repository-settings"
+  "ci (ubuntu-latest)"
+  "ci (macos-latest)"
+  "ci (windows-latest)"
+  "traceability"
+  "benchmarks"
 )
 
 # Crate names of spec/architecture/crates.md section 2.
@@ -54,11 +60,11 @@ Commands:
   required-checks  Step 2. Run once the CI guards exist and report on pull requests.
                    Adds to ruleset "main" the required status checks:
                    scope, session-identity, independent-review, issue-format,
-                   pr-format, commit-format, spec-check, deny-rules,
-                   repository-settings.
-                   (`language` is a warning only and is not required.)
+                   pr-format, commit-format, deny-rules, repository-settings,
+                   ci (ubuntu-latest), ci (macos-latest), ci (windows-latest),
+                   traceability, benchmarks.
                    Each check counts only when GitHub Actions reports it, so every
-                   guard must run as a GitHub Actions job named exactly as above.
+                   check must run as a GitHub Actions job named exactly as above.
 
   help             Show this text.
 

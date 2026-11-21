@@ -1,0 +1,9 @@
+{
+  "/repos/owner/repo/pulls/5/files": [
+    {
+      "filename": "spec/a.rs",
+      "patch": "@@ -1,1 +1,8 @@\n fn a() {}\n+\u0023[allow(unused, reason = \"\")]\n+\u0023![expect(unused)]\n+\u0023[expect(\n+    clippy::too_many_lines,\n+)]\n+fn b() {} // reason = \"after the attribute\"\n+\u0023[allow(unused)] // reason = \"outside the attribute\"",
+      "status": "modified"
+    }
+  ]
+}

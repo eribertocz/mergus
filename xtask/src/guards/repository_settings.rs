@@ -1,22 +1,43 @@
 //! The `repository-settings` guard: the rulesets protect the default branch and the release
-//! tags, and require the blocking guards from GitHub Actions (MG-REQ-1738).
+//! tags, and require the checks of MG-REQ-1727 from GitHub Actions (MG-REQ-1738).
 
 use super::github::{self, Api};
 use super::{Event, Report};
 use crate::failure::Failure;
 use crate::json::Json;
 
-/// The blocking guards of MG-REQ-1724: every guard but `language`, which only warns.
-pub(crate) const BLOCKING_GUARDS: [&str; 9] = [
+/// The guards of MG-REQ-1724 that have a job in the guard workflow. `contract-compatibility`
+/// joins them with its job (MG-REQ-1727). Tests check it against the guard workflow and
+/// against the start of [`REQUIRED_CHECKS`].
+#[cfg(test)]
+pub(crate) const GUARD_JOBS: [&str; 8] = [
     "scope",
     "session-identity",
     "independent-review",
     "issue-format",
     "pr-format",
     "commit-format",
-    "spec-check",
     "deny-rules",
     "repository-settings",
+];
+
+/// The checks the ruleset on the default branch requires from GitHub Actions (MG-REQ-1727):
+/// every guard of MG-REQ-1724 with a job in the guard workflow, `ci` on each runner,
+/// `traceability` and `benchmarks`.
+pub(crate) const REQUIRED_CHECKS: [&str; 13] = [
+    "scope",
+    "session-identity",
+    "independent-review",
+    "issue-format",
+    "pr-format",
+    "commit-format",
+    "deny-rules",
+    "repository-settings",
+    "ci (ubuntu-latest)",
+    "ci (macos-latest)",
+    "ci (windows-latest)",
+    "traceability",
+    "benchmarks",
 ];
 
 /// The app id of GitHub Actions.
@@ -167,7 +188,7 @@ fn required_checks(branch: &[&Ruleset], report: &mut Report) {
                 .unwrap_or_default()
         })
         .collect();
-    for guard in BLOCKING_GUARDS {
+    for guard in REQUIRED_CHECKS {
         let listed: Vec<&&Json> = checks
             .iter()
             .filter(|check| check.get("context").and_then(Json::as_str) == Some(guard))
