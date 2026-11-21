@@ -1,6 +1,7 @@
 //! Tests of the traceability report, on the fixture under `xtask/fixtures/traceability/`.
 
 use std::collections::BTreeMap;
+use std::fs;
 use std::path::{Path, PathBuf};
 
 use super::sources::{self, Outcome, Test};
@@ -65,6 +66,19 @@ fn mg_req_0165_rules_are_read_like_the_specification_tool() {
             phase("0.3"),
         ]
     );
+}
+
+#[test]
+fn mg_req_0165_only_rules_md_and_crates_md_are_generated() {
+    let spec = workspace::tests::scratch("traceability-generated");
+    for (number, name) in [(9101, "RULES.md"), (9102, "crates.md"), (9103, "status.md")] {
+        let text = format!(
+            "---\nphase: \"0.1\"\n---\n\n### MG-REQ-{number} · Rule in {name}\n\n- Kind: process\n"
+        );
+        fs::write(spec.join(name), text).unwrap();
+    }
+    let ids: Vec<_> = spec::rules(&spec).unwrap().iter().map(Rule::id).collect();
+    assert_eq!(ids, ["MG-REQ-9103"]);
 }
 
 #[test]

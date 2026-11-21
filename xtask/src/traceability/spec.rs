@@ -8,7 +8,7 @@ use crate::failure::Failure;
 use crate::workspace;
 
 /// Files at the top of `spec/` that are generated from the rules, not sources of rules.
-const GENERATED: [&str; 3] = ["RULES.md", "crates.md", "status.md"];
+const GENERATED: [&str; 2] = ["RULES.md", "crates.md"];
 
 /// The prefix of the line of `spec/roadmap.md` that names the current phase (MG-REQ-0167).
 const CURRENT_PHASE: &str = "Current phase: ";
