@@ -174,10 +174,21 @@ and a release ready to tag. It is the only list the owner needs.
 ### MG-REQ-1713 · Owner queue
 
 `just owner-queue` MUST list exactly the open pull requests with green CI and a `ready`
-verdict, the open `needs-owner` issues, and any merged release pull request without a tag.
+verdict, the open `needs-owner` issues, and any merged release pull request without a tag:
+
+1. MG-REQ-1713.1: green CI means every required check of MG-REQ-1727 has a check run with
+   conclusion `success` on the head commit;
+2. MG-REQ-1713.2: a `ready` verdict is read as the `independent-review` guard reads it
+   (MG-REQ-1734); a pull request outside that guard's branches needs none;
+3. MG-REQ-1713.3: a release pull request without a tag is a merged pull request whose head
+   branch is `release/<version>` and for which no tag `v<version>` exists;
+4. MG-REQ-1713.4: each item is one line `<kind> #<number> <title> <url>`, with kind `merge`,
+   `needs-owner` or `tag`, in that order of kinds and by ascending number within a kind. With no
+   item, the command prints nothing and exits 0.
 
 - Kind: process
 - Verify: test `mg_req_1713_owner_queue_lists_ready_items`
+- Decision: 0013
 
 ### MG-REQ-1715 · Release trigger check
 
