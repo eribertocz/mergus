@@ -83,8 +83,8 @@ implementer (decision 0002).
 ### MG-REQ-0176 · Scope of the content checks
 
 The content checks MUST scan the files tracked by git (`git ls-files`) and skip every path
-that has a directory named `fixtures` and the generated files `spec/RULES.md`,
-`spec/crates.md` and `spec/status.md`. Each finding MUST be reported as
+that has a directory named `fixtures` and the generated files `spec/RULES.md`
+and `spec/crates.md`. Each finding MUST be reported as
 `<path>:<line>: <check>: <message>`, sorted by path and line.
 
 - Kind: process

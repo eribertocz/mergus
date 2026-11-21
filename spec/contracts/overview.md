@@ -51,17 +51,27 @@ with an internal error.
 
 ### MG-REQ-0204 · Semantic versioning per contract
 
-Each contract has its own semantic version, independent of the Mergus version. Adding an
-optional field is a minor change; removing or renaming a field, changing a type or tightening
-a constraint is a major change.
+Each contract has its own semantic version `MAJOR.MINOR.PATCH`, independent of the Mergus
+version:
+
+- A change to `title` or `description` only is a patch change.
+- Adding an optional property or a `$defs` entry is a minor change.
+- Any other change is a major change: removing or renaming a field, changing a type,
+  tightening or loosening a constraint, adding an `enum` value.
+
+The full version is written in the file `schemas/<contract>/v<MAJOR>/VERSION` and exported
+by `mergus-contracts` as a constant of that contract. A major change goes into a new folder
+`v<MAJOR+1>`. A document's `contract_version` is the major version, an integer.
 
 - Kind: process
 - Verify: check `contract-compatibility`
+- Decision: 0012
 
 ### MG-REQ-0205 · Compatibility check in CI
 
-CI MUST compare every changed schema with its version on `main` and fail when an
-incompatible change does not bump the major version.
+CI MUST compare every changed schema with its version on `main` and fail when the change
+does not bump the `VERSION` file as MG-REQ-0204 requires for its kind: a major change without
+a new `v<MAJOR>` folder, or a minor or patch change without the matching increment.
 
 - Kind: process
 - Verify: check `contract-compatibility`

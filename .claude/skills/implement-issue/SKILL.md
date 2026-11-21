@@ -20,7 +20,9 @@ Use the GitHub REST API through `gh api`; GraphQL is not available.
 11. Open the pull request with the template filled, then add label `impl`.
 12. Stop. Do not review, merge or tag.
 
-Report on GitHub, not in the chat. The pull request description is the report of finished
-work. When you stop for any other reason (a `spec-defect`, a denied command, a missing
+Write everything on GitHub, nothing in the chat. The pull request description is the report of
+finished work. Questions go in a comment on the pull request, or on the issue before the pull
+request exists. When you stop for any other reason (a `spec-defect`, a denied command, a missing
 dependency), post one short comment on the issue saying what blocks you and what you need,
-then stop. Keep chat messages to the owner short.
+then stop. Your chat messages are one line at most: the link to what you posted. Spend no tokens
+on chat summaries.
