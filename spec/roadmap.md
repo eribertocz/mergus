@@ -64,7 +64,7 @@ A phase is released only when every gate passes in CI on `main`.
 | 1.1 | UI (observe, then operate), server-mode sandbox (MG-REQ-1051), `forget` (MG-REQ-1056) |
 | 1.2 | Iceberg and Delta adapters; levels B, C, C+; quarantine action; quality score |
 | 1.3 | CDC sources; cloud secret managers; Airbyte declarative manifests; Python escape for REST |
-| 1.4 | MCP server; editor extension; HTTP API for server mode |
+| 1.4 | MCP adapter (MG-REQ-0290); editor extension; HTTP API for server mode |
 | 1.5 | ClickHouse adapter; triggers on other projects' publications; shared packages; translations |
 | later | LTS channel; WinGet, Scoop, apt/rpm, conda-forge, Nix, Helm; browser playground |
 
