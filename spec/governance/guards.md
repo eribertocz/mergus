@@ -40,9 +40,11 @@ The `scope` guard MUST fail when:
 3. MG-REQ-1731.3: on a `spec/` branch, a changed file is outside the specification scope;
 4. MG-REQ-1731.4: on a `release/` branch, a changed file is not a `Cargo.toml`, a
    `pyproject.toml` or `CHANGELOG.md`;
-5. MG-REQ-1731.5: an added line contains `#[allow(`, `#![allow(` or `#[expect(` with no
-   `// reason: <text>` comment on the same or the previous line, or adds `#[ignore` to a
-   test (MG-REQ-0013).
+5. MG-REQ-1731.5: in a Rust file (`*.rs`), an added `allow` or `expect` attribute, at item or
+   crate level, has no written reason: neither a `reason = "<text>"` argument inside the
+   attribute, which may span several lines, nor a `// reason: <text>` comment on the line
+   before it; or an added `ignore` attribute marks a test (MG-REQ-0013). Other files are not
+   checked by this item.
 
 Only the owner adds the label `owner-authorized`, by hand. Sessions MUST NOT add it.
 
