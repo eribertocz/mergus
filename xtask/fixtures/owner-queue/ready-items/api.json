@@ -1,0 +1,649 @@
+{
+  "/repos/owner/repo/commits/9999999999999999999999999999999999999999/check-runs": {
+    "check_runs": [
+      {
+        "conclusion": "success",
+        "name": "scope",
+        "status": "completed"
+      },
+      {
+        "conclusion": "success",
+        "name": "session-identity",
+        "status": "completed"
+      },
+      {
+        "conclusion": "success",
+        "name": "independent-review",
+        "status": "completed"
+      },
+      {
+        "conclusion": "success",
+        "name": "issue-format",
+        "status": "completed"
+      },
+      {
+        "conclusion": "success",
+        "name": "pr-format",
+        "status": "completed"
+      },
+      {
+        "conclusion": "success",
+        "name": "commit-format",
+        "status": "completed"
+      },
+      {
+        "conclusion": "success",
+        "name": "deny-rules",
+        "status": "completed"
+      },
+      {
+        "conclusion": "success",
+        "name": "repository-settings",
+        "status": "completed"
+      },
+      {
+        "conclusion": "success",
+        "name": "ci (ubuntu-latest)",
+        "status": "completed"
+      },
+      {
+        "conclusion": "success",
+        "name": "ci (macos-latest)",
+        "status": "completed"
+      },
+      {
+        "conclusion": "success",
+        "name": "ci (windows-latest)",
+        "status": "completed"
+      },
+      {
+        "conclusion": "neutral",
+        "name": "traceability",
+        "status": "completed"
+      },
+      {
+        "conclusion": "success",
+        "name": "benchmarks",
+        "status": "completed"
+      }
+    ],
+    "total_count": 13
+  },
+  "/repos/owner/repo/commits/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/check-runs": {
+    "check_runs": [
+      {
+        "conclusion": "success",
+        "name": "scope",
+        "status": "completed"
+      },
+      {
+        "conclusion": "success",
+        "name": "session-identity",
+        "status": "completed"
+      },
+      {
+        "conclusion": "success",
+        "name": "independent-review",
+        "status": "completed"
+      },
+      {
+        "conclusion": "success",
+        "name": "issue-format",
+        "status": "completed"
+      },
+      {
+        "conclusion": "success",
+        "name": "pr-format",
+        "status": "completed"
+      },
+      {
+        "conclusion": "success",
+        "name": "commit-format",
+        "status": "completed"
+      },
+      {
+        "conclusion": "success",
+        "name": "deny-rules",
+        "status": "completed"
+      },
+      {
+        "conclusion": "success",
+        "name": "repository-settings",
+        "status": "completed"
+      },
+      {
+        "conclusion": "success",
+        "name": "ci (ubuntu-latest)",
+        "status": "completed"
+      },
+      {
+        "conclusion": "success",
+        "name": "ci (macos-latest)",
+        "status": "completed"
+      },
+      {
+        "conclusion": "success",
+        "name": "ci (windows-latest)",
+        "status": "completed"
+      },
+      {
+        "conclusion": "success",
+        "name": "traceability",
+        "status": "completed"
+      },
+      {
+        "conclusion": "success",
+        "name": "benchmarks",
+        "status": "completed"
+      },
+      {
+        "conclusion": "failure",
+        "name": "extra",
+        "status": "completed"
+      }
+    ],
+    "total_count": 14
+  },
+  "/repos/owner/repo/commits/bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb/check-runs": {
+    "check_runs": [
+      {
+        "conclusion": "failure",
+        "name": "scope",
+        "status": "completed"
+      },
+      {
+        "conclusion": "success",
+        "name": "session-identity",
+        "status": "completed"
+      },
+      {
+        "conclusion": "success",
+        "name": "independent-review",
+        "status": "completed"
+      },
+      {
+        "conclusion": "success",
+        "name": "issue-format",
+        "status": "completed"
+      },
+      {
+        "conclusion": "success",
+        "name": "pr-format",
+        "status": "completed"
+      },
+      {
+        "conclusion": "success",
+        "name": "commit-format",
+        "status": "completed"
+      },
+      {
+        "conclusion": "success",
+        "name": "deny-rules",
+        "status": "completed"
+      },
+      {
+        "conclusion": "success",
+        "name": "repository-settings",
+        "status": "completed"
+      },
+      {
+        "conclusion": "success",
+        "name": "ci (ubuntu-latest)",
+        "status": "completed"
+      },
+      {
+        "conclusion": "success",
+        "name": "ci (macos-latest)",
+        "status": "completed"
+      },
+      {
+        "conclusion": "success",
+        "name": "ci (windows-latest)",
+        "status": "completed"
+      },
+      {
+        "conclusion": "success",
+        "name": "traceability",
+        "status": "completed"
+      },
+      {
+        "conclusion": "success",
+        "name": "benchmarks",
+        "status": "completed"
+      }
+    ],
+    "total_count": 13
+  },
+  "/repos/owner/repo/commits/cccccccccccccccccccccccccccccccccccccccc/check-runs": {
+    "check_runs": [
+      {
+        "conclusion": "success",
+        "name": "scope",
+        "status": "completed"
+      },
+      {
+        "conclusion": "success",
+        "name": "session-identity",
+        "status": "completed"
+      },
+      {
+        "conclusion": "success",
+        "name": "independent-review",
+        "status": "completed"
+      },
+      {
+        "conclusion": "success",
+        "name": "issue-format",
+        "status": "completed"
+      },
+      {
+        "conclusion": "success",
+        "name": "pr-format",
+        "status": "completed"
+      },
+      {
+        "conclusion": "success",
+        "name": "commit-format",
+        "status": "completed"
+      },
+      {
+        "conclusion": "success",
+        "name": "deny-rules",
+        "status": "completed"
+      },
+      {
+        "conclusion": "success",
+        "name": "repository-settings",
+        "status": "completed"
+      },
+      {
+        "conclusion": "success",
+        "name": "ci (ubuntu-latest)",
+        "status": "completed"
+      },
+      {
+        "conclusion": "success",
+        "name": "ci (macos-latest)",
+        "status": "completed"
+      },
+      {
+        "conclusion": "success",
+        "name": "ci (windows-latest)",
+        "status": "completed"
+      },
+      {
+        "conclusion": "success",
+        "name": "traceability",
+        "status": "completed"
+      },
+      {
+        "conclusion": "success",
+        "name": "benchmarks",
+        "status": "completed"
+      }
+    ],
+    "total_count": 13
+  },
+  "/repos/owner/repo/commits/dddddddddddddddddddddddddddddddddddddddd/check-runs": {
+    "check_runs": [
+      {
+        "conclusion": "success",
+        "name": "scope",
+        "status": "completed"
+      },
+      {
+        "conclusion": "success",
+        "name": "session-identity",
+        "status": "completed"
+      },
+      {
+        "conclusion": "success",
+        "name": "independent-review",
+        "status": "completed"
+      },
+      {
+        "conclusion": "success",
+        "name": "issue-format",
+        "status": "completed"
+      },
+      {
+        "conclusion": "success",
+        "name": "pr-format",
+        "status": "completed"
+      },
+      {
+        "conclusion": "success",
+        "name": "commit-format",
+        "status": "completed"
+      },
+      {
+        "conclusion": "success",
+        "name": "deny-rules",
+        "status": "completed"
+      },
+      {
+        "conclusion": "success",
+        "name": "repository-settings",
+        "status": "completed"
+      },
+      {
+        "conclusion": "success",
+        "name": "ci (ubuntu-latest)",
+        "status": "completed"
+      },
+      {
+        "conclusion": "success",
+        "name": "ci (macos-latest)",
+        "status": "completed"
+      },
+      {
+        "conclusion": "success",
+        "name": "ci (windows-latest)",
+        "status": "completed"
+      },
+      {
+        "conclusion": "success",
+        "name": "traceability",
+        "status": "completed"
+      }
+    ],
+    "total_count": 12
+  },
+  "/repos/owner/repo/commits/eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee/check-runs": {
+    "check_runs": [
+      {
+        "conclusion": "success",
+        "name": "scope",
+        "status": "completed"
+      },
+      {
+        "conclusion": "success",
+        "name": "session-identity",
+        "status": "completed"
+      },
+      {
+        "conclusion": "success",
+        "name": "independent-review",
+        "status": "completed"
+      },
+      {
+        "conclusion": "success",
+        "name": "issue-format",
+        "status": "completed"
+      },
+      {
+        "conclusion": "success",
+        "name": "pr-format",
+        "status": "completed"
+      },
+      {
+        "conclusion": "success",
+        "name": "commit-format",
+        "status": "completed"
+      },
+      {
+        "conclusion": "success",
+        "name": "deny-rules",
+        "status": "completed"
+      },
+      {
+        "conclusion": "success",
+        "name": "repository-settings",
+        "status": "completed"
+      },
+      {
+        "conclusion": "success",
+        "name": "ci (ubuntu-latest)",
+        "status": "completed"
+      },
+      {
+        "conclusion": "success",
+        "name": "ci (macos-latest)",
+        "status": "completed"
+      },
+      {
+        "conclusion": "success",
+        "name": "ci (windows-latest)",
+        "status": "completed"
+      },
+      {
+        "conclusion": "skipped",
+        "name": "traceability",
+        "status": "completed"
+      },
+      {
+        "conclusion": "success",
+        "name": "benchmarks",
+        "status": "completed"
+      }
+    ],
+    "total_count": 13
+  },
+  "/repos/owner/repo/issues/12/comments": [
+    {
+      "body": "Review.\n\nVerdict: ready\nClaude-Session: https://claude.ai/code/session_reviewer\n",
+      "created_at": "2026-01-02T11:00:00Z"
+    }
+  ],
+  "/repos/owner/repo/issues/15/comments": [
+    {
+      "body": "Review.\n\nVerdict: changes-needed\nClaude-Session: https://claude.ai/code/session_reviewer\n",
+      "created_at": "2026-01-02T11:00:00Z"
+    }
+  ],
+  "/repos/owner/repo/issues?state=open&labels=needs-owner&per_page=100&page=1": [
+    {
+      "html_url": "https://github.com/owner/repo/pull/21",
+      "number": 21,
+      "pull_request": {
+        "url": "x"
+      },
+      "title": "A pull request"
+    },
+    {
+      "html_url": "https://github.com/owner/repo/issues/20",
+      "number": 20,
+      "title": "Owner decision"
+    }
+  ],
+  "/repos/owner/repo/pulls/12/commits": [
+    {
+      "commit": {
+        "author": {
+          "email": "a@x"
+        },
+        "committer": {
+          "date": "2026-01-02T10:00:00Z"
+        },
+        "message": "feat: x (\u00237)\n\nCo-Authored-By: C <c@x>\nClaude-Session: https://claude.ai/code/session_author\n"
+      },
+      "parents": [
+        {
+          "sha": "0000000000000000000000000000000000000000"
+        }
+      ],
+      "sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    }
+  ],
+  "/repos/owner/repo/pulls/15/commits": [
+    {
+      "commit": {
+        "author": {
+          "email": "a@x"
+        },
+        "committer": {
+          "date": "2026-01-02T10:00:00Z"
+        },
+        "message": "feat: x (\u00237)\n\nCo-Authored-By: C <c@x>\nClaude-Session: https://claude.ai/code/session_author\n"
+      },
+      "parents": [
+        {
+          "sha": "0000000000000000000000000000000000000000"
+        }
+      ],
+      "sha": "cccccccccccccccccccccccccccccccccccccccc"
+    }
+  ],
+  "/repos/owner/repo/pulls?state=closed&per_page=100&page=1": [
+    {
+      "base": {
+        "ref": "main",
+        "sha": "0000000000000000000000000000000000000000"
+      },
+      "body": "",
+      "head": {
+        "ref": "issue-5-merged",
+        "sha": "ffffffffffffffffffffffffffffffffffffffff"
+      },
+      "html_url": "https://github.com/owner/repo/pull/33",
+      "merged_at": "2026-01-01T00:00:00Z",
+      "number": 33,
+      "title": "Merged change"
+    },
+    {
+      "base": {
+        "ref": "main",
+        "sha": "0000000000000000000000000000000000000000"
+      },
+      "body": "",
+      "head": {
+        "ref": "release/0.3.0",
+        "sha": "ffffffffffffffffffffffffffffffffffffffff"
+      },
+      "html_url": "https://github.com/owner/repo/pull/32",
+      "merged_at": null,
+      "number": 32,
+      "title": "Closed release"
+    },
+    {
+      "base": {
+        "ref": "main",
+        "sha": "0000000000000000000000000000000000000000"
+      },
+      "body": "",
+      "head": {
+        "ref": "release/0.2.0",
+        "sha": "ffffffffffffffffffffffffffffffffffffffff"
+      },
+      "html_url": "https://github.com/owner/repo/pull/31",
+      "merged_at": "2026-01-03T00:00:00Z",
+      "number": 31,
+      "title": "Release 0.2.0"
+    },
+    {
+      "base": {
+        "ref": "main",
+        "sha": "0000000000000000000000000000000000000000"
+      },
+      "body": "",
+      "head": {
+        "ref": "release/0.1.0",
+        "sha": "ffffffffffffffffffffffffffffffffffffffff"
+      },
+      "html_url": "https://github.com/owner/repo/pull/30",
+      "merged_at": "2026-01-01T00:00:00Z",
+      "number": 30,
+      "title": "Release 0.1.0"
+    }
+  ],
+  "/repos/owner/repo/pulls?state=open&per_page=100&page=1": [
+    {
+      "base": {
+        "ref": "main",
+        "sha": "0000000000000000000000000000000000000000"
+      },
+      "body": "",
+      "head": {
+        "ref": "spec/queue",
+        "sha": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+      },
+      "html_url": "https://github.com/owner/repo/pull/14",
+      "merged_at": null,
+      "number": 14,
+      "title": "Spec change"
+    },
+    {
+      "base": {
+        "ref": "main",
+        "sha": "0000000000000000000000000000000000000000"
+      },
+      "body": "",
+      "head": {
+        "ref": "issue-8-red",
+        "sha": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+      },
+      "html_url": "https://github.com/owner/repo/pull/13",
+      "merged_at": null,
+      "number": 13,
+      "title": "Red CI"
+    },
+    {
+      "base": {
+        "ref": "main",
+        "sha": "0000000000000000000000000000000000000000"
+      },
+      "body": "",
+      "head": {
+        "ref": "issue-7-ready",
+        "sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      },
+      "html_url": "https://github.com/owner/repo/pull/12",
+      "merged_at": null,
+      "number": 12,
+      "title": "Ready change"
+    },
+    {
+      "base": {
+        "ref": "main",
+        "sha": "0000000000000000000000000000000000000000"
+      },
+      "body": "",
+      "head": {
+        "ref": "issue-9-changes",
+        "sha": "cccccccccccccccccccccccccccccccccccccccc"
+      },
+      "html_url": "https://github.com/owner/repo/pull/15",
+      "merged_at": null,
+      "number": 15,
+      "title": "Changes needed"
+    },
+    {
+      "base": {
+        "ref": "main",
+        "sha": "0000000000000000000000000000000000000000"
+      },
+      "body": "",
+      "head": {
+        "ref": "spec/no-bench",
+        "sha": "dddddddddddddddddddddddddddddddddddddddd"
+      },
+      "html_url": "https://github.com/owner/repo/pull/16",
+      "merged_at": null,
+      "number": 16,
+      "title": "No benchmarks"
+    },
+    {
+      "base": {
+        "ref": "main",
+        "sha": "0000000000000000000000000000000000000000"
+      },
+      "body": "",
+      "head": {
+        "ref": "spec/neutral",
+        "sha": "9999999999999999999999999999999999999999"
+      },
+      "html_url": "https://github.com/owner/repo/pull/17",
+      "merged_at": null,
+      "number": 17,
+      "title": "Neutral check"
+    }
+  ],
+  "/repos/owner/repo/tags": [
+    {
+      "name": "v0.1.0"
+    },
+    {
+      "name": "v0.2.0-rc"
+    }
+  ]
+}

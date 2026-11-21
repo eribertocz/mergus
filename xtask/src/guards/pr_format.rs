@@ -1,10 +1,10 @@
 //! The `pr-format` guard: the body fills every section of the pull request template and, on
 //! an implementation pull request, closes its issue and names the issue's rules
-//! (MG-REQ-1736).
+//! (MG-REQ-1736). On a release pull request it also runs `release-gates` (MG-REQ-1739).
 
 use super::github::{self, Api};
 use super::issue_format::RULES;
-use super::{Event, branch, markdown};
+use super::{Event, branch, markdown, release_gates};
 use crate::failure::Failure;
 
 /// The pull request template, read at the base commit.
@@ -38,6 +38,9 @@ pub(crate) fn judge(event: &Event, api: &dyn Api) -> Result<Vec<String>, Failure
     }
     if let Some(number) = branch::issue(&event.branch) {
         findings.extend(issue_findings(event, api, number)?);
+    }
+    if let Some(version) = event.branch.strip_prefix(release_gates::RELEASE_BRANCH) {
+        findings.extend(release_gates::judge(event, api, version)?);
     }
     Ok(findings)
 }

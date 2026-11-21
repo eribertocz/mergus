@@ -12,7 +12,7 @@ use crate::failure::Failure;
 use crate::{cargo, traceability, workspace};
 
 /// The steps, in the order they run.
-pub(crate) const STEPS: [&str; 17] = [
+pub(crate) const STEPS: [&str; 18] = [
     "fmt",
     "contracts-generated",
     "clippy",
@@ -27,6 +27,7 @@ pub(crate) const STEPS: [&str; 17] = [
     "crate-docs",
     "license-headers",
     "governance-files",
+    "release-trigger",
     "cargo-deny",
     "spec-check",
     "traceability",
@@ -203,6 +204,12 @@ mod tests {
                 "`{check}` fails on this repository"
             );
         }
+    }
+
+    #[test]
+    fn mg_req_1715_ci_runs_the_release_trigger_check() {
+        assert!(STEPS.contains(&"release-trigger"));
+        assert!(crate::check("release-trigger").is_ok());
     }
 
     #[test]

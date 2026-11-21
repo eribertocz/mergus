@@ -1,0 +1,6 @@
+{
+  "/repos/owner/repo/issues?state=open&labels=needs-owner&per_page=100&page=1": [],
+  "/repos/owner/repo/pulls?state=closed&per_page=100&page=1": [],
+  "/repos/owner/repo/pulls?state=open&per_page=100&page=1": [],
+  "/repos/owner/repo/tags": []
+}

@@ -15,7 +15,9 @@ mod independent_review;
 mod issue_format;
 mod markdown;
 mod message;
+mod owner_queue;
 mod pr_format;
+mod release_gates;
 mod repository_settings;
 mod scope;
 mod session_identity;
@@ -27,6 +29,8 @@ mod tests;
 mod tests_compatibility;
 #[cfg(test)]
 mod tests_format;
+#[cfg(test)]
+mod tests_queue;
 #[cfg(test)]
 mod tests_settings;
 
@@ -67,25 +71,39 @@ impl Event {
     pub(crate) fn read(path: &Path) -> Result<Self, Failure> {
         let json = Json::parse(&workspace::read(path)?)?;
         let missing = |what: &str| Failure::new(format!("{}: no {what}", workspace::shown(path)));
+        let repository = json
+            .get("repository")
+            .and_then(|repository| repository.get("full_name"))
+            .and_then(Json::as_str)
+            .ok_or_else(|| missing("repository.full_name"))?;
         let pull_request = json
             .get("pull_request")
             .ok_or_else(|| missing("pull_request"))?;
+        Self::from_pull_request(repository, pull_request)
+            .map_err(|what| missing(&format!("pull_request.{what}")))
+    }
+
+    /// Reads a pull request of `repository` as the REST API and the event file give it.
+    ///
+    /// # Errors
+    ///
+    /// Fails with the name of the first missing field: `number`, `head.ref`, `base.sha` or
+    /// `head.sha`.
+    pub(crate) fn from_pull_request(
+        repository: &str,
+        pull_request: &Json,
+    ) -> Result<Self, &'static str> {
         Ok(Self {
-            repository: json
-                .get("repository")
-                .and_then(|repository| repository.get("full_name"))
-                .and_then(Json::as_str)
-                .ok_or_else(|| missing("repository.full_name"))?
-                .to_owned(),
+            repository: repository.to_owned(),
             number: pull_request
                 .get("number")
                 .and_then(Json::as_u64)
-                .ok_or_else(|| missing("pull_request.number"))?,
+                .ok_or("number")?,
             branch: pull_request
                 .get("head")
                 .and_then(|head| head.get("ref"))
                 .and_then(Json::as_str)
-                .ok_or_else(|| missing("pull_request.head.ref"))?
+                .ok_or("head.ref")?
                 .to_owned(),
             head_repository: pull_request
                 .get("head")
@@ -93,8 +111,8 @@ impl Event {
                 .and_then(|repo| repo.get("full_name"))
                 .and_then(Json::as_str)
                 .map(str::to_owned),
-            base: sha(pull_request, "base").ok_or_else(|| missing("pull_request.base.sha"))?,
-            head: sha(pull_request, "head").ok_or_else(|| missing("pull_request.head.sha"))?,
+            base: sha(pull_request, "base").ok_or("base.sha")?,
+            head: sha(pull_request, "head").ok_or("head.sha")?,
             body: github::text(pull_request.get("body")),
         })
     }
@@ -214,6 +232,15 @@ pub(crate) fn run_deny_rules(args: &[String]) -> Result<ExitCode, Failure> {
     let lines = prefixed(DENY_RULES, deny_rules::judge(&base, head.as_deref())?);
     lines.iter().for_each(|line| print_finding(line));
     Ok(exit_code(&lines))
+}
+
+/// Runs `cargo xtask owner-queue` (MG-REQ-1713).
+///
+/// # Errors
+///
+/// Fails if an argument is given, the repository is unknown, or the API cannot be read.
+pub(crate) fn run_owner_queue(args: &[String]) -> Result<ExitCode, Failure> {
+    owner_queue::run(args, &github::Rest::from_env())
 }
 
 /// Runs the `repository-settings` guard (MG-REQ-1738). Its warnings go to standard error and
