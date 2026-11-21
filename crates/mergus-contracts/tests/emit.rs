@@ -91,3 +91,9 @@ fn mg_req_0202_registry_lists_the_generated_contracts() {
     assert_eq!(names, [("sample", 1)]);
     assert_eq!(generated::CONTRACTS[0].schema, Sample::SCHEMA);
 }
+
+#[test]
+fn mg_req_0204_each_contract_exports_its_full_version() {
+    assert_eq!(Sample::SEMANTIC_VERSION, "1.0.0");
+    assert_eq!(Sample::VERSION, 1);
+}

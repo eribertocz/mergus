@@ -14,7 +14,9 @@ fn generated_scratch(name: &str) -> (std::path::PathBuf, std::path::PathBuf) {
     let schemas = dir.join("schemas");
     let version = schemas.join("sample").join("v1");
     fs::create_dir_all(&version).unwrap();
-    fs::copy(fixture.join("schema.json"), version.join("schema.json")).unwrap();
+    for file in ["schema.json", "VERSION"] {
+        fs::copy(fixture.join(file), version.join(file)).unwrap();
+    }
     let out = dir.join("generated");
     fs::create_dir_all(&out).unwrap();
     for (path, text) in expected(&root, &schemas, &out).unwrap() {
@@ -71,6 +73,43 @@ fn mg_req_0202_an_empty_schema_directory_generates_an_empty_registry() {
             .1
             .contains("pub const CONTRACTS: &[crate::ContractSchema] = &[];")
     );
+}
+
+#[test]
+fn mg_req_0204_the_generated_type_exports_the_full_version() {
+    let (_, out) = generated_scratch("contracts-semver");
+    let text = fs::read_to_string(out.join("sample_v1.rs")).unwrap();
+    assert!(
+        text.contains("const SEMANTIC_VERSION: &'static str = \"1.0.0\";"),
+        "{text}"
+    );
+}
+
+#[test]
+fn mg_req_0204_a_missing_or_malformed_version_file_fails() {
+    let (schemas, out) = generated_scratch("contracts-version");
+    let root = workspace::root().unwrap();
+    let file = schemas.join("sample").join("v1").join("VERSION");
+    let failure = |text: Option<&str>| {
+        match text {
+            Some(text) => fs::write(&file, text).unwrap(),
+            None => fs::remove_file(&file).unwrap(),
+        }
+        let Err(failure) = expected(&root, &schemas, &out) else {
+            panic!("{text:?} is accepted");
+        };
+        let message = format!("{failure:?}");
+        message.rsplit("/v1").next().unwrap().to_owned()
+    };
+    assert_eq!(
+        failure(Some("1.0\n")),
+        "/VERSION: `1.0` is not one line `MAJOR.MINOR.PATCH`"
+    );
+    assert_eq!(
+        failure(Some("2.0.0\n")),
+        "/VERSION: `2.0.0` does not have the major version 1 of its directory `v1`"
+    );
+    assert_eq!(failure(None), ": `VERSION` is missing");
 }
 
 fn model_error(schema: &str) -> String {

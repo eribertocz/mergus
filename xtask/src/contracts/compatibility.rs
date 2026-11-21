@@ -1,12 +1,14 @@
 //! Whether a new text of a schema keeps the major version of its contract (MG-REQ-0204).
 //!
-//! The only minor changes are adding an optional property, adding a definition and changing
-//! a `title` or a `description`. Every other change is major: removing or renaming a
+//! A change to a `title` or a `description` only is a patch change; so is a change in the
+//! order of members or `enum` values, which changes no document. Adding an optional property
+//! or a definition is a minor change. Every other change is major: removing or renaming a
 //! property, changing a `type`, a `const`, an `enum`, a `$ref` or any other keyword, and
 //! changing which properties are required. A loosening change, such as an added `enum` value
 //! or a property that is no longer required, is major too: it changes the generated Rust
 //! type that code matches on (MG-REQ-0202).
 
+use super::version::Bump;
 use crate::json::Json;
 
 /// Keywords that do not change which documents a schema accepts.
@@ -15,24 +17,63 @@ const ANNOTATIONS: [&str; 2] = ["title", "description"];
 /// Keywords compared member by member instead of as a whole.
 const STRUCTURE: [&str; 4] = ["properties", "required", "items", "$defs"];
 
-/// Lists every change from `old` to `new` that needs a new major version, each with the JSON
-/// pointer of its node; nothing when `new` is a minor version of `old`.
-pub(crate) fn incompatibilities(old: &Json, new: &Json) -> Vec<String> {
-    let mut found = Vec::new();
+/// What a comparison of two schema texts finds.
+#[derive(Default)]
+struct Found {
+    /// Every change that needs a new major version, with the JSON pointer of its node.
+    breaking: Vec<String>,
+    /// Whether an optional property or a definition is added.
+    added: bool,
+}
+
+impl Found {
+    fn push(&mut self, problem: String) {
+        self.breaking.push(problem);
+    }
+}
+
+/// Classifies the change from `old` to `new` (MG-REQ-0204): the part of the version it
+/// raises, or every change that needs a new major version.
+///
+/// # Errors
+///
+/// Returns every change that needs a new major version, each with the JSON pointer of its
+/// node.
+pub(crate) fn classify(old: &Json, new: &Json) -> Result<Bump, Vec<String>> {
+    let found = compare(old, new);
+    if !found.breaking.is_empty() {
+        Err(found.breaking)
+    } else if found.added {
+        Ok(Bump::Minor)
+    } else if old == new {
+        Ok(Bump::None)
+    } else {
+        Ok(Bump::Patch)
+    }
+}
+
+fn compare(old: &Json, new: &Json) -> Found {
+    let mut found = Found::default();
     node(old, new, "", &mut found);
+    let old_defs = old.get("$defs");
     let new_defs = new.get("$defs");
-    for (name, def) in old.get("$defs").map(Json::members).unwrap_or_default() {
+    for (name, def) in old_defs.map(Json::members).unwrap_or_default() {
         let pointer = format!("/$defs/{name}");
         match new_defs.and_then(|defs| defs.get(name)) {
             Some(new_def) => node(def, new_def, &pointer, &mut found),
             None => found.push(format!("`{pointer}` is removed")),
         }
     }
+    for (name, _) in new_defs.map(Json::members).unwrap_or_default() {
+        if old_defs.and_then(|defs| defs.get(name)).is_none() {
+            found.added = true;
+        }
+    }
     found
 }
 
 /// Compares one schema node: its keywords, its properties, then its `items`.
-fn node(old: &Json, new: &Json, pointer: &str, found: &mut Vec<String>) {
+fn node(old: &Json, new: &Json, pointer: &str, found: &mut Found) {
     for keyword in keywords(old, new) {
         if !same(keyword, old.get(keyword), new.get(keyword)) {
             found.push(format!("{} changes `{keyword}`", shown(pointer)));
@@ -49,7 +90,7 @@ fn node(old: &Json, new: &Json, pointer: &str, found: &mut Vec<String>) {
 }
 
 /// Compares the properties of two object nodes and which of them are required.
-fn properties(old: &Json, new: &Json, pointer: &str, found: &mut Vec<String>) {
+fn properties(old: &Json, new: &Json, pointer: &str, found: &mut Found) {
     let old_required = required(old);
     let new_required = required(new);
     let new_properties = new.get("properties");
@@ -75,6 +116,8 @@ fn properties(old: &Json, new: &Json, pointer: &str, found: &mut Vec<String>) {
             found.push(format!(
                 "`{pointer}/properties/{name}` is added as a required property"
             ));
+        } else if added {
+            found.added = true;
         }
     }
 }

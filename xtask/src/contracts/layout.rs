@@ -1,9 +1,10 @@
 //! The layout of a schema directory, as `schemas/README.md` describes it:
-//! `<contract>/v<version>/schema.json`.
+//! `<contract>/v<version>/schema.json` and `<contract>/v<version>/VERSION`.
 
 use std::path::{Path, PathBuf};
 
 use super::model::pascal;
+use super::version::{self, Semver};
 use crate::failure::Failure;
 use crate::workspace;
 
@@ -15,6 +16,8 @@ pub(crate) struct Version {
     pub(crate) version: u32,
     /// Its `schema.json`.
     pub(crate) schema: PathBuf,
+    /// Its full version, read from its `VERSION` file (MG-REQ-0204).
+    pub(crate) semver: Semver,
 }
 
 /// Lists every contract version under `schemas`, sorted by contract name, then by version
@@ -22,7 +25,8 @@ pub(crate) struct Version {
 ///
 /// # Errors
 ///
-/// Fails if a directory cannot be read, or if a directory breaks the layout.
+/// Fails if a directory cannot be read, or if a directory breaks the layout: a contract
+/// version without `schema.json`, or without a well-formed `VERSION` file.
 pub(crate) fn versions(schemas: &Path) -> Result<Vec<Version>, Failure> {
     let mut versions = Vec::new();
     for contract_dir in workspace::sorted_entries(schemas)? {
@@ -45,16 +49,28 @@ pub(crate) fn versions(schemas: &Path) -> Result<Vec<Version>, Failure> {
             if !schema.is_file() {
                 return Err(broken(&version_dir, "`schema.json` is missing"));
             }
+            let semver = semver(&version_dir, version)?;
             found.push(Version {
                 contract: contract.clone(),
                 version,
                 schema,
+                semver,
             });
         }
         found.sort_by_key(|version| version.version);
         versions.extend(found);
     }
     Ok(versions)
+}
+
+/// Reads the `VERSION` file of the directory `v<version>` (MG-REQ-0204).
+fn semver(version_dir: &Path, version: u32) -> Result<Semver, Failure> {
+    let path = version_dir.join("VERSION");
+    if !path.is_file() {
+        return Err(broken(version_dir, "`VERSION` is missing"));
+    }
+    version::read(&workspace::read(&path)?, u64::from(version))
+        .map_err(|problem| broken(&path, &problem))
 }
 
 fn file_name(path: &Path) -> String {

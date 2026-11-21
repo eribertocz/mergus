@@ -9,6 +9,7 @@ mod compatibility;
 mod layout;
 mod model;
 mod render;
+mod version;
 
 use std::fs;
 use std::path::{Component, Path, PathBuf};
@@ -18,7 +19,8 @@ use crate::json::Json;
 use crate::workspace;
 use render::Module;
 
-pub(crate) use compatibility::incompatibilities;
+pub(crate) use compatibility::classify;
+pub(crate) use version::{Bump, Semver, read as read_version};
 
 /// Each schema directory and its generated directory, relative to the workspace root.
 const PAIRS: [(&[&str], &[&str]); 2] = [
@@ -136,6 +138,7 @@ fn expected(root: &Path, schemas: &Path, out: &Path) -> Result<Vec<(PathBuf, Str
             name: format!("{}_v{}", version.contract, version.version),
             contract: version.contract.clone(),
             version: version.version,
+            semver: version.semver.to_string(),
             shown_schema,
             include: relative(out, &version.schema),
             items,

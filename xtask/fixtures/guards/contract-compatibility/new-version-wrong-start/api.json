@@ -1,0 +1,28 @@
+{
+  "/repos/owner/repo/contents/schemas/other/v1/VERSION?ref=1111111111111111111111111111111111111111": {
+    "content": "MS4wLjEK\n",
+    "encoding": "base64"
+  },
+  "/repos/owner/repo/contents/schemas/sample/v2/VERSION?ref=1111111111111111111111111111111111111111": {
+    "content": "Mi4xLjAK\n",
+    "encoding": "base64"
+  },
+  "/repos/owner/repo/pulls/5/files": [
+    {
+      "filename": "schemas/sample/v2/schema.json",
+      "status": "added"
+    },
+    {
+      "filename": "schemas/sample/v2/VERSION",
+      "status": "added"
+    },
+    {
+      "filename": "schemas/other/v1/schema.json",
+      "status": "added"
+    },
+    {
+      "filename": "schemas/other/v1/VERSION",
+      "status": "added"
+    }
+  ]
+}
