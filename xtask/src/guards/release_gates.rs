@@ -94,10 +94,9 @@ fn member_findings(event: &Event, api: &dyn Api, manifest: &str) -> Result<Vec<S
     let mut findings = Vec::new();
     for member in members(api, event, manifest)? {
         let path = format!("{member}/{MANIFEST}");
-        if sets_own_version(&github::file(api, &event.repository, &path, &event.head)?) {
+        if !inherits_version(&github::file(api, &event.repository, &path, &event.head)?) {
             findings.push(format!(
-                "MG-REQ-1739.5: `{path}` sets its own `version` instead of \
-                 `version.workspace = true`"
+                "MG-REQ-1739.5: `{path}` does not set `version.workspace = true`"
             ));
         }
     }
@@ -179,20 +178,23 @@ fn workspace_array(manifest: &str, key: &str) -> Vec<String> {
         .collect()
 }
 
-/// Whether the `[package]` table of a member manifest sets a `version` key to anything but
-/// `{ workspace = true }`. `version.workspace = true` is another key.
-fn sets_own_version(manifest: &str) -> bool {
+/// Whether the `[package]` table of a member manifest sets `version.workspace = true` or
+/// `version = { workspace = true }`. A table that sets its own `version`, or none, does not.
+fn inherits_version(manifest: &str) -> bool {
     manifest
         .lines()
-        .map(str::trim)
+        .map(|line| line.split('#').next().unwrap_or_default().trim())
         .skip_while(|line| *line != PACKAGE)
         .skip(1)
         .take_while(|line| !line.starts_with('['))
         .filter_map(|line| line.split_once('='))
-        .filter(|(key, _)| key.trim() == "version")
-        .any(|(_, value)| {
-            let value = value.split('#').next().unwrap_or_default();
-            value.split_whitespace().collect::<String>() != "{workspace=true}"
+        .map(|(key, value)| {
+            let compact = |text: &str| text.split_whitespace().collect::<String>();
+            (compact(key), compact(value))
+        })
+        .any(|(key, value)| {
+            (key == "version.workspace" && value == "true")
+                || (key == "version" && value == "{workspace=true}")
         })
 }
 
@@ -281,7 +283,7 @@ fn is_inline_link(text: &str) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use super::{gates, is_gate_item, sets_own_version, workspace_array, workspace_version};
+    use super::{gates, inherits_version, is_gate_item, workspace_array, workspace_version};
     use crate::workspace;
 
     #[test]
@@ -335,16 +337,20 @@ mod tests {
 
     #[test]
     fn mg_req_1739_5_a_member_version_must_be_inherited() {
-        assert!(!sets_own_version("[package]\nversion.workspace = true\n"));
-        assert!(!sets_own_version(
+        assert!(inherits_version("[package]\nversion.workspace = true\n"));
+        assert!(inherits_version(
             "[package]\nversion = { workspace = true } # x\n"
         ));
-        assert!(!sets_own_version(
-            "[package]\nname = \"a\"\n[dependencies]\nversion = \"1\"\n"
+        assert!(inherits_version(
+            "[package]\nversion.workspace = true\n[dependencies]\nversion = \"1\"\n"
         ));
-        assert!(sets_own_version("[package]\nversion = \"0.0.0\"\n"));
-        assert!(sets_own_version(
+        assert!(!inherits_version("[package]\nversion = \"0.0.0\"\n"));
+        assert!(!inherits_version(
             "[package]\nversion = { workspace = false }\n"
+        ));
+        assert!(!inherits_version("[package]\nname = \"a\"\n"));
+        assert!(!inherits_version(
+            "[package]\nname = \"a\"\n[dependencies]\nversion.workspace = true\n"
         ));
     }
 
@@ -355,7 +361,7 @@ mod tests {
         assert_eq!(workspace_array(&manifest, "members"), ["crates/*", "xtask"]);
         for member in workspace::members(&root).unwrap() {
             let text = workspace::read(&member.dir.join("Cargo.toml")).unwrap();
-            assert!(!sets_own_version(&text), "{}", member.name);
+            assert!(inherits_version(&text), "{}", member.name);
         }
     }
 }
