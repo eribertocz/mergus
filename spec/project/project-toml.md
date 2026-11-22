@@ -97,9 +97,9 @@ they create or format, so that editors validate and complete.
 
 | File | Schema | `$id` |
 |---|---|---|
-| `project.toml` | `schemas/config/project.schema.json` | `https://mergus.dev/schemas/project.schema.json` |
-| folder `mergus.toml` | `schemas/config/folder.schema.json` | `https://mergus.dev/schemas/folder.schema.json` |
-| `sources/*.toml` | `schemas/config/source.schema.json` | `https://mergus.dev/schemas/source.schema.json` |
+| `project.toml` | `crates/mergus-project/schemas/project.schema.json` | `https://mergus.dev/schemas/project.schema.json` |
+| folder `mergus.toml` | `crates/mergus-project/schemas/folder.schema.json` | `https://mergus.dev/schemas/folder.schema.json` |
+| `sources/*.toml` | `crates/mergus-project/schemas/source.schema.json` | `https://mergus.dev/schemas/source.schema.json` |
 
 ### MG-REQ-0361 · Configuration schema files
 
@@ -109,11 +109,12 @@ node. It MAY use, besides the keywords of contract schemas, `type` as an array o
 `oneOf`, `pattern`, `patternProperties`, `minimum`, `maximum` and `default`, and nothing
 else. Tables keyed by a name, such as one table per model, use `patternProperties` with the
 name pattern of MG-REQ-0305. It has no `contract`
-or `contract_version` property: configuration files are not contract documents.
+or `contract_version` property: configuration files are not contract documents, so they live
+with the crate that reads them, not in `schemas/`.
 
 - Kind: behavior
 - Verify: test `mg_req_0361_configuration_schemas_are_closed`
-- Decision: 0018, 0019
+- Decision: 0018, 0019, 0020
 
 ### MG-REQ-0362 · Keys known in phase 0.2
 
@@ -125,15 +126,16 @@ phase 0.2 the schemas hold exactly:
    each with `profile` and `location`, both strings;
 2. MG-REQ-0362.2: folder `mergus.toml`: the table `[all]` and one table per model, each with
    the options of MG-REQ-0366;
-3. MG-REQ-0362.3: `sources/*.toml`: no key yet; a source file is valid TOML and nothing else
-   is checked until the rules of `extract/sources.md` are due.
+3. MG-REQ-0362.3: `sources/*.toml`: no key yet. Until the rules of `extract/sources.md` are
+   due, the source schema is the one open object of MG-REQ-0361: any key is accepted, and only
+   TOML syntax, MG-REQ-0364 and MG-REQ-0320 apply to a source file.
 
 Each later phase adds its keys as a minor version of the schema (MG-REQ-0204).
 
 - Kind: behavior
 - Verify: test `mg_req_0362_only_due_keys_are_known`
 - Depends: MG-REQ-0366
-- Decision: 0018, 0019
+- Decision: 0018, 0019, 0020
 
 ### MG-REQ-0363 · What a literal secret is
 
