@@ -50,6 +50,38 @@ When several errors exist, Mergus MUST show all of them grouped by file in one r
 - Kind: behavior
 - Verify: test `mg_req_1323_errors_grouped_by_file`
 
+### MG-REQ-1346 · Where each line of an error comes from
+
+In the layout of MG-REQ-1322:
+
+1. MG-REQ-1346.1: the title is the diagnostic's `message`; the `-->` line is its `location`,
+   and the source excerpt is shown only when the location has a line;
+2. MG-REQ-1346.2: the underline starts at the location's column with one `^`, or under the
+   first character of the line when there is no column;
+3. MG-REQ-1346.3: `why` is the first paragraph of `## Cause` of the code's catalog file, which
+   is embedded in the binary at build time;
+4. MG-REQ-1346.4: `fix` is the diagnostic's `hint` (MG-REQ-1334);
+5. MG-REQ-1346.5: `more` is always `mergus explain <code>`.
+
+- Kind: behavior
+- Verify: test `mg_req_1346_error_lines_sources`
+- Phase: 0.2
+- Decision: 0025
+
+### MG-REQ-1347 · Modes and verbosity
+
+1. MG-REQ-1347.1: The mode is interactive only when standard output is a terminal, `--json` is
+   absent and `TERM` is not `dumb`; otherwise plain, or events with `--json`.
+2. MG-REQ-1347.2: A non-empty `NO_COLOR` removes colors and keeps everything else.
+3. MG-REQ-1347.3: `--quiet` shows only errors; `--verbose` adds one line per stage with its
+   duration. Neither changes the event stream of `--json`.
+4. MG-REQ-1347.4: `--quiet` with `--verbose` is an invalid command line (MG-REQ-0297).
+
+- Kind: behavior
+- Verify: test `mg_req_1347_modes_and_verbosity`
+- Phase: 0.2
+- Decision: 0025
+
 ### MG-REQ-1324 · Structured diagnostics
 
 Every error and warning MUST also exist as a structured diagnostic (code, severity, file,
