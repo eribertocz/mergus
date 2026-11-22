@@ -1,0 +1,18 @@
+[package]
+name = "mergus-project"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+description = "Read and validate the project: files, `project.toml`, folder `mergus.toml`."
+
+[dependencies]
+mergus-ports = { path = "../mergus-ports" }
+thiserror = "2.0.21"
+
+[lints]
+workspace = true
+
+[dev-dependencies]
+mergus-sim = { path = "../mergus-sim" }

@@ -40,6 +40,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "mergus-project"
+version = "0.1.0"
+dependencies = [
+ "mergus-ports",
+ "mergus-sim",
+ "thiserror",
+]
+
+[[package]]
 name = "mergus-sim"
 version = "0.1.0"
 dependencies = [
