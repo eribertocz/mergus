@@ -54,7 +54,7 @@ The repository MUST contain `LICENSE`, `NOTICE`, `CONTRIBUTING.md`, `CODE_OF_CON
 `deny.toml` MUST configure `cargo deny check` so that it fails on:
 
 1. MG-REQ-1746.1: a license outside this list: `Apache-2.0`,
-   `Apache-2.0 WITH LLVM-exception`, `MIT`, `BSD-2-Clause`, `BSD-3-Clause`, `ISC`, `Zlib`,
+   `Apache-2.0 WITH LLVM-exception`, `MIT`, `MIT-0`, `BSD-2-Clause`, `BSD-3-Clause`, `ISC`, `Zlib`,
    `Unicode-3.0`, `MPL-2.0`, `BSL-1.0`; and a crate whose license cannot be determined;
 2. MG-REQ-1746.2: a security advisory, an unmaintained crate or a yanked version;
 3. MG-REQ-1746.3: a source other than crates.io (no other registry, no git dependency);
@@ -66,7 +66,7 @@ a specification change and the owner's approval of `deny.toml` (MG-REQ-1723).
 - Kind: process
 - Verify: check `cargo-deny`
 - Depends: MG-REQ-0125, MG-REQ-1745
-- Decision: 0003
+- Decision: 0003, 0021
 
 ### MG-REQ-1747 · License check
 
