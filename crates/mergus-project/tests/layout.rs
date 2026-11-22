@@ -161,53 +161,58 @@ fn invalid(kind: NameKind, name: &str, path: &str, suggestion: &str) -> ProjectE
     }
 }
 
+/// A project with an invalid model, folder, schema, source and seed name.
+const INVALID_NAMES: &[(&str, &str)] = &[
+    ("models/Customers.sql", ""),
+    ("models/My Folder/ok.sql", ""),
+    ("models/gold/Sales-EU/orders.sql", ""),
+    ("models/gold/sales/orders.sql", ""),
+    ("sources/CRM.toml", ""),
+    ("sources/erp.toml", ""),
+    ("seeds/Country Codes.csv", ""),
+    ("seeds/currencies.csv", ""),
+];
+
+/// The problems of [`INVALID_NAMES`], in walking order.
+fn invalid_names_problems() -> Vec<ProjectError> {
+    vec![
+        invalid(
+            NameKind::Model,
+            "Customers",
+            "models/Customers.sql",
+            "customers",
+        ),
+        invalid(
+            NameKind::Folder,
+            "My Folder",
+            "models/My Folder",
+            "my_folder",
+        ),
+        invalid(
+            NameKind::Schema,
+            "Sales-EU",
+            "models/gold/Sales-EU",
+            "sales_eu",
+        ),
+        invalid(NameKind::Source, "CRM", "sources/CRM.toml", "crm"),
+        invalid(
+            NameKind::Seed,
+            "Country Codes",
+            "seeds/Country Codes.csv",
+            "country_codes",
+        ),
+        ProjectError::DuplicateModel {
+            name: "orders".to_owned(),
+            first: "models/gold/Sales-EU/orders.sql".to_owned(),
+            second: "models/gold/sales/orders.sql".to_owned(),
+        },
+    ]
+}
+
 #[test]
 fn mg_req_0305_invalid_names_rejected_with_suggestion() {
-    let problems = problems!(&[
-        ("models/Customers.sql", ""),
-        ("models/My Folder/ok.sql", ""),
-        ("models/gold/Sales-EU/orders.sql", ""),
-        ("models/gold/sales/orders.sql", ""),
-        ("sources/CRM.toml", ""),
-        ("sources/erp.toml", ""),
-        ("seeds/Country Codes.csv", ""),
-        ("seeds/currencies.csv", ""),
-    ]);
-    assert_eq!(
-        problems,
-        vec![
-            invalid(
-                NameKind::Model,
-                "Customers",
-                "models/Customers.sql",
-                "customers"
-            ),
-            invalid(
-                NameKind::Folder,
-                "My Folder",
-                "models/My Folder",
-                "my_folder"
-            ),
-            invalid(
-                NameKind::Schema,
-                "Sales-EU",
-                "models/gold/Sales-EU",
-                "sales_eu"
-            ),
-            invalid(NameKind::Source, "CRM", "sources/CRM.toml", "crm"),
-            invalid(
-                NameKind::Seed,
-                "Country Codes",
-                "seeds/Country Codes.csv",
-                "country_codes"
-            ),
-            ProjectError::DuplicateModel {
-                name: "orders".to_owned(),
-                first: "models/gold/Sales-EU/orders.sql".to_owned(),
-                second: "models/gold/sales/orders.sql".to_owned(),
-            },
-        ]
-    );
+    let problems = problems!(INVALID_NAMES);
+    assert_eq!(problems, invalid_names_problems());
     assert!(
         problems[..5]
             .iter()
