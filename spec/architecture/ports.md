@@ -22,6 +22,7 @@ wires the real implementation; tests and the simulator wire simulated ones.
 | `Random` | Random numbers and identifiers |
 | `Process` | Child processes |
 | `Environment` | Environment variables and the user configuration directory |
+| `SqlParser` | DuckDB's SQL parser, without executing anything |
 
 ### MG-REQ-0130 · Only ports touch the world
 
@@ -58,3 +59,16 @@ enable it.
 - Verify: check `boundaries`
 - Decision: 0001
 - Depends: MG-REQ-0126
+
+### MG-REQ-0193 · SQL is parsed by DuckDB through a port
+
+Crates MUST NOT parse SQL with their own grammar. The `SqlParser` port MUST return, for one
+SQL text, the JSON tree that DuckDB's `json_serialize_sql` produces for it. Its real
+implementation MUST use an in-memory DuckDB of the release's `duckdb` crate version with
+`enable_external_access = false`, and MUST NOT execute the text. Its simulated implementation
+returns trees recorded from the real one.
+
+- Kind: behavior
+- Verify: test `mg_req_0193_sql_parsed_without_execution`
+- Phase: 0.2
+- Decision: 0023
