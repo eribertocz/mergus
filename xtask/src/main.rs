@@ -18,6 +18,9 @@
 //!   tracked (MG-REQ-0179).
 //! - `sql-concatenation`: no SQL text is built with formatting macros (MG-REQ-0184).
 //! - `crate-docs`: every crate documents its one responsibility (MG-REQ-0115).
+//! - `error-catalog`: every error code has a complete file in `crates/mergus-cli/errors/`, in
+//!   the range of its rules and emitted by a test, and the codes of an area have no gap
+//!   (MG-REQ-1335).
 //! - `license-headers`: every member declares its license in `Cargo.toml` (MG-REQ-1747).
 //! - `governance-files`: the governance documents exist and are not empty (MG-REQ-1749).
 //! - `release-trigger`: only a workflow triggered by a push of tags matching `v*` grants
@@ -51,6 +54,7 @@ mod ci;
 mod content;
 mod contracts;
 mod crate_docs;
+mod error_catalog;
 mod failure;
 mod governance_files;
 mod guards;
@@ -71,8 +75,8 @@ use std::process::ExitCode;
 use failure::Failure;
 
 const USAGE: &str = "usage: cargo xtask <clippy|unsafe|missing-docs|reproducible-build|\
-     check-boundaries|language|size|secrets|sql-concatenation|crate-docs|license-headers|\
-     governance-files|release-trigger|contracts-generate|\
+     check-boundaries|language|size|secrets|sql-concatenation|crate-docs|error-catalog|\
+     license-headers|governance-files|release-trigger|contracts-generate|\
      contracts-generated|scope|commit-format|contract-compatibility|\
      session-identity|independent-review|issue-format|pr-format|deny-rules|repository-settings|\
      traceability|owner-queue|ci>";
@@ -113,6 +117,7 @@ fn check(command: &str) -> Result<(), Failure> {
         "secrets" => content::check(&root, content::SECRETS),
         "sql-concatenation" => content::check(&root, content::SQL_CONCATENATION),
         "crate-docs" => crate_docs::check(&root),
+        "error-catalog" => error_catalog::check(&root),
         "license-headers" => license::check(&root),
         "governance-files" => governance_files::check(&root),
         "release-trigger" => release_trigger::check(&root),

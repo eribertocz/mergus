@@ -54,6 +54,11 @@ sql-concatenation:
 crate-docs:
     cargo xtask crate-docs
 
+# Fails when the error catalog of `crates/mergus-cli/errors/` is incomplete, or a code in the
+# code has no file (MG-REQ-1335).
+error-catalog:
+    cargo xtask error-catalog
+
 # Fails when a workflow grants a release write permission without being triggered only by a
 # push of `v*` tags (MG-REQ-1715).
 release-trigger:
