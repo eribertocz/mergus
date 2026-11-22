@@ -196,3 +196,24 @@ result of `validate`, the plan, the data diff of its branch environment against 
 - Phase: 0.7
 - Depends: MG-REQ-1208, MG-REQ-1228
 - Decision: 0015
+
+### MG-REQ-1344 · Finding the project
+
+A command that reads a project MUST use the nearest directory, starting at the current
+directory and walking up, that contains `project.toml`. When none exists, it MUST be an error
+with exit code 1 whose hint names `mergus init`.
+
+- Kind: behavior
+- Verify: test `mg_req_1344_project_found_upwards`
+- Phase: 0.2
+
+### MG-REQ-1345 · validate
+
+`mergus validate` MUST run stage 1 (`run/stages.md`), that is every check of `mergus-project`,
+report every diagnostic found in one pass (MG-REQ-0702), touch no data and write no file. It
+ends with exit code 0 when no diagnostic is an error, otherwise with the highest exit code
+among its errors.
+
+- Kind: behavior
+- Verify: test `mg_req_1345_validate_reports_all_and_writes_nothing`
+- Phase: 0.2
