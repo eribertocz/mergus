@@ -15,6 +15,12 @@ fn is_code(text: &str) -> bool {
 
 #[test]
 fn mg_req_0008_every_error_has_code() {
+    cli_errors_have_codes();
+    project_codes_are_in_the_catalog();
+    emitted_diagnostics_have_codes();
+}
+
+fn cli_errors_have_codes() {
     let errors = [
         CliError::UnknownCommand {
             given: "valdate".to_owned(),
@@ -48,6 +54,9 @@ fn mg_req_0008_every_error_has_code() {
         assert!(catalog::entry(error.code()).is_some(), "{}", error.code());
         assert!(!error.to_string().is_empty());
     }
+}
+
+fn project_codes_are_in_the_catalog() {
     let project_error = ProjectError::DuplicateModel {
         name: "a".to_owned(),
         first: "models/a.sql".to_owned(),
@@ -60,6 +69,9 @@ fn mg_req_0008_every_error_has_code() {
     ] {
         assert!(catalog::entry(code).is_some(), "{code} has a catalog entry");
     }
+}
+
+fn emitted_diagnostics_have_codes() {
     let outcome = mergus(&broken(), &["validate", "--json"]);
     let diagnostics = outcome.of("diagnostic");
     assert_eq!(diagnostics.len(), 2, "{outcome:?}");

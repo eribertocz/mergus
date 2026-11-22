@@ -58,6 +58,12 @@ mod tests {
 
     #[test]
     fn mg_req_0295_events_schema_and_required_fields() {
+        schema_is_one_closed_object();
+        required_fields_are_checked();
+        diagnostic_with_its_fields_is_valid();
+    }
+
+    fn schema_is_one_closed_object() {
         assert_eq!(MergusEvents::NAME, "mergus_events");
         assert_eq!(MergusEvents::VERSION, 1);
         assert_eq!(MergusEvents::SEMANTIC_VERSION, "1.0.0");
@@ -76,44 +82,44 @@ mod tests {
             Value::Bool(false),
             "one closed object"
         );
-        let types: Vec<&str> = schema["properties"]["type"]["enum"]
-            .as_array()
-            .unwrap()
-            .iter()
-            .map(|kind| kind.as_str().unwrap())
-            .collect();
+        assert_eq!(strings(&schema["properties"]["type"]["enum"]), TYPES);
         assert_eq!(
-            types,
-            [
-                "run_started",
-                "plan_ready",
-                "step_started",
-                "step_finished",
-                "diagnostic",
-                "quality_result",
-                "published",
-                "run_finished"
-            ]
-        );
-        let required: Vec<&str> = schema["required"]
-            .as_array()
-            .unwrap()
-            .iter()
-            .map(|name| name.as_str().unwrap())
-            .collect();
-        assert_eq!(
-            required,
-            [
-                "contract",
-                "contract_version",
-                "type",
-                "run_id",
-                "sequence",
-                "timestamp"
-            ],
+            strings(&schema["required"]),
+            COMMON,
             "the fields a type requires are optional in the schema"
         );
+    }
 
+    const TYPES: [&str; 8] = [
+        "run_started",
+        "plan_ready",
+        "step_started",
+        "step_finished",
+        "diagnostic",
+        "quality_result",
+        "published",
+        "run_finished",
+    ];
+
+    const COMMON: [&str; 6] = [
+        "contract",
+        "contract_version",
+        "type",
+        "run_id",
+        "sequence",
+        "timestamp",
+    ];
+
+    fn strings(value: &Value) -> Vec<&str> {
+        value
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|item| item.as_str().unwrap())
+            .collect()
+    }
+
+    fn required_fields_are_checked() {
         let cases: [(MergusEventsType, &[&str]); 8] = [
             (
                 MergusEventsType::RunStarted,
@@ -154,7 +160,9 @@ mod tests {
                 );
             }
         }
+    }
 
+    fn diagnostic_with_its_fields_is_valid() {
         let mut diagnostic = bare(MergusEventsType::Diagnostic);
         diagnostic.code = Some("MG-0301".to_owned());
         diagnostic.severity = Some(MergusEventsSeverity::Error);
