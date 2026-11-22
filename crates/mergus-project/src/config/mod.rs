@@ -84,7 +84,7 @@ pub struct Configuration {
 ///
 /// Fails with [`LayoutError::Port`] when a file cannot be read, [`LayoutError::Schema`] when
 /// a bundled schema is broken, and [`LayoutError::Invalid`] with every problem found, file by
-/// file, each file's problems ordered by line.
+/// file, each file's problems ordered by line, code and key.
 pub fn read_configuration(
     files: &dyn FileSystem,
     root: &Path,
@@ -135,10 +135,18 @@ fn read_file(
     let bytes = files.read(&root.join(path))?;
     let mut found = Vec::new();
     let file = parse(kind, path, &bytes, &mut found)?;
-    found.sort_by_key(|problem| problem.line());
+    sort_problems(&mut found);
     let valid = found.is_empty();
     problems.append(&mut found);
     Ok(file.filter(|_| valid))
+}
+
+/// Sorts the problems of one file by a total order: line, then code, then key path, so that
+/// their order does not depend on the order they were found in (MG-REQ-0005).
+pub(crate) fn sort_problems(problems: &mut [ProjectError]) {
+    problems.sort_by(|left, right| {
+        (left.line(), left.code(), left.key()).cmp(&(right.line(), right.code(), right.key()))
+    });
 }
 
 /// Parses the bytes of one configuration file of `kind`.

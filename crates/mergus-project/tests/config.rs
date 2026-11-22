@@ -327,3 +327,10 @@ fn mg_req_0365_toml_maps_to_canonical_json() {
     ]);
     assert_eq!(toml_1_1[0].code(), "MG-0303");
 }
+
+#[test]
+fn mg_req_0005_problems_in_total_order() {
+    let found = problems!(&[("project.toml", "name = \"sales\"\nzone = \"${x}\"\n")]);
+    let codes: Vec<&str> = found.iter().map(ProjectError::code).collect();
+    assert_eq!(codes, ["MG-0304", "MG-0306"]);
+}
