@@ -1,0 +1,49 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://mergus.dev/schemas/project.schema.json",
+  "title": "project.toml",
+  "description": "The project: its name, the version requirement of the binary and the storage of each zone (MG-REQ-0362.1).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["name"],
+  "properties": {
+    "name": {
+      "description": "The project name, a lowercase identifier (MG-REQ-0305).",
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_]{0,62}$"
+    },
+    "mergus": {
+      "description": "The version requirement of the Mergus binary, such as \">=1.4, <2\".",
+      "type": "string"
+    },
+    "gold": {
+      "description": "The storage of the gold zone.",
+      "$ref": "#/$defs/zone"
+    },
+    "raw": {
+      "description": "The storage of the raw zone.",
+      "$ref": "#/$defs/zone"
+    },
+    "ops": {
+      "description": "The storage of the ops zone.",
+      "$ref": "#/$defs/zone"
+    }
+  },
+  "$defs": {
+    "zone": {
+      "description": "The storage profile and location of a zone.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "profile": {
+          "description": "The storage profile of the zone.",
+          "type": "string"
+        },
+        "location": {
+          "description": "The location of the zone.",
+          "type": "string"
+        }
+      }
+    }
+  }
+}

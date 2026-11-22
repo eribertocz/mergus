@@ -1,0 +1,153 @@
+//! Validation of a converted configuration file against its JSON Schema (MG-REQ-0316).
+
+use jsonschema::ValidationError;
+use jsonschema::error::ValidationErrorKind;
+use jsonschema::paths::PathChunk;
+use serde_json::Value;
+
+use super::ConfigKind;
+use super::convert::{Converted, Segment, dotted};
+use crate::{LayoutError, ProjectError, closest_name};
+
+/// Validates `file` against the schema of `kind`, pushing every finding to `problems`.
+///
+/// # Errors
+///
+/// Fails with [`LayoutError::Schema`] when the bundled schema cannot be compiled.
+pub(crate) fn validate(
+    kind: ConfigKind,
+    path: &str,
+    file: &Converted,
+    problems: &mut Vec<ProjectError>,
+) -> Result<(), LayoutError> {
+    let schema: Value =
+        serde_json::from_str(kind.schema()).map_err(|_| LayoutError::Schema(kind.schema_path()))?;
+    let validator = jsonschema::draft202012::new(&schema)
+        .map_err(|_| LayoutError::Schema(kind.schema_path()))?;
+    let report = Report {
+        path,
+        file,
+        schema: &schema,
+    };
+    if let Err(errors) = validator.validate(&file.value) {
+        for error in errors {
+            report.push(&error, problems);
+        }
+    }
+    Ok(())
+}
+
+struct Report<'a> {
+    path: &'a str,
+    file: &'a Converted,
+    schema: &'a Value,
+}
+
+impl Report<'_> {
+    fn push(&self, error: &ValidationError<'_>, problems: &mut Vec<ProjectError>) {
+        let at: Vec<Segment> = error
+            .instance_path
+            .iter()
+            .filter_map(|chunk| match chunk {
+                PathChunk::Property(key) => Some(Segment::Key(key.to_string())),
+                PathChunk::Index(index) => Some(Segment::Index(*index)),
+                PathChunk::Keyword(_) => None,
+            })
+            .collect();
+        match &error.kind {
+            ValidationErrorKind::AdditionalProperties { unexpected } => {
+                let allowed = self.allowed_keys(&error.schema_path.to_string());
+                for key in unexpected {
+                    let mut child = at.clone();
+                    child.push(Segment::Key(key.clone()));
+                    problems.push(ProjectError::UnknownKey {
+                        path: self.path.to_owned(),
+                        line: self.line(&child, true),
+                        key: dotted(&child),
+                        suggestion: closest_name(key, allowed.iter().map(String::as_str))
+                            .map(str::to_owned),
+                    });
+                }
+            }
+            ValidationErrorKind::Required { property } => {
+                let mut child = at.clone();
+                child.push(Segment::Key(
+                    property.as_str().unwrap_or_default().to_owned(),
+                ));
+                problems.push(self.invalid(&child, self.line(&at, false), error, None));
+            }
+            ValidationErrorKind::Enum { options } => {
+                let given = self
+                    .file
+                    .value
+                    .pointer(&pointer(&at))
+                    .and_then(Value::as_str);
+                let options = options.as_array().map(Vec::as_slice).unwrap_or_default();
+                let suggestion = given.and_then(|given| {
+                    closest_name(given, options.iter().filter_map(Value::as_str)).map(str::to_owned)
+                });
+                problems.push(self.invalid(&at, self.line(&at, false), error, suggestion));
+            }
+            _ => problems.push(self.invalid(&at, self.line(&at, false), error, None)),
+        }
+    }
+
+    fn invalid(
+        &self,
+        at: &[Segment],
+        line: usize,
+        error: &ValidationError<'_>,
+        suggestion: Option<String>,
+    ) -> ProjectError {
+        ProjectError::InvalidValue {
+            path: self.path.to_owned(),
+            line,
+            key: dotted(at),
+            message: error.to_string(),
+            suggestion,
+        }
+    }
+
+    /// The line of the key (or of the value) at `at`; line 1 for the root.
+    fn line(&self, at: &[Segment], key: bool) -> usize {
+        self.file
+            .lines
+            .get(at)
+            .map_or(1, |lines| if key { lines.key } else { lines.value })
+    }
+
+    /// The keys allowed by the object schema whose `additionalProperties` is at `keyword`, a
+    /// schema path that does not show the `$ref` it went through.
+    fn allowed_keys(&self, keyword: &str) -> Vec<String> {
+        let parent = keyword
+            .strip_suffix("/additionalProperties")
+            .unwrap_or_default();
+        let mut node = Some(self.schema);
+        for step in parent.split('/').filter(|step| !step.is_empty()) {
+            node = node.and_then(|value| self.follow(value).get(step));
+        }
+        node.and_then(|value| self.follow(value).get("properties"))
+            .and_then(Value::as_object)
+            .map(|properties| properties.keys().cloned().collect())
+            .unwrap_or_default()
+    }
+
+    /// Follows the `$ref` of a schema node to a `#/$defs/<name>` of the schema, if it has one.
+    fn follow<'s>(&'s self, node: &'s Value) -> &'s Value {
+        node.get("$ref")
+            .and_then(Value::as_str)
+            .and_then(|reference| reference.strip_prefix('#'))
+            .and_then(|target| self.schema.pointer(target))
+            .unwrap_or(node)
+    }
+}
+
+/// Writes a path as a JSON Pointer.
+fn pointer(at: &[Segment]) -> String {
+    at.iter()
+        .map(|segment| match segment {
+            Segment::Key(key) => format!("/{}", key.replace('~', "~0").replace('/', "~1")),
+            Segment::Index(index) => format!("/{index}"),
+        })
+        .collect()
+}

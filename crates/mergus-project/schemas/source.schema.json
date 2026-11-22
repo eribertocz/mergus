@@ -1,0 +1,7 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://mergus.dev/schemas/source.schema.json",
+  "title": "sources/<source>.toml",
+  "description": "One source, named after the file stem (MG-REQ-0306). No key is known yet (MG-REQ-0362.3): any valid TOML document is accepted.",
+  "type": "object"
+}
