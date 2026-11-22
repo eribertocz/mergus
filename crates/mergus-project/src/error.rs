@@ -114,6 +114,21 @@ pub enum ProjectError {
         /// The key, dotted from the root of the file.
         key: String,
     },
+    /// A section of a folder `mergus.toml` names no model file of its folder (MG-REQ-0331).
+    #[error(
+        "`{path}` line {line}: section `{section}` names no model of this folder{}",
+        hint(suggestion.as_deref())
+    )]
+    UnknownSection {
+        /// The path of the file.
+        path: String,
+        /// The line of the section, from 1.
+        line: usize,
+        /// The section name.
+        section: String,
+        /// The closest model name of the folder (MG-REQ-0331).
+        suggestion: Option<String>,
+    },
 }
 
 /// Formats the closest valid name of an error, when there is one.
@@ -133,6 +148,7 @@ impl ProjectError {
             Self::InvalidValue { .. } => "MG-0305",
             Self::Expression { .. } => "MG-0306",
             Self::NonFiniteFloat { .. } => "MG-0307",
+            Self::UnknownSection { .. } => "MG-0308",
         }
     }
 
@@ -146,7 +162,8 @@ impl ProjectError {
             | Self::UnknownKey { path, .. }
             | Self::InvalidValue { path, .. }
             | Self::Expression { path, .. }
-            | Self::NonFiniteFloat { path, .. } => path,
+            | Self::NonFiniteFloat { path, .. }
+            | Self::UnknownSection { path, .. } => path,
         }
     }
 
@@ -159,7 +176,8 @@ impl ProjectError {
             | Self::UnknownKey { line, .. }
             | Self::InvalidValue { line, .. }
             | Self::Expression { line, .. }
-            | Self::NonFiniteFloat { line, .. } => Some(*line),
+            | Self::NonFiniteFloat { line, .. }
+            | Self::UnknownSection { line, .. } => Some(*line),
         }
     }
 
@@ -173,7 +191,8 @@ impl ProjectError {
             Self::UnknownKey { key, .. }
             | Self::InvalidValue { key, .. }
             | Self::Expression { key, .. }
-            | Self::NonFiniteFloat { key, .. } => Some(key),
+            | Self::NonFiniteFloat { key, .. }
+            | Self::UnknownSection { section: key, .. } => Some(key),
         }
     }
 }

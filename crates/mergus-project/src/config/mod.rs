@@ -1,8 +1,13 @@
-//! The configuration files `project.toml` and `sources/*.toml`: TOML 1.0 validated by their
-//! JSON Schemas (MG-REQ-0316), literal values only (MG-REQ-0364), canonical JSON (MG-REQ-0318).
+//! The configuration files `project.toml`, `sources/*.toml` and folder `mergus.toml`: TOML 1.0
+//! validated by their JSON Schemas (MG-REQ-0316), literal values only (MG-REQ-0364), canonical
+//! JSON (MG-REQ-0318), and the effective options of each model (MG-REQ-0332).
 
 mod convert;
+mod folder;
+mod options;
 mod schema;
+
+pub use options::{Effective, ModelOptions, Origin, Setting, read_model_options};
 
 use std::path::Path;
 
@@ -18,6 +23,8 @@ pub enum ConfigKind {
     Project,
     /// A `sources/<source>.toml` file.
     Source,
+    /// A folder `mergus.toml` under `models/`.
+    Folder,
 }
 
 impl ConfigKind {
@@ -27,6 +34,7 @@ impl ConfigKind {
         match self {
             Self::Project => include_str!("../../schemas/project.schema.json"),
             Self::Source => include_str!("../../schemas/source.schema.json"),
+            Self::Folder => include_str!("../../schemas/folder.schema.json"),
         }
     }
 
@@ -36,6 +44,7 @@ impl ConfigKind {
         match self {
             Self::Project => "crates/mergus-project/schemas/project.schema.json",
             Self::Source => "crates/mergus-project/schemas/source.schema.json",
+            Self::Folder => "crates/mergus-project/schemas/folder.schema.json",
         }
     }
 
@@ -45,6 +54,7 @@ impl ConfigKind {
         match self {
             Self::Project => "https://mergus.dev/schemas/project.schema.json",
             Self::Source => "https://mergus.dev/schemas/source.schema.json",
+            Self::Folder => "https://mergus.dev/schemas/folder.schema.json",
         }
     }
 }
@@ -84,7 +94,7 @@ pub struct Configuration {
 ///
 /// Fails with [`LayoutError::Port`] when a file cannot be read, [`LayoutError::Schema`] when
 /// a bundled schema is broken, and [`LayoutError::Invalid`] with every problem found, file by
-/// file, each file's problems ordered by line.
+/// file, each file's problems ordered by line, code and key.
 pub fn read_configuration(
     files: &dyn FileSystem,
     root: &Path,
@@ -135,10 +145,18 @@ fn read_file(
     let bytes = files.read(&root.join(path))?;
     let mut found = Vec::new();
     let file = parse(kind, path, &bytes, &mut found)?;
-    found.sort_by_key(|problem| problem.line());
+    sort_problems(&mut found);
     let valid = found.is_empty();
     problems.append(&mut found);
     Ok(file.filter(|_| valid))
+}
+
+/// Sorts the problems of one file by a total order: line, then code, then key path, so that
+/// their order does not depend on the order they were found in (MG-REQ-0005).
+pub(crate) fn sort_problems(problems: &mut [ProjectError]) {
+    problems.sort_by(|left, right| {
+        (left.line(), left.code(), left.key()).cmp(&(right.line(), right.code(), right.key()))
+    });
 }
 
 /// Parses the bytes of one configuration file of `kind`.
@@ -148,12 +166,7 @@ fn parse(
     bytes: &[u8],
     problems: &mut Vec<ProjectError>,
 ) -> Result<Option<ConfigFile>, LayoutError> {
-    let Ok(text) = std::str::from_utf8(bytes) else {
-        problems.push(ProjectError::InvalidToml {
-            path: path.to_owned(),
-            line: 1,
-            message: "the file is not UTF-8".to_owned(),
-        });
+    let Some(text) = utf8(path, bytes, problems) else {
         return Ok(None);
     };
     let Some(converted) = convert::convert(path, text, problems) else {
@@ -166,4 +179,17 @@ fn parse(
         value: converted.value,
         canonical,
     }))
+}
+
+/// The text of a configuration file, or `None` with a problem when it is not UTF-8.
+fn utf8<'a>(path: &str, bytes: &'a [u8], problems: &mut Vec<ProjectError>) -> Option<&'a str> {
+    let text = std::str::from_utf8(bytes).ok();
+    if text.is_none() {
+        problems.push(ProjectError::InvalidToml {
+            path: path.to_owned(),
+            line: 1,
+            message: "the file is not UTF-8".to_owned(),
+        });
+    }
+    text
 }

@@ -1,0 +1,120 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://mergus.dev/schemas/folder.schema.json",
+  "title": "Folder mergus.toml",
+  "description": "The options of the models of a folder: [all] for every model of the folder and below, and one table per model of the folder (MG-REQ-0362.2, MG-REQ-0366).",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "all": {
+      "description": "The options of every model of this folder and its subfolders.",
+      "$ref": "#/$defs/all"
+    }
+  },
+  "patternProperties": {
+    "^[a-z][a-z0-9_]{0,62}$": {
+      "description": "The options of the model of this name in this folder.",
+      "$ref": "#/$defs/model"
+    }
+  },
+  "$defs": {
+    "all": {
+      "description": "The options of [all]: those of a model, without inherit (MG-REQ-0366.7).",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "publish": { "description": "The published name, or false to stop publishing.", "$ref": "#/$defs/publish" },
+        "refresh": { "description": "How the table is rebuilt.", "$ref": "#/$defs/refresh" },
+        "key": { "description": "The business key.", "$ref": "#/$defs/key" },
+        "partition_by": { "description": "The period column and grain.", "$ref": "#/$defs/partition_by" },
+        "lookback": { "description": "The periods recomputed each run.", "$ref": "#/$defs/lookback" },
+        "fresh": { "description": "The freshness target.", "$ref": "#/$defs/fresh" },
+        "checks": { "description": "The tests.", "$ref": "#/$defs/strings" },
+        "nondeterministic": { "description": "The declared non-deterministic operations.", "$ref": "#/$defs/strings" },
+        "tags": { "description": "The selection tags.", "$ref": "#/$defs/names" },
+        "owner": { "description": "The responsible person or team.", "$ref": "#/$defs/text" },
+        "materialize": { "description": "Whether an intermediate table is stored.", "type": "boolean" },
+        "output": { "description": "The output must match its locked contract.", "const": "locked" }
+      }
+    },
+    "model": {
+      "description": "The options of one model: those of [all], and inherit (MG-REQ-0366.7).",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "publish": { "description": "The published name, or false to stop publishing.", "$ref": "#/$defs/publish" },
+        "refresh": { "description": "How the table is rebuilt.", "$ref": "#/$defs/refresh" },
+        "key": { "description": "The business key.", "$ref": "#/$defs/key" },
+        "partition_by": { "description": "The period column and grain.", "$ref": "#/$defs/partition_by" },
+        "lookback": { "description": "The periods recomputed each run.", "$ref": "#/$defs/lookback" },
+        "fresh": { "description": "The freshness target.", "$ref": "#/$defs/fresh" },
+        "checks": { "description": "The tests.", "$ref": "#/$defs/strings" },
+        "nondeterministic": { "description": "The declared non-deterministic operations.", "$ref": "#/$defs/strings" },
+        "tags": { "description": "The selection tags.", "$ref": "#/$defs/names" },
+        "owner": { "description": "The responsible person or team.", "$ref": "#/$defs/text" },
+        "materialize": { "description": "Whether an intermediate table is stored.", "type": "boolean" },
+        "output": { "description": "The output must match its locked contract.", "const": "locked" },
+        "inherit": { "description": "False ignores [all] of the parent folders.", "type": "boolean" }
+      }
+    },
+    "name": {
+      "description": "A lowercase identifier (MG-REQ-0305).",
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_]{0,62}$"
+    },
+    "names": {
+      "description": "A list of lowercase identifiers.",
+      "type": "array",
+      "items": { "description": "A lowercase identifier.", "$ref": "#/$defs/name" }
+    },
+    "text": {
+      "description": "A non-empty string.",
+      "type": "string",
+      "pattern": "[\\s\\S]"
+    },
+    "strings": {
+      "description": "A list of non-empty strings.",
+      "type": "array",
+      "items": { "description": "A non-empty string.", "$ref": "#/$defs/text" }
+    },
+    "publish": {
+      "description": "false, or gold.<schema>.<table> (MG-REQ-0366.1).",
+      "oneOf": [
+        { "description": "Not published.", "const": false },
+        {
+          "description": "The published name gold.<schema>.<table>.",
+          "type": "string",
+          "pattern": "^gold\\.[a-z][a-z0-9_]{0,62}\\.[a-z][a-z0-9_]{0,62}$"
+        }
+      ]
+    },
+    "refresh": {
+      "description": "full, incremental or history (MG-REQ-0366.2).",
+      "type": "string",
+      "enum": ["full", "incremental", "history"]
+    },
+    "key": {
+      "description": "A name, or a non-empty list of names (MG-REQ-0366.3).",
+      "oneOf": [
+        { "description": "One column.", "$ref": "#/$defs/name" },
+        { "description": "Several columns.", "$ref": "#/$defs/names" },
+        { "description": "The empty list, which also matches the list above, so oneOf rejects it.", "const": [] }
+      ]
+    },
+    "partition_by": {
+      "description": "<column>:<grain>, the grain day, week, month, quarter or year (MG-REQ-0366.4).",
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_]{0,62}:(day|week|month|quarter|year)$"
+    },
+    "lookback": {
+      "description": "An integer from 0 (MG-REQ-0366.5).",
+      "type": "integer",
+      "minimum": 0
+    },
+    "fresh": {
+      "description": "A positive integer followed by m, h or d, such as 6h (MG-REQ-0366.5).",
+      "type": "string",
+      "pattern": "^[1-9][0-9]*[mhd]$"
+    }
+  }
+}

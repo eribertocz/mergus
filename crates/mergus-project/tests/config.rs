@@ -140,7 +140,7 @@ fn mg_req_0318_formatting_does_not_change_fingerprint() {
 }
 #[test]
 fn mg_req_0361_configuration_schemas_are_closed() {
-    for kind in [ConfigKind::Project, ConfigKind::Source] {
+    for kind in [ConfigKind::Project, ConfigKind::Source, ConfigKind::Folder] {
         let schema: serde_json::Value = serde_json::from_str(kind.schema()).unwrap();
         assert_eq!(
             schema["$schema"],
@@ -326,4 +326,11 @@ fn mg_req_0365_toml_maps_to_canonical_json() {
         ("sources/crm.toml", "t = 07:32\n"),
     ]);
     assert_eq!(toml_1_1[0].code(), "MG-0303");
+}
+
+#[test]
+fn mg_req_0005_problems_in_total_order() {
+    let found = problems!(&[("project.toml", "name = \"sales\"\nzone = \"${x}\"\n")]);
+    let codes: Vec<&str> = found.iter().map(ProjectError::code).collect();
+    assert_eq!(codes, ["MG-0304", "MG-0306"]);
 }
