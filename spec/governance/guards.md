@@ -167,8 +167,9 @@ On a `release/<version>` branch, the `pr-format` guard MUST also fail when:
    column of the table in section 2 of `roadmap.md` (read from the base commit), a list item
    on one line: `- `, the gate's name, `: `, then an inline Markdown link (text in square
    brackets, then a URL that starts with `https://` in parentheses). Items may come in any order; other lines are ignored;
-5. MG-REQ-1739.5: a member `Cargo.toml` of the workspace sets its own `version` instead of
-   `version.workspace = true`, so one bump of the root `Cargo.toml` versions every crate.
+5. MG-REQ-1739.5: a member `Cargo.toml` of the workspace does not set
+   `version.workspace = true`, whether it sets its own `version` or none, so one bump of the
+   root `Cargo.toml` versions every crate.
 
 `release-gates` is the name of this extension of `pr-format`, not a command or a required check
 of its own; its findings are printed as `pr-format: MG-REQ-1739.<n>: <message>`. Tests of the
@@ -180,4 +181,4 @@ code of the head (MG-REQ-1722).
 - Kind: process
 - Verify: check `release-gates`
 - Depends: MG-REQ-1711, MG-REQ-1736
-- Decision: 0009, 0013, 0016
+- Decision: 0009, 0013, 0016, 0018
