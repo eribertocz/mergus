@@ -1,0 +1,18 @@
+{
+  "action": "synchronize",
+  "pull_request": {
+    "base": {
+      "ref": "main",
+      "sha": "0000000000000000000000000000000000000000"
+    },
+    "body": "\u0023\u0023 Issue\nRelease 0.1.0; no issue.\n\n\u0023\u0023 Rules covered\nNone.\n\n\u0023\u0023 Decisions taken inside the crate\nNone.\n\n\u0023\u0023 Deviations raised as issues\nnone\n\n\u0023\u0023 Self-check\n- [x] `just check` passes\n\n\u0023\u0023 Gates\n- **Benchmarks**: [report](https://example.com/bench)\nSome other line.\n- Tests green: [run 12](https://github.com/owner/repo/actions/runs/12)\n",
+    "head": {
+      "ref": "release/0.1.0",
+      "sha": "1111111111111111111111111111111111111111"
+    },
+    "number": 9
+  },
+  "repository": {
+    "full_name": "owner/repo"
+  }
+}
