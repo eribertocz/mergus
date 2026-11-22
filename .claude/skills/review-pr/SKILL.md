@@ -6,7 +6,8 @@ description: Review one Mergus pull request against its issue and the specificat
 # Review a pull request
 
 1. Confirm this session is the specifier session and wrote no commit of this pull request (MG-REQ-1703).
-2. Read the pull request, its files and its issue with `gh api`.
+2. Read the pull request, its files and its issue with the GitHub MCP tools
+   (`mcp__github__pull_request_read`, `mcp__github__issue_read`); `gh` is only for search.
 3. Read `spec/kernel.md` and the output of `just spec-context <issue>`. Open a rule's source file under `spec/` only when the context is not enough.
 4. Check and record each finding with file and line:
    - Traceability: every rule of the issue has a passing test named after it; no test claims a rule the code does not implement.
@@ -19,7 +20,7 @@ description: Review one Mergus pull request against its issue and the specificat
    - Review items: for every rule of the issue verified by `review <item>`, the diff meets the rule's statement.
    - Parallel work: the issue's "Depends on" is closed, and no open implementation pull request outside its "Parallel with" changes the same files (MG-REQ-1714).
    - Determinism, security and bound parameters where the change touches them.
-5. Confirm CI is green: `gh api repos/{owner}/{repo}/commits/<sha>/check-runs`.
+5. Confirm CI is green: `mcp__github__pull_request_read` with `get_check_runs`.
 6. Post one comment with findings by severity (blocking, should fix, note), the line `Verdict: ready | changes-needed | spec-defect`, and the trailer `Claude-Session: <id>`.
 7. Never approve, never merge.
 
