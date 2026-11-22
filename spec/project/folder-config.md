@@ -84,3 +84,37 @@ that it is a convention or default. `mergus explain <model>` shows it (`project/
 
 - Kind: behavior
 - Verify: test `mg_req_0335_origin_recorded_for_each_value`
+
+### MG-REQ-0366 · Option values in phase 0.2
+
+In phase 0.2 the folder schema MUST accept exactly these options and values; `pii`, `by`,
+`deletes` and `inputs` join it with the phases that define their content:
+
+1. MG-REQ-0366.1: `publish`: `false`, or a string `gold.<schema>.<table>`, both names of
+   MG-REQ-0305;
+2. MG-REQ-0366.2: `refresh`: `full`, `incremental` or `history`;
+3. MG-REQ-0366.3: `key`: a name of MG-REQ-0305, or a non-empty list of them;
+4. MG-REQ-0366.4: `partition_by`: `<column>:<grain>`, the column a name of MG-REQ-0305 and the
+   grain one of `day`, `week`, `month`, `quarter` and `year`;
+5. MG-REQ-0366.5: `lookback`: an integer from 0; `fresh`: a duration, a positive integer
+   followed by `m`, `h` or `d`, such as `6h`;
+6. MG-REQ-0366.6: `checks` and `nondeterministic`: lists of non-empty strings; `tags`: a list
+   of names of MG-REQ-0305; `owner`: a non-empty string; `materialize`: a boolean; `output`:
+   `"locked"`;
+7. MG-REQ-0366.7: `inherit`: a boolean, in a model table only, not in `[all]`.
+
+- Kind: behavior
+- Verify: test `mg_req_0366_option_values_validated`
+- Decision: 0019
+
+### MG-REQ-0367 · Shape of an origin
+
+The origin of MG-REQ-0335 MUST be one of: `file` and `line`, the path of the `mergus.toml`
+relative to the project root with `/` and the 1-based line of the key; `convention`, for a
+value taken from the folder (`publish` of MG-REQ-0304); or `default`, for the default of
+section 1. A list option has one origin per item.
+
+- Kind: behavior
+- Verify: test `mg_req_0367_origin_shape`
+- Depends: MG-REQ-0335
+- Decision: 0019
