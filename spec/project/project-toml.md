@@ -106,12 +106,14 @@ they create or format, so that editors validate and complete.
 Each configuration schema MUST be a JSON Schema 2020-12 file at the path of the table above,
 with that `$id`, closed objects (`additionalProperties: false`) and a `description` on every
 node. It MAY use, besides the keywords of contract schemas, `type` as an array of types,
-`oneOf`, `pattern`, `minimum`, `maximum` and `default`, and nothing else. It has no `contract`
+`oneOf`, `pattern`, `patternProperties`, `minimum`, `maximum` and `default`, and nothing
+else. Tables keyed by a name, such as one table per model, use `patternProperties` with the
+name pattern of MG-REQ-0305. It has no `contract`
 or `contract_version` property: configuration files are not contract documents.
 
 - Kind: behavior
 - Verify: test `mg_req_0361_configuration_schemas_are_closed`
-- Decision: 0018
+- Decision: 0018, 0019
 
 ### MG-REQ-0362 · Keys known in phase 0.2
 
@@ -122,7 +124,7 @@ phase 0.2 the schemas hold exactly:
    version requirement such as `">=1.4, <2"`), and the tables `[gold]`, `[raw]` and `[ops]`,
    each with `profile` and `location`, both strings;
 2. MG-REQ-0362.2: folder `mergus.toml`: the table `[all]` and one table per model, each with
-   the options of `project/folder-config.md` section 1;
+   the options of MG-REQ-0366;
 3. MG-REQ-0362.3: `sources/*.toml`: no key yet; a source file is valid TOML and nothing else
    is checked until the rules of `extract/sources.md` are due.
 
@@ -130,7 +132,8 @@ Each later phase adds its keys as a minor version of the schema (MG-REQ-0204).
 
 - Kind: behavior
 - Verify: test `mg_req_0362_only_due_keys_are_known`
-- Decision: 0018
+- Depends: MG-REQ-0366
+- Decision: 0018, 0019
 
 ### MG-REQ-0363 · What a literal secret is
 
