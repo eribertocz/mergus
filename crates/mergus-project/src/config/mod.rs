@@ -156,12 +156,7 @@ fn parse(
     bytes: &[u8],
     problems: &mut Vec<ProjectError>,
 ) -> Result<Option<ConfigFile>, LayoutError> {
-    let Ok(text) = std::str::from_utf8(bytes) else {
-        problems.push(ProjectError::InvalidToml {
-            path: path.to_owned(),
-            line: 1,
-            message: "the file is not UTF-8".to_owned(),
-        });
+    let Some(text) = utf8(path, bytes, problems) else {
         return Ok(None);
     };
     let Some(converted) = convert::convert(path, text, problems) else {
@@ -174,4 +169,17 @@ fn parse(
         value: converted.value,
         canonical,
     }))
+}
+
+/// The text of a configuration file, or `None` with a problem when it is not UTF-8.
+fn utf8<'a>(path: &str, bytes: &'a [u8], problems: &mut Vec<ProjectError>) -> Option<&'a str> {
+    let text = std::str::from_utf8(bytes).ok();
+    if text.is_none() {
+        problems.push(ProjectError::InvalidToml {
+            path: path.to_owned(),
+            line: 1,
+            message: "the file is not UTF-8".to_owned(),
+        });
+    }
+    text
 }
