@@ -82,23 +82,39 @@ fn mg_req_0320_literal_secret_rejected() {
 
 #[test]
 fn mg_req_0363_literal_secrets_detected() {
-    // MG-REQ-0363.1: a URL with a password in its user information.
+    url_passwords();
+    private_keys();
+    secret_keys();
+    arrays_and_references();
+}
+
+/// MG-REQ-0363.1: a URL with a password in its user information.
+fn url_passwords() {
     assert_eq!(
         in_source("url = \"postgres://app:pa55@db.local:5432/crm\"\n"),
         [literal("sources/crm.toml", 1, "url")]
     );
     assert_eq!(in_source("url = \"postgres://app@db.local/crm\"\n"), []);
     assert_eq!(in_source("url = \"https://db.local/a:b@c\"\n"), []);
-    // MG-REQ-0363.2: a private key block, on one line.
+}
+
+/// MG-REQ-0363.2: a private key block, on one line. The marker is built at run time so that
+/// this file holds no private key header (MG-REQ-0179).
+fn private_keys() {
+    let begin = "-----BEGIN";
+    let end = "PRIVATE KEY-----";
     assert_eq!(
-        in_source("cert = \"\"\"\n-----BEGIN RSA PRIVATE KEY-----\nMIIE\n\"\"\"\n"),
+        in_source(&format!("cert = \"\"\"\n{begin} RSA {end}\nMIIE\n\"\"\"\n")),
         [literal("sources/crm.toml", 1, "cert")]
     );
     assert_eq!(
-        in_source("cert = \"-----BEGIN CERTIFICATE-----\\nPRIVATE KEY-----\"\n"),
+        in_source(&format!("cert = \"{begin} CERTIFICATE-----\\n{end}\"\n")),
         []
     );
-    // MG-REQ-0363.3: a key named like a secret, compared without case, with a value.
+}
+
+/// MG-REQ-0363.3: a key named like a secret, compared without case, with a value.
+fn secret_keys() {
     for key in [
         "password",
         "db_passwd",
@@ -118,7 +134,11 @@ fn mg_req_0363_literal_secrets_detected() {
     assert_eq!(in_source("token_ttl = \"1h\"\n"), []);
     // Values that are not strings are never literal secrets.
     assert_eq!(in_source("token = 12\npassword = true\n"), []);
-    // Arrays and inline tables: the key of an array item is the key of its array.
+}
+
+/// Arrays and inline tables are checked, and a `secret:` reference passes, with case.
+fn arrays_and_references() {
+    // The key of an array item is the key of its array.
     assert_eq!(
         in_source("tokens = [\"a\"]\napi_key = [\"\", \"b\"]\nauth = { token = \"c\" }\n"),
         [
@@ -126,7 +146,6 @@ fn mg_req_0363_literal_secrets_detected() {
             literal("sources/crm.toml", 3, "auth.token"),
         ]
     );
-    // A `secret:` reference passes; the prefix is compared with case.
     assert_eq!(
         in_source("password = \"secret:crm_password\"\nurl = \"secret:crm_url\"\n"),
         []
