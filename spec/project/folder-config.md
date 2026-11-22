@@ -9,8 +9,8 @@ depends_on: [project-project-toml]
 
 # Folder configuration
 
-A folder under `models/` MAY contain a `mergus.toml` configuring the models of that folder
-and its subfolders. A folder whose models need nothing special has no such file.
+A folder under `models/`, and `models/` itself, MAY contain a `mergus.toml` configuring the
+models of that folder and its subfolders; `models/mergus.toml` holds the outermost `[all]`. A folder whose models need nothing special has no such file.
 
 ```toml
 [all]                       # every model in this folder and below
@@ -55,8 +55,8 @@ MUST be an error suggesting the closest model name.
 ### MG-REQ-0332 · Precedence
 
 The effective value of an option MUST be taken from the first source that sets it, in this
-order: the model's section; `[all]` of its folder; `[all]` of each parent folder, nearest
-first; the folder convention; the default.
+order: the model's section; `[all]` of its folder; `[all]` of each parent folder up to and
+including `models/`, nearest first; the folder convention; the default.
 
 - Kind: behavior
 - Verify: test `mg_req_0332_option_precedence`

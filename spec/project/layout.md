@@ -12,6 +12,7 @@ depends_on: [architecture-overview]
 ```
 my_project/
   project.toml            the project: gold location, environments, seeds, security, version pin
+  ids.toml                optional identifiers of renamed models and sources (project/identifiers.md)
   sources/<source>.toml   one file per source (database, files or REST API)
   models/                 one model per file; any depth of folders
     <folder>/mergus.toml  optional configuration of the models of that folder

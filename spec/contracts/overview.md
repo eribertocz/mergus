@@ -103,10 +103,12 @@ hashing.
 ### MG-REQ-0209 · Stable identifiers
 
 Every model, table, column, source, run, publication and diagnostic that a contract document
-names MUST carry a stable identifier that does not change when the object is renamed or moved
-(`mergus mv` keeps it) and is never reused for another object.
+names MUST carry a stable identifier that does not change when the object is moved, or renamed
+with `mergus mv`, and is never reused for another object. A column keeps its identifier when
+its table is renamed; a renamed column is a new column. `project/identifiers.md` defines the
+identifiers of project objects.
 
 - Kind: behavior
 - Verify: test `mg_req_0209_identifiers_survive_renames`
 - Phase: 0.2
-- Decision: 0010
+- Decision: 0010, 0022
