@@ -217,3 +217,82 @@ among its errors.
 - Kind: behavior
 - Verify: test `mg_req_1345_validate_reports_all_and_writes_nothing`
 - Phase: 0.2
+
+## Phase 0.2
+
+### MG-REQ-1348 · The CLI schema document
+
+The document of MG-REQ-0263 MUST be the contract `mergus_cli` in `schemas/mergus_cli/v1/`,
+starting at `1.0.0`: `contract`, `contract_version`, `mergus_version` and `commands`, sorted by
+`name` (`"new model"`). A command has `name`, `summary`, `arguments`, `exit_codes`, `json` and
+`dry_run`; an argument has `name`, `kind` (`positional`, `option` or `flag`), `type`
+(`string`, `integer`, `boolean`, `path` or `selection`), `required`, `repeatable` and,
+when they exist, `default` (as a string) and `values`. `mergus schema` prints the document
+alone on standard output, with or without `--json`.
+
+- Kind: behavior
+- Verify: test `mg_req_1348_cli_schema_document`
+- Phase: 0.2
+- Decision: 0027
+
+### MG-REQ-1349 · init in phase 0.2
+
+1. MG-REQ-1349.1: The questions and defaults are: name (the current folder's name, lowercased,
+   with every character outside `[a-z0-9_]` turned into `_`), profile (only `local` in 0.2) and
+   gold location (`gold`). `--name`, `--profile` and `--location` answer them; without a
+   terminal, or with `--yes`, the defaults answer the rest.
+2. MG-REQ-1349.2: It writes `project.toml` (`name` and `[gold]`), the folders `models/` and
+   `sources/`, and a `.gitignore` holding `.mergus/`; it refuses, with exit code 1, a folder
+   that already has `project.toml`.
+3. MG-REQ-1349.3: It ends by printing `mergus new model first_model`, `mergus validate` and
+   `mergus plan`, in that order.
+
+- Kind: behavior
+- Verify: test `mg_req_1349_init_defaults_files_and_next_steps`
+- Phase: 0.2
+- Decision: 0027
+
+### MG-REQ-1350 · Scaffolding in phase 0.2
+
+1. MG-REQ-1350.1: `new model` writes `models/<name>.sql`, or `models/gold/<schema>/<name>.sql`
+   with `--gold`, containing `SELECT 1 AS id`; with `--py` the file is `.py` and holds one
+   function named `<name>` returning a one-column Polars data frame. `--sql` is the default.
+2. MG-REQ-1350.2: `add source` writes `sources/<name>.toml` with its `#:schema` line,
+   `kind = "database"` and `connection = "secret:<name>"`.
+3. MG-REQ-1350.3: An invalid (MG-REQ-0305) or taken (MG-REQ-0303) name, or an existing file,
+   is an error with exit code 1. `init`, `new model` and `add source` accept `--dry-run`, which
+   lists the files they would write and writes none.
+
+- Kind: behavior
+- Verify: test `mg_req_1350_scaffolding_files`
+- Phase: 0.2
+- Decision: 0027
+
+### MG-REQ-1351 · Settings in phase 0.2
+
+The only setting in 0.2 is `max_parallel` (integer from 1, default 4): flag `--max-parallel`,
+variable `MERGUS_MAX_PARALLEL`, key `max_parallel` of the user configuration file. That file
+is `config.toml` in `$XDG_CONFIG_HOME/mergus/`, or else `~/.config/mergus/` (Linux and macOS),
+and in `%APPDATA%\mergus\` (Windows), read through the `Environment` port; a missing file is
+empty, and an unknown key is an error with exit code 1. The `project.toml` levels of
+MG-REQ-1309 apply when a setting has a key there.
+
+- Kind: behavior
+- Verify: test `mg_req_1351_settings_sources_and_file`
+- Phase: 0.2
+- Decision: 0027
+
+### MG-REQ-1352 · changed and explain in phase 0.2
+
+1. MG-REQ-1352.1: `changed` selects the models whose fingerprint is not an available result
+   of `prod`; with no storage, every model.
+2. MG-REQ-1352.2: `explain <model>` prints the model's name, identifier, file, inputs, the
+   models that read it, and every effective option with value and origin (MG-REQ-0335);
+   engines and published names arrive with their phases.
+3. MG-REQ-1352.3: `explain <code>` prints the code's catalog file; an unknown code or model is
+   an error naming the closest one (MG-REQ-0359).
+
+- Kind: behavior
+- Verify: test `mg_req_1352_changed_and_explain`
+- Phase: 0.2
+- Decision: 0027

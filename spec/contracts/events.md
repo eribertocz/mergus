@@ -31,15 +31,17 @@ Common fields of every event: `contract`, `contract_version`, `type`, `run_id`, 
 
 ### MG-REQ-0260 · Events are a public contract
 
-`--json` output MUST contain only events valid against the events schema, in increasing
-`sequence` order, and MUST end with exactly one `run_finished`.
+Except for `mergus schema` (MG-REQ-1348), `--json` output MUST contain only events valid
+against the events schema, in increasing `sequence` order, and MUST end with exactly one
+`run_finished`.
 
 - Kind: behavior
 - Verify: test `mg_req_0260_json_output_is_valid_event_stream`
 
 ### MG-REQ-0261 · Nothing else on standard output
 
-With `--json`, Mergus MUST NOT write anything to standard output that is not an event.
+With `--json`, Mergus MUST NOT write anything to standard output that is not an event, except
+the document of `mergus schema`.
 
 - Kind: behavior
 - Verify: test `mg_req_0261_json_stdout_contains_only_events`
