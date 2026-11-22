@@ -8,7 +8,7 @@
 //! failure is collected as a typed [`ProjectError`].
 //!
 //! [`read_configuration`] reads `project.toml` and every `sources/<source>.toml`, checks them
-//! against the JSON Schemas of `schemas/config/` (MG-REQ-0316), rejects expressions
+//! against the JSON Schemas of `schemas/` of this crate (MG-REQ-0316), rejects expressions
 //! (MG-REQ-0364) and returns each file as JSON with its canonical form (MG-REQ-0318).
 
 #![forbid(unsafe_code)]

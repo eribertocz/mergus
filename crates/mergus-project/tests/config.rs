@@ -147,10 +147,13 @@ fn mg_req_0361_configuration_schemas_are_closed() {
             "https://json-schema.org/draft/2020-12/schema"
         );
         assert_eq!(schema["$id"], kind.schema_id());
-        assert!(kind.schema_path().starts_with("schemas/config/"));
+        assert!(
+            kind.schema_path()
+                .starts_with("crates/mergus-project/schemas/")
+        );
         assert!(schema["properties"].get("contract").is_none());
         assert!(schema["properties"].get("contract_version").is_none());
-        check_node(&schema, "#");
+        check_node(&schema, "#", kind == ConfigKind::Source);
     }
 }
 
@@ -179,7 +182,8 @@ const KEYWORDS: [&str; 19] = [
 
 /// Checks that a schema node and every node under it is described, closed when it is an
 /// object, and uses only allowed keywords.
-fn check_node(node: &serde_json::Value, at: &str) {
+/// The root of the source schema is the one open object (MG-REQ-0362.3): `open` says so.
+fn check_node(node: &serde_json::Value, at: &str, open: bool) {
     assert!(node.is_object(), "{at}: not an object");
     let Some(map) = node.as_object() else {
         return;
@@ -195,37 +199,44 @@ fn check_node(node: &serde_json::Value, at: &str) {
             .is_some_and(serde_json::Value::is_string),
         "{at}: description"
     );
-    if map.get("type").is_some_and(|kind| kind == "object") {
+    if open {
+        assert!(map.get("additionalProperties").is_none(), "{at}: open");
+        assert!(map.get("properties").is_none(), "{at}: no key yet");
+    } else if map.get("type").is_some_and(|kind| kind == "object") {
         assert_eq!(
             map.get("additionalProperties"),
             Some(&serde_json::Value::Bool(false)),
             "{at}"
         );
     }
+    for (path, child) in children(map) {
+        check_node(child, &format!("{at}/{path}"), false);
+    }
+}
+
+/// The schema nodes directly under a node, with their path from it.
+fn children(map: &serde_json::Map<String, serde_json::Value>) -> Vec<(String, &serde_json::Value)> {
+    let mut found = Vec::new();
     for group in ["properties", "patternProperties", "$defs"] {
-        for (name, child) in map
+        let named = map
             .get(group)
             .and_then(|g| g.as_object())
             .into_iter()
-            .flatten()
-        {
-            check_node(child, &format!("{at}/{group}/{name}"));
-        }
+            .flatten();
+        found.extend(named.map(|(name, child)| (format!("{group}/{name}"), child)));
     }
-    for group in ["items"] {
-        if let Some(child) = map.get(group) {
-            check_node(child, &format!("{at}/{group}"));
-        }
-    }
-    for (index, child) in map
+    found.extend(map.get("items").map(|child| ("items".to_owned(), child)));
+    let alternatives = map
         .get("oneOf")
         .and_then(|g| g.as_array())
         .into_iter()
-        .flatten()
-        .enumerate()
-    {
-        check_node(child, &format!("{at}/oneOf/{index}"));
-    }
+        .flatten();
+    found.extend(
+        alternatives
+            .enumerate()
+            .map(|(index, child)| (format!("oneOf/{index}"), child)),
+    );
+    found
 }
 
 #[test]

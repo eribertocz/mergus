@@ -13,7 +13,7 @@
 | `Configuration` | `project.toml` and the sources |
 | `ConfigFile` | One configuration file: path, JSON value, canonical JSON |
 | `Source` | One source: the stem of its file, and the file |
-| `ConfigKind` | Project or source, which picks the schema of `schemas/config/` |
+| `ConfigKind` | Project or source, which picks the schema of `schemas/` of this crate |
 
 Functions: `read_layout`, `read_configuration`, `is_valid_name`, `suggest_valid_name` and `closest_name`.
 
@@ -43,6 +43,8 @@ Functions: `read_layout`, `read_configuration`, `is_valid_name`, `suggest_valid_
 - `mergus-contracts`: `canonical_json`, the RFC 8785 serializer.
 - `toml` 0.9.8, with `toml_parser` 1.0.4 in `Cargo.lock`: the last releases that parse TOML
   1.0 rather than 1.1.
-- `jsonschema` without default features (no file or network resolution), and `serde_json`.
+- `jsonschema` 0.20.0 without default features (no file or network resolution): later
+  releases depend on `borrow-or-share`, whose MIT-0 license `deny.toml` does not allow.
+- `serde_json`: the JSON values.
 - `thiserror`: derives the error types.
 - `mergus-sim`, as a dev-dependency only: the in-memory file system of the tests.

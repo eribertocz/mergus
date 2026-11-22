@@ -25,8 +25,8 @@ impl ConfigKind {
     #[must_use]
     pub fn schema(self) -> &'static str {
         match self {
-            Self::Project => include_str!("../../../../schemas/config/project.schema.json"),
-            Self::Source => include_str!("../../../../schemas/config/source.schema.json"),
+            Self::Project => include_str!("../../schemas/project.schema.json"),
+            Self::Source => include_str!("../../schemas/source.schema.json"),
         }
     }
 
@@ -34,8 +34,8 @@ impl ConfigKind {
     #[must_use]
     pub fn schema_path(self) -> &'static str {
         match self {
-            Self::Project => "schemas/config/project.schema.json",
-            Self::Source => "schemas/config/source.schema.json",
+            Self::Project => "crates/mergus-project/schemas/project.schema.json",
+            Self::Source => "crates/mergus-project/schemas/source.schema.json",
         }
     }
 
