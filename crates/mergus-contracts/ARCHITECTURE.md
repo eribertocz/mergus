@@ -12,6 +12,8 @@
 | `ValidDocument` | A document that passed validation; the only emittable form |
 | `EmitError` | Why a document cannot be emitted; always an internal error |
 | `ReadError` | Why a document cannot be read as a contract, with every `Violation` |
+| `validate_event`, `required_fields` | Validate a `mergus_events` event and check the fields its type requires (MG-REQ-0295) |
+| `generated::mergus_events_v1` | The events of `--json` output |
 | `names::*` | Constants for every external name (MG-REQ-0207) |
 
 ## Data flow

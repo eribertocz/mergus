@@ -7,6 +7,9 @@
 //! passing [`validate`] (MG-REQ-0203). [`names`] holds every name Mergus uses from another
 //! module (MG-REQ-0207).
 //!
+//! [`validate_event`] also checks the fields each type of `mergus_events` requires
+//! (MG-REQ-0295).
+//!
 //! [`read`] reads a document of any minor version of a known major version (MG-REQ-0206).
 //! A document is hashed or signed only as its canonical JSON (RFC 8785):
 //! [`ValidDocument::hash_input`] and [`canonical_json`] give it (MG-REQ-0208).
@@ -17,6 +20,7 @@
 
 mod canonical;
 mod emit;
+mod events;
 pub mod generated;
 pub mod names;
 mod read;
@@ -25,6 +29,7 @@ mod validate;
 
 pub use canonical::canonical_json;
 pub use emit::{Contract, ContractSchema, EmitError, ValidDocument, validate};
+pub use events::{required_fields, validate_event};
 pub use read::{ReadError, read};
 pub use schema::{KEYWORDS, Schema, SchemaError};
 pub use validate::Violation;
