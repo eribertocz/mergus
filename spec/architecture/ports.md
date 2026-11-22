@@ -21,7 +21,7 @@ wires the real implementation; tests and the simulator wire simulated ones.
 | `SourceConnector` | ADBC connections and file readers of sources |
 | `Random` | Random numbers and identifiers |
 | `Process` | Child processes |
-| `Environment` | Environment variables and the user configuration directory |
+| `Environment` | Command-line arguments, current directory, environment variables and the user configuration directory |
 | `SqlParser` | DuckDB's SQL parser, without executing anything |
 
 ### MG-REQ-0130 · Only ports touch the world
