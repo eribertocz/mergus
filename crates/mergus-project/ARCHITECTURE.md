@@ -13,9 +13,12 @@
 | `Configuration` | `project.toml` and the sources |
 | `ConfigFile` | One configuration file: path, JSON value, canonical JSON |
 | `Source` | One source: the stem of its file, and the file |
-| `ConfigKind` | Project or source, which picks the schema of `schemas/` of this crate |
+| `ConfigKind` | Project, source or folder, which picks the schema of `schemas/` of this crate |
+| `ModelOptions` | The effective options of one model, and its effective publication |
+| `Effective` | One option: a single `Setting`, or the `Setting` of each list item |
+| `Setting`, `Origin` | A JSON value and where it comes from: file and line, convention or default |
 
-Functions: `read_layout`, `read_configuration`, `is_valid_name`, `suggest_valid_name` and `closest_name`.
+Functions: `read_layout`, `read_configuration`, `read_model_options`, `is_valid_name`, `suggest_valid_name` and `closest_name`.
 
 ## Data flow
 
@@ -36,6 +39,19 @@ Functions: `read_layout`, `read_configuration`, `is_valid_name`, `suggest_valid_
 3. The JSON is validated against the bundled schema of its kind; unknown keys get the closest
    allowed key of their place.
 4. The canonical JSON is the RFC 8785 form of `mergus-contracts`.
+
+## Folder options flow
+
+1. `read_model_options` takes the `Layout` and walks `models/` and its folders, sorted, reading
+   each `mergus.toml` like the other configuration files.
+2. Top-level keys other than `all` that name no model of the folder are reported and removed;
+   the rest is validated against `folder.schema.json`. Problems of a file are sorted by line,
+   code and key.
+3. With no problem, each model gets its levels, most specific first: its section, `[all]` of
+   its folder, then `[all]` of each parent up to `models/`, unless `inherit = false`.
+4. Each option of the phase takes the first level that sets it, else the convention
+   (`publish`) or its default; `checks` and `tags` take every level's items, first one wins.
+   `null` stands for an option with no value.
 
 ## Dependencies
 

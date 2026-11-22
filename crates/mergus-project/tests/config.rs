@@ -140,7 +140,7 @@ fn mg_req_0318_formatting_does_not_change_fingerprint() {
 }
 #[test]
 fn mg_req_0361_configuration_schemas_are_closed() {
-    for kind in [ConfigKind::Project, ConfigKind::Source] {
+    for kind in [ConfigKind::Project, ConfigKind::Source, ConfigKind::Folder] {
         let schema: serde_json::Value = serde_json::from_str(kind.schema()).unwrap();
         assert_eq!(
             schema["$schema"],

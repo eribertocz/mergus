@@ -18,11 +18,20 @@ Read and validate the project: files, `project.toml`, folder `mergus.toml`.
   `MG-0303` to `MG-0305`, with file, line and the closest allowed key.
 - Rejects expressions in values, `MG-0306` (MG-REQ-0364), and NaN or infinite floats,
   `MG-0307`; returns each file as JSON and canonical JSON (MG-REQ-0318, MG-REQ-0365).
-- Collects every problem, not only the first.
+- Reads every folder `mergus.toml` of `models/` with the folder schema (MG-REQ-0366); a
+  section other than `[all]` that names no model of its folder is `MG-0308`, with the closest
+  model name (MG-REQ-0331).
+- Returns the effective options of each model: its section, `[all]` of its folder, then of
+  each parent folder, the convention, the default (MG-REQ-0332); `checks` and `tags` add up
+  (MG-REQ-0333); `inherit = false` skips the parents (MG-REQ-0334); every value has its
+  origin, file and line, `convention` or `default` (MG-REQ-0335, MG-REQ-0367). A configured
+  `publish` overrides the folder rule.
+- Collects every problem, not only the first, each file's problems ordered by line, code and
+  key.
 
 ## What it does not
 
 - It performs no I/O itself: it calls the port only (MG-REQ-0004).
-- It does not read folder `mergus.toml` files yet, nor the `publish` option, and it checks no
-  key of `sources/*.toml` yet (MG-REQ-0362.3).
+- It checks no key of `sources/*.toml` yet (MG-REQ-0362.3), and does not know `pii`, `by`,
+  `deletes` nor `inputs` yet (MG-REQ-0366).
 - It does not analyze SQL or Python, so it does not check that a file produces one table.

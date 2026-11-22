@@ -1,8 +1,13 @@
-//! The configuration files `project.toml` and `sources/*.toml`: TOML 1.0 validated by their
-//! JSON Schemas (MG-REQ-0316), literal values only (MG-REQ-0364), canonical JSON (MG-REQ-0318).
+//! The configuration files `project.toml`, `sources/*.toml` and folder `mergus.toml`: TOML 1.0
+//! validated by their JSON Schemas (MG-REQ-0316), literal values only (MG-REQ-0364), canonical
+//! JSON (MG-REQ-0318), and the effective options of each model (MG-REQ-0332).
 
 mod convert;
+mod folder;
+mod options;
 mod schema;
+
+pub use options::{Effective, ModelOptions, Origin, Setting, read_model_options};
 
 use std::path::Path;
 
@@ -18,6 +23,8 @@ pub enum ConfigKind {
     Project,
     /// A `sources/<source>.toml` file.
     Source,
+    /// A folder `mergus.toml` under `models/`.
+    Folder,
 }
 
 impl ConfigKind {
@@ -27,6 +34,7 @@ impl ConfigKind {
         match self {
             Self::Project => include_str!("../../schemas/project.schema.json"),
             Self::Source => include_str!("../../schemas/source.schema.json"),
+            Self::Folder => include_str!("../../schemas/folder.schema.json"),
         }
     }
 
@@ -36,6 +44,7 @@ impl ConfigKind {
         match self {
             Self::Project => "crates/mergus-project/schemas/project.schema.json",
             Self::Source => "crates/mergus-project/schemas/source.schema.json",
+            Self::Folder => "crates/mergus-project/schemas/folder.schema.json",
         }
     }
 
@@ -45,6 +54,7 @@ impl ConfigKind {
         match self {
             Self::Project => "https://mergus.dev/schemas/project.schema.json",
             Self::Source => "https://mergus.dev/schemas/source.schema.json",
+            Self::Folder => "https://mergus.dev/schemas/folder.schema.json",
         }
     }
 }

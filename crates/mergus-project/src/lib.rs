@@ -18,7 +18,10 @@ mod error;
 mod layout;
 mod names;
 
-pub use config::{ConfigFile, ConfigKind, Configuration, Source, read_configuration};
+pub use config::{
+    ConfigFile, ConfigKind, Configuration, Effective, ModelOptions, Origin, Setting, Source,
+    read_configuration, read_model_options,
+};
 pub use error::{LayoutError, NameKind, ProjectError};
 pub use layout::{Layout, Model, ModelLanguage, Publication, read_layout};
 pub use names::{closest_name, is_valid_name, suggest_valid_name};
