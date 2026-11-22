@@ -11,9 +11,9 @@
 | `SourceConnector` | Opens a source as a `SourceReader` that yields batches of bytes |
 | `Random` | Random numbers and bytes |
 | `Process` | Runs a `ProcessCommand` and returns its `ProcessOutput` |
-| `Environment` | Environment variables and the user configuration directory |
+| `Environment` | Command-line arguments, current directory, environment variables and the user configuration directory |
 | `PortError` | `NotFound` or `Failed`, returned by every fallible call |
-| `real::*` | `RealClock`, `RealFileSystem`, `RealProcess` (feature `real`) |
+| `real::*` | `RealClock`, `RealEnvironment`, `RealFileSystem`, `RealProcess`, `RealRandom` (feature `real`) |
 
 Every trait is `Send + Sync` and takes `&self`, so one value can be shared behind an `Arc`.
 

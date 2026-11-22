@@ -7,7 +7,8 @@ I/O traits and their real implementations.
 - Defines one trait per port: `Clock`, `FileSystem`, `ObjectStore`, `Network`,
   `SourceConnector`, `Random`, `Process` and `Environment`, and the `PortError` they return.
 - Holds, under the non-default feature `real`, the real implementations that wrap the
-  operating system: `RealClock`, `RealFileSystem` and `RealProcess`.
+  operating system: `RealClock`, `RealEnvironment`, `RealFileSystem`, `RealProcess` and
+  `RealRandom`.
 - Is the only crate allowed to call the standard library's clock, file, environment, network
   and process functions (MG-REQ-0130); Clippy forbids them everywhere else.
 
@@ -18,5 +19,6 @@ I/O traits and their real implementations.
   (MG-REQ-0132).
 - It does not enable `real` by default; only `mergus-runtime`, `mergus-cli`, `mergus-py` and
   `mergus-testkit` may enable it (MG-REQ-0133, MG-REQ-0126.5).
-- It has no real `ObjectStore`, `Network`, `SourceConnector`, `Random` or `Environment` yet;
-  they come with the crates that need them.
+- It has no real `ObjectStore`, `Network` or `SourceConnector` yet; they come with the crates
+  that need them.
+- `RealRandom` is fit for identifiers, not for secrets.

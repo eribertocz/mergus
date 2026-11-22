@@ -12,7 +12,7 @@
 | `SimSourceConnector`, `SourceFaults` | Sources of batches, with a changed version |
 | `SimRandom` | Seeded random numbers |
 | `SimProcess` | Programs answer with outputs set by the test |
-| `SimEnvironment` | Variables and a configuration directory set by the test |
+| `SimEnvironment` | Arguments, current directory, variables and a configuration directory set by the test |
 | `Scenario` | What a caller simulates: how a seed draws steps, the world, one step |
 | `Simulator` | Runs, replays and shrinks a scenario from a seed |
 | `Replay`, `StepRecord` | A run replayed one step at a time, and each step's result |

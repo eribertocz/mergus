@@ -60,7 +60,11 @@ fn simulated(seed: u64) -> Ports {
         source: Arc::new(source(seed + 3)),
         random: Arc::new(SimRandom::new(seed + 4)),
         process: Arc::new(process),
-        environment: Arc::new(SimEnvironment::new([("MERGUS_PROFILE", "dev")], None)),
+        environment: Arc::new(
+            SimEnvironment::new([("MERGUS_PROFILE", "dev")], None)
+                .with_args(["validate", "--json"])
+                .with_current_dir("/project"),
+        ),
     }
 }
 
@@ -158,12 +162,14 @@ fn trace(ports: &Ports) -> Result<String, PortError> {
         };
         trace.push_str(&format!(
             "{write:?} {read:?} {put:?} {get:?} {list:?} {http:?} {tcp:?} {batches:?} \
-             {:?} {:?} {:?} {bytes:?} {:?} {:?} {:?}\n",
+             {:?} {:?} {:?} {bytes:?} {:?} {:?} {:?} {:?} {:?}\n",
             ports.clock.now(),
             ports.clock.monotonic(),
             ports.random.next_u64(),
             ports.process.run(&command),
             ports.environment.var("MERGUS_PROFILE"),
+            ports.environment.args(),
+            ports.environment.current_dir(),
             ports.file_system.list_dir(dir),
         ));
     }
