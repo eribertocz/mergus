@@ -1,5 +1,5 @@
-//! TOML 1.0 to JSON (MG-REQ-0365), keeping the line of every key and value, and the literal
-//! check of MG-REQ-0364.
+//! TOML 1.0 to JSON (MG-REQ-0365), keeping the line of every key and value, the literal
+//! check of MG-REQ-0364 and the literal-secret check of MG-REQ-0320.
 
 use std::collections::BTreeMap;
 use std::fmt::Write as _;
@@ -9,6 +9,7 @@ use toml::Spanned;
 use toml::de::{DeTable, DeValue};
 use toml::value::{Datetime, Offset};
 
+use super::secret::is_literal_secret;
 use crate::ProjectError;
 
 /// One step from a value to one of its children.
@@ -37,6 +38,14 @@ pub(crate) fn dotted(path: &[Segment]) -> String {
         }
     }
     out
+}
+
+/// The last key of a path: the key of an array item is the key of its array (MG-REQ-0363).
+fn last_key(path: &[Segment]) -> Option<&str> {
+    path.iter().rev().find_map(|segment| match segment {
+        Segment::Key(key) => Some(key.as_str()),
+        Segment::Index(_) => None,
+    })
 }
 
 /// The lines of a key and of its value, from 1.
@@ -141,16 +150,7 @@ impl Walk<'_> {
         );
         match value.get_ref() {
             DeValue::String(text) => {
-                if ["${", "{{", "{%"]
-                    .iter()
-                    .any(|marker| text.contains(marker))
-                {
-                    self.problems.push(ProjectError::Expression {
-                        path: self.path.to_owned(),
-                        line,
-                        key: dotted(at),
-                    });
-                }
+                self.string(text, line, at);
                 Value::String(text.to_string())
             }
             DeValue::Integer(integer) => self.integer(integer.as_str(), integer.radix(), line),
@@ -168,6 +168,28 @@ impl Walk<'_> {
                 Value::Array(array)
             }
             DeValue::Table(table) => self.table(table, at),
+        }
+    }
+
+    /// The checks of a string value: no expression (MG-REQ-0364), no literal secret
+    /// (MG-REQ-0320).
+    fn string(&mut self, text: &str, line: usize, at: &[Segment]) {
+        if ["${", "{{", "{%"]
+            .iter()
+            .any(|marker| text.contains(marker))
+        {
+            self.problems.push(ProjectError::Expression {
+                path: self.path.to_owned(),
+                line,
+                key: dotted(at),
+            });
+        }
+        if is_literal_secret(last_key(at), text) {
+            self.problems.push(ProjectError::LiteralSecret {
+                path: self.path.to_owned(),
+                line,
+                key: dotted(at),
+            });
         }
     }
 
