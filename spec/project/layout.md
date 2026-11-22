@@ -90,6 +90,46 @@ the file system. Such statements are rejected at validation.
 - Kind: behavior
 - Verify: test `mg_req_0308_side_effect_sql_rejected`
 
+For Python models, MG-REQ-0307 is met by MG-REQ-0614; for macro calls, by MG-REQ-0642. Both
+arrive in phase 0.4. The two rules below apply to `.sql` model files, on the tree of
+MG-REQ-0193.
+
+### MG-REQ-0373 · What a SQL model references
+
+Every base-table reference of the tree that does not name a CTE visible at that point
+(MG-REQ-0602) MUST resolve, compared without case, as follows; any other reference MUST be
+the error of MG-REQ-0307 with the file, line and column of the reference.
+
+1. MG-REQ-0373.1: without schema: a model of the project;
+2. MG-REQ-0373.2: in schema `raw`: `<source>__<table>` for a `[tables.<table>]` of
+   `sources/<source>.toml`, or `seed__<name>` for a `[seeds.<name>]` of `project.toml`.
+
+A reference with a catalog, or with a schema other than `raw`, never resolves.
+
+- Kind: behavior
+- Verify: test `mg_req_0373_references_resolved`
+- Depends: MG-REQ-0307, MG-REQ-0193
+- Decision: 0023
+
+### MG-REQ-0374 · What read-only SQL rejects
+
+For MG-REQ-0308, a `.sql` model MUST be an error naming the file, line, column and the
+rejected construct, with exit code 1, when:
+
+1. MG-REQ-0374.1: the parser reports an error, or the text holds other than exactly one
+   statement (`json_serialize_sql` accepts only `SELECT`, so `ATTACH`, `COPY`, `INSTALL`,
+   `LOAD`, `SET`, `PRAGMA` and every write fail here);
+2. MG-REQ-0374.2: it calls a table function other than `range`, `generate_series` and
+   `unnest` (this rejects `read_csv`, `read_parquet`, `glob`, `query` and the like);
+3. MG-REQ-0374.3: a base-table name is not a name of MG-REQ-0305 (this rejects `FROM
+   'file.csv'` and URLs);
+4. MG-REQ-0374.4: it calls `getenv`, `nextval`, `currval` or `setseed`.
+
+- Kind: behavior
+- Verify: test `mg_req_0374_side_effects_rejected`
+- Depends: MG-REQ-0308, MG-REQ-0193
+- Decision: 0023
+
 ### MG-REQ-0359 · Closest known name
 
 When an error names the closest known name (MG-REQ-0307, MG-REQ-0316, MG-REQ-0331), Mergus MUST
