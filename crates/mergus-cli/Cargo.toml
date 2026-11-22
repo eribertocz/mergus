@@ -1,0 +1,20 @@
+[package]
+name = "mergus-cli"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+description = "The `mergus` binary; translates arguments and output only."
+
+# The binary name repeats `mergus_contracts::names::BINARY`: Cargo cannot read a Rust
+# constant. It is the only repetition of the name (MG-REQ-1325).
+[[bin]]
+name = "mergus"
+path = "src/main.rs"
+
+[dependencies]
+mergus-contracts = { path = "../mergus-contracts" }
+
+[lints]
+workspace = true
