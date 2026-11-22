@@ -104,6 +104,19 @@ pub enum ProjectError {
         /// The key, dotted from the root of the file.
         key: String,
     },
+    /// A string value is a literal secret (MG-REQ-0320, MG-REQ-0363). The value is never shown.
+    #[error(
+        "`{path}` line {line}: key `{key}` holds a literal secret; write a reference \
+         `secret:<name>` instead"
+    )]
+    LiteralSecret {
+        /// The path of the file.
+        path: String,
+        /// The line of the value, from 1.
+        line: usize,
+        /// The key, dotted from the root of the file.
+        key: String,
+    },
     /// A float is NaN or infinite, which JSON cannot hold (MG-REQ-0365).
     #[error("`{path}` line {line}: key `{key}` is NaN or infinite")]
     NonFiniteFloat {
@@ -149,6 +162,7 @@ impl ProjectError {
             Self::Expression { .. } => "MG-0306",
             Self::NonFiniteFloat { .. } => "MG-0307",
             Self::UnknownSection { .. } => "MG-0308",
+            Self::LiteralSecret { .. } => "MG-0309",
         }
     }
 
@@ -163,7 +177,8 @@ impl ProjectError {
             | Self::InvalidValue { path, .. }
             | Self::Expression { path, .. }
             | Self::NonFiniteFloat { path, .. }
-            | Self::UnknownSection { path, .. } => path,
+            | Self::UnknownSection { path, .. }
+            | Self::LiteralSecret { path, .. } => path,
         }
     }
 
@@ -177,7 +192,8 @@ impl ProjectError {
             | Self::InvalidValue { line, .. }
             | Self::Expression { line, .. }
             | Self::NonFiniteFloat { line, .. }
-            | Self::UnknownSection { line, .. } => Some(*line),
+            | Self::UnknownSection { line, .. }
+            | Self::LiteralSecret { line, .. } => Some(*line),
         }
     }
 
@@ -192,7 +208,8 @@ impl ProjectError {
             | Self::InvalidValue { key, .. }
             | Self::Expression { key, .. }
             | Self::NonFiniteFloat { key, .. }
-            | Self::UnknownSection { section: key, .. } => Some(key),
+            | Self::UnknownSection { section: key, .. }
+            | Self::LiteralSecret { key, .. } => Some(key),
         }
     }
 }

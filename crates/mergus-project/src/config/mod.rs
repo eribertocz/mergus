@@ -1,11 +1,13 @@
 //! The configuration files `project.toml`, `sources/*.toml` and folder `mergus.toml`: TOML 1.0
-//! validated by their JSON Schemas (MG-REQ-0316), literal values only (MG-REQ-0364), canonical
+//! validated by their JSON Schemas (MG-REQ-0316), literal values only (MG-REQ-0364), secrets
+//! by reference only (MG-REQ-0320), canonical
 //! JSON (MG-REQ-0318), and the effective options of each model (MG-REQ-0332).
 
 mod convert;
 mod folder;
 mod options;
 mod schema;
+mod secret;
 
 pub use options::{Effective, ModelOptions, Origin, Setting, read_model_options};
 
