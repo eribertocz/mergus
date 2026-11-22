@@ -146,8 +146,10 @@ For MG-REQ-0320, a string value is a literal secret when it does not start with 
 3. MG-REQ-0363.3: or its key ends with `password`, `passwd`, `secret`, `token`, `api_key`,
    `apikey` or `private_key`, compared without case, and the value is not empty.
 
-The error names the file, the line and the key, never the value, ends with exit code 6, and
-its hint shows the `secret:<name>` form.
+Strings inside arrays and inline tables are checked too; the key of an array item is the
+key of its array. The `secret:` prefix is compared with case. Values that are not strings are
+never literal secrets. The error names the file, the line and the key, never the value, ends
+with exit code 6, and its hint shows the `secret:<name>` form.
 
 - Kind: behavior
 - Verify: test `mg_req_0363_literal_secrets_detected`

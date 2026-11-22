@@ -37,6 +37,7 @@ Implementers never use this map: they use `just spec-context`.
 | Project folders, model files, naming, publication by folder | project | [layout](project/layout.md) |
 | `project.toml`, config validation, version pin, literal secrets | project | [project-toml](project/project-toml.md) |
 | Folder `mergus.toml`, model options, precedence | project | [folder-config](project/folder-config.md) |
+| Identifiers of models, sources, columns; `ids.toml` | project | [identifiers](project/identifiers.md) |
 | explain, config, suggest, mv, fmt, contract lock | project | [tools](project/tools.md) |
 | `sources/*.toml`, modes, raw names, source schema changes | extract | [sources](extract/sources.md) |
 | Full and incremental loads, overlap, deletes, resume, snapshots | extract | [loads](extract/loads.md) |
