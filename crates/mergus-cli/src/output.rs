@@ -8,7 +8,7 @@ use std::time::Duration;
 use mergus_contracts::generated::mergus_events_v1::{
     Location, MergusEvents, MergusEventsSeverity, MergusEventsType,
 };
-use mergus_contracts::{Contract, validate_event};
+use mergus_contracts::{Contract, ValidDocument, validate_event};
 use mergus_ports::{Clock, MonotonicTime, Random};
 
 use crate::diagnostic::Diagnostic;
@@ -71,6 +71,29 @@ impl<'a> Output<'a> {
             self.stderr,
             &format!("stage {number}: {} ms\n", duration.as_millis()),
         )
+    }
+
+    /// Prints `text`, the result of a command for a person: on standard output, or on
+    /// standard error with `--json` so that standard output holds only events; nothing with
+    /// `--quiet` (MG-REQ-1347.3).
+    pub(crate) fn report(&mut self, text: &str) -> Result<(), CliError> {
+        if self.verbosity == Verbosity::Quiet {
+            Ok(())
+        } else if self.json {
+            write(self.stderr, text)
+        } else {
+            write(self.stdout, text)
+        }
+    }
+
+    /// Asks `question` on standard error.
+    pub(crate) fn ask(&mut self, question: &str) -> Result<(), CliError> {
+        write(self.stderr, question)
+    }
+
+    /// Prints `document` alone, as one line of standard output (MG-REQ-1348).
+    pub(crate) fn document(&mut self, document: &ValidDocument) -> Result<(), CliError> {
+        write(self.stdout, &format!("{}\n", document.value()))
     }
 
     /// Reports that `command` starts with the arguments `args`.

@@ -17,6 +17,7 @@ fn human(files: &SimFileSystem, args: &[&str], terminal: bool, vars: &[(&str, &s
         vars,
         random: &random,
         seed: 7,
+        input: None,
         terminal,
     }
     .run()

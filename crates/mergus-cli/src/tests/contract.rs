@@ -104,6 +104,7 @@ fn mg_req_0264_actor_changes_nothing_but_audit() {
             vars,
             random: &random,
             seed: 7,
+            input: None,
             terminal: false,
         }
         .run()

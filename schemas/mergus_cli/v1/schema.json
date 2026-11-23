@@ -1,0 +1,141 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://mergus.dev/schemas/mergus_cli/v1/schema.json",
+  "title": "mergus_cli",
+  "description": "The description of the Mergus command line that `mergus schema` prints: every command with its arguments, their types and allowed values, and its exit codes (MG-REQ-0263, MG-REQ-1348).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "contract",
+    "contract_version",
+    "mergus_version",
+    "commands"
+  ],
+  "properties": {
+    "contract": {
+      "description": "The name of the contract.",
+      "const": "mergus_cli"
+    },
+    "contract_version": {
+      "description": "The major version of the contract.",
+      "const": 1
+    },
+    "mergus_version": {
+      "description": "The version of the Mergus binary that printed the document.",
+      "type": "string"
+    },
+    "commands": {
+      "description": "The commands described, sorted by name.",
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/command",
+        "description": "One command."
+      }
+    }
+  },
+  "$defs": {
+    "command": {
+      "description": "One command of the command line.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "summary",
+        "arguments",
+        "exit_codes",
+        "json",
+        "dry_run"
+      ],
+      "properties": {
+        "name": {
+          "description": "The name of the command as typed, its words separated by one space, such as `new model`.",
+          "type": "string"
+        },
+        "summary": {
+          "description": "What the command does, in one sentence.",
+          "type": "string"
+        },
+        "arguments": {
+          "description": "Every argument the command accepts.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/argument",
+            "description": "One argument."
+          }
+        },
+        "exit_codes": {
+          "description": "The exit codes the command may end with (`contracts/events.md` section 2).",
+          "type": "array",
+          "items": {
+            "description": "One exit code.",
+            "type": "integer"
+          }
+        },
+        "json": {
+          "description": "Whether `--json` makes the command print the events of `mergus_events` on standard output.",
+          "type": "boolean"
+        },
+        "dry_run": {
+          "description": "Whether the command accepts `--dry-run`.",
+          "type": "boolean"
+        }
+      }
+    },
+    "argument": {
+      "description": "One argument of a command.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "kind",
+        "type",
+        "required",
+        "repeatable"
+      ],
+      "properties": {
+        "name": {
+          "description": "The name of the argument: an option or a flag as typed, such as `--gold`; a positional argument without dashes.",
+          "type": "string"
+        },
+        "kind": {
+          "description": "How the argument is given.",
+          "enum": [
+            "positional",
+            "option",
+            "flag"
+          ]
+        },
+        "type": {
+          "description": "The type of the value of the argument; `boolean` for a flag.",
+          "enum": [
+            "string",
+            "integer",
+            "boolean",
+            "path",
+            "selection"
+          ]
+        },
+        "required": {
+          "description": "Whether the argument must be given.",
+          "type": "boolean"
+        },
+        "repeatable": {
+          "description": "Whether the argument may be given more than once.",
+          "type": "boolean"
+        },
+        "default": {
+          "description": "The value used when the argument is not given, as a string.",
+          "type": "string"
+        },
+        "values": {
+          "description": "The values the argument allows, when it allows only some.",
+          "type": "array",
+          "items": {
+            "description": "One allowed value.",
+            "type": "string"
+          }
+        }
+      }
+    }
+  }
+}

@@ -4,16 +4,20 @@ mod contract;
 mod diagnostics;
 mod formats;
 mod human;
+mod init;
 mod layout;
 mod project;
+mod scaffold;
+mod schema;
 
+use std::cell::RefCell;
 use std::path::Path;
 
 use mergus_ports::{FileSystem, Random, Timestamp};
 use mergus_sim::{ClockFaults, SimClock, SimEnvironment, SimFileSystem, SimRandom};
 use serde_json::Value;
 
-use crate::run::{Ports, run};
+use crate::run::{Answers, Ports, run};
 
 /// The root of the simulated project.
 pub(crate) const ROOT: &str = "/work/sales";
@@ -73,6 +77,8 @@ pub(crate) struct Setup<'a> {
     pub(crate) seed: u64,
     /// Whether standard output is a terminal.
     pub(crate) terminal: bool,
+    /// What the user types, when standard input is a terminal.
+    pub(crate) input: Option<&'a str>,
 }
 
 impl Setup<'_> {
@@ -86,12 +92,14 @@ impl Setup<'_> {
             Timestamp::from_unix_nanos(START),
             ClockFaults::default(),
         );
+        let input = self.input.map(|typed| RefCell::new(typed.as_bytes()));
         let ports = Ports {
             environment: &environment,
             files: self.files,
             clock: &clock,
             random: self.random,
             terminal: self.terminal,
+            input: input.as_ref().map(|typed| typed as &dyn Answers),
         };
         let mut stdout = Vec::new();
         let mut stderr = Vec::new();
@@ -114,9 +122,45 @@ pub(crate) fn mergus(files: &dyn FileSystem, args: &[&str]) -> Outcome {
         vars: &[],
         random: &random,
         seed: 7,
+        input: None,
         terminal: false,
     }
     .run()
+}
+
+/// Runs `mergus <args>` in `cwd` of `files`, with seed 7, standard input a terminal where the
+/// user types `input` when it is given.
+pub(crate) fn mergus_in(
+    files: &dyn FileSystem,
+    cwd: &str,
+    args: &[&str],
+    input: Option<&str>,
+) -> Outcome {
+    let random = SimRandom::new(7);
+    Setup {
+        files,
+        cwd,
+        args,
+        vars: &[],
+        random: &random,
+        seed: 7,
+        terminal: input.is_some(),
+        input,
+    }
+    .run()
+}
+
+/// The text of the file at `path`, relative to [`ROOT`], or `None` when it does not exist.
+pub(crate) fn text(files: &dyn FileSystem, path: &str) -> Option<String> {
+    files
+        .read(&Path::new(ROOT).join(path))
+        .ok()
+        .map(|bytes| String::from_utf8(bytes).unwrap())
+}
+
+/// Whether `path`, relative to [`ROOT`], exists.
+pub(crate) fn exists(files: &dyn FileSystem, path: &str) -> bool {
+    files.exists(&Path::new(ROOT).join(path)).unwrap()
 }
 
 /// A project with two problems of `mergus-project`: an invalid model name and an unknown

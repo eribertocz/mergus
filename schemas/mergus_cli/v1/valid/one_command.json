@@ -1,0 +1,45 @@
+{
+  "contract": "mergus_cli",
+  "contract_version": 1,
+  "mergus_version": "0.2.0",
+  "commands": [
+    {
+      "name": "new model",
+      "summary": "Create a model file with a minimal example.",
+      "arguments": [
+        {
+          "name": "name",
+          "kind": "positional",
+          "type": "string",
+          "required": true,
+          "repeatable": false
+        },
+        {
+          "name": "--gold",
+          "kind": "option",
+          "type": "string",
+          "required": false,
+          "repeatable": false
+        },
+        {
+          "name": "--profile",
+          "kind": "option",
+          "type": "string",
+          "required": false,
+          "repeatable": false,
+          "default": "local",
+          "values": [
+            "local"
+          ]
+        }
+      ],
+      "exit_codes": [
+        0,
+        1,
+        10
+      ],
+      "json": true,
+      "dry_run": true
+    }
+  ]
+}

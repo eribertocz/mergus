@@ -20,7 +20,7 @@ pub(crate) enum CliError {
         closest: &'static str,
     },
     /// The command line gives an argument the command does not take.
-    #[error("unexpected argument `{given}`: `{command}` takes no argument")]
+    #[error("unexpected argument `{given}`: `{command}` takes no more arguments")]
     UnexpectedArgument {
         /// The argument given.
         given: String,
@@ -40,6 +40,69 @@ pub(crate) enum CliError {
     MissingCommand {
         /// The command to suggest.
         closest: &'static str,
+    },
+    /// An option is given without its value.
+    #[error("option `{option}` needs a value")]
+    MissingValue {
+        /// The option.
+        option: &'static str,
+    },
+    /// An option that may be given once is given twice.
+    #[error("option `{option}` is given more than once")]
+    RepeatedOption {
+        /// The option.
+        option: &'static str,
+    },
+    /// An argument is given a value it does not allow.
+    #[error("`{given}` is not a value of `{argument}`")]
+    InvalidValue {
+        /// The argument.
+        argument: &'static str,
+        /// The value given.
+        given: String,
+        /// The closest allowed value (MG-REQ-0359).
+        closest: &'static str,
+    },
+    /// A required argument is missing.
+    #[error("`{command}` needs the argument `{argument}`")]
+    MissingArgument {
+        /// The argument.
+        argument: &'static str,
+        /// The command.
+        command: &'static str,
+    },
+    /// A name given to `init`, `new model` or `add source` is not a lowercase identifier
+    /// (MG-REQ-0305, MG-REQ-1350.3).
+    #[error("{kind} name `{name}` is not a lowercase identifier; use `{suggestion}`")]
+    InvalidName {
+        /// What the name names: `project`, `model`, `schema` or `source`.
+        kind: &'static str,
+        /// The name given.
+        name: String,
+        /// The valid name of MG-REQ-0360.
+        suggestion: String,
+    },
+    /// The name of a new model is the name of another model (MG-REQ-0303, MG-REQ-1350.3).
+    #[error("model name `{name}` is taken by `{path}`")]
+    NameTaken {
+        /// The name given.
+        name: String,
+        /// The path of the model that has it, relative to the project root.
+        path: String,
+    },
+    /// A file the command creates already exists (MG-REQ-1349.2, MG-REQ-1350.3).
+    #[error("`{path}` already exists")]
+    FileExists {
+        /// The path of the file, relative to the folder the command writes in.
+        path: String,
+    },
+    /// A file or a folder cannot be written.
+    #[error("`{path}` cannot be written: {message}")]
+    Unwritable {
+        /// The path, relative to the folder the command writes in.
+        path: String,
+        /// What the file system said.
+        message: String,
     },
     /// No directory from the current one upwards holds `project.toml` (MG-REQ-1344).
     #[error("no `project.toml` in `{start}` or in any directory above it")]
@@ -63,10 +126,18 @@ impl CliError {
             | Self::UnknownOption { .. }
             | Self::UnexpectedArgument { .. }
             | Self::ConflictingOptions { .. }
-            | Self::MissingCommand { .. } => "MG-1301",
+            | Self::MissingCommand { .. }
+            | Self::MissingValue { .. }
+            | Self::RepeatedOption { .. }
+            | Self::InvalidValue { .. }
+            | Self::MissingArgument { .. } => "MG-1301",
             Self::ProjectNotFound { .. } => "MG-1302",
             Self::Unreadable(_) => "MG-1303",
             Self::Internal(_) => "MG-1304",
+            Self::InvalidName { .. } => "MG-1305",
+            Self::NameTaken { .. } => "MG-1306",
+            Self::FileExists { .. } => "MG-1307",
+            Self::Unwritable { .. } => "MG-1308",
         }
     }
 
@@ -76,12 +147,25 @@ impl CliError {
         match self {
             Self::UnknownCommand { closest, .. }
             | Self::UnknownOption { closest, .. }
-            | Self::MissingCommand { closest } => Some(format!("Use `{closest}`.")),
+            | Self::MissingCommand { closest }
+            | Self::InvalidValue { closest, .. } => Some(format!("Use `{closest}`.")),
+            Self::InvalidName { suggestion, .. } => Some(format!("Use `{suggestion}`.")),
+            Self::MissingValue { option } => Some(format!("Write the value after `{option}`.")),
+            Self::RepeatedOption { option } => Some(format!("Give `{option}` once.")),
+            Self::MissingArgument {
+                command: "schema", ..
+            } => Some("Name a command, or give `--all`.".to_owned()),
+            Self::MissingArgument { argument, .. } => Some(format!("Give `{argument}`.")),
             Self::UnexpectedArgument { given, .. } => Some(format!("Remove `{given}`.")),
             Self::ConflictingOptions { first, second } => {
                 Some(format!("Remove `{first}` or `{second}`."))
             }
-            Self::ProjectNotFound { .. } | Self::Unreadable(_) | Self::Internal(_) => None,
+            Self::ProjectNotFound { .. }
+            | Self::Unreadable(_)
+            | Self::Internal(_)
+            | Self::NameTaken { .. }
+            | Self::FileExists { .. }
+            | Self::Unwritable { .. } => None,
         }
     }
 
