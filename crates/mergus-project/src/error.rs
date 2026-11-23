@@ -187,6 +187,39 @@ pub enum ProjectError {
         /// The path of the file that declares the later object.
         path: String,
     },
+    /// A `.sql` model reads a table the project does not know (MG-REQ-0307, MG-REQ-0373).
+    #[error(
+        "`{path}` line {line} column {column}: `{name}` is not a model, source table or seed \
+         of the project{}",
+        hint(suggestion.as_deref())
+    )]
+    UnknownReference {
+        /// The path of the model.
+        path: String,
+        /// The line of the reference, from 1.
+        line: usize,
+        /// The column of the reference, from 1, in Unicode scalar values.
+        column: usize,
+        /// The reference as written, its parts joined by `.`.
+        name: String,
+        /// The closest known table (MG-REQ-0359).
+        suggestion: Option<String>,
+    },
+    /// A `.sql` model is not one read-only `SELECT` (MG-REQ-0308, MG-REQ-0374).
+    #[error(
+        "`{path}` line {line} column {column}: {construct} is not allowed; a model is exactly \
+         one read-only SELECT"
+    )]
+    ForbiddenSql {
+        /// The path of the model.
+        path: String,
+        /// The line of the construct, from 1.
+        line: usize,
+        /// The column of the construct, from 1, in Unicode scalar values.
+        column: usize,
+        /// The rejected construct.
+        construct: String,
+    },
 }
 
 /// Formats the key of an error, when there is one.
@@ -216,6 +249,8 @@ impl ProjectError {
             Self::InvalidIds { .. } => "MG-0310",
             Self::DuplicateIdsEntry { .. } => "MG-0311",
             Self::DuplicateIdentifier { .. } => "MG-0312",
+            Self::UnknownReference { .. } => "MG-0313",
+            Self::ForbiddenSql { .. } => "MG-0314",
         }
     }
 
@@ -234,7 +269,9 @@ impl ProjectError {
             | Self::LiteralSecret { path, .. }
             | Self::InvalidIds { path, .. }
             | Self::DuplicateIdsEntry { path, .. }
-            | Self::DuplicateIdentifier { path, .. } => path,
+            | Self::DuplicateIdentifier { path, .. }
+            | Self::UnknownReference { path, .. }
+            | Self::ForbiddenSql { path, .. } => path,
         }
     }
 
@@ -253,7 +290,20 @@ impl ProjectError {
             | Self::UnknownSection { line, .. }
             | Self::LiteralSecret { line, .. }
             | Self::InvalidIds { line, .. }
-            | Self::DuplicateIdsEntry { line, .. } => Some(*line),
+            | Self::DuplicateIdsEntry { line, .. }
+            | Self::UnknownReference { line, .. }
+            | Self::ForbiddenSql { line, .. } => Some(*line),
+        }
+    }
+
+    /// Returns the column of the line that caused the error, from 1, when there is one.
+    #[must_use]
+    pub fn column(&self) -> Option<usize> {
+        match self {
+            Self::UnknownReference { column, .. } | Self::ForbiddenSql { column, .. } => {
+                Some(*column)
+            }
+            _ => None,
         }
     }
 
@@ -264,7 +314,9 @@ impl ProjectError {
             Self::DuplicateModel { .. }
             | Self::InvalidName { .. }
             | Self::InvalidToml { .. }
-            | Self::DuplicateIdentifier { .. } => None,
+            | Self::DuplicateIdentifier { .. }
+            | Self::UnknownReference { .. }
+            | Self::ForbiddenSql { .. } => None,
             Self::InvalidIds { key, .. } => key.as_deref(),
             Self::UnknownKey { key, .. }
             | Self::InvalidValue { key, .. }

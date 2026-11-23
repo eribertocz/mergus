@@ -1,0 +1,112 @@
+//! The checks of `.sql` models on DuckDB's tree (MG-REQ-0193): every table they read is
+//! known to the project (MG-REQ-0307, MG-REQ-0373), and they are one read-only `SELECT`
+//! (MG-REQ-0308, MG-REQ-0374).
+
+mod known;
+mod tree;
+
+use std::path::Path;
+
+use mergus_ports::{FileSystem, SqlParser};
+use serde_json::Value;
+
+pub use known::KnownTables;
+
+use crate::{Configuration, Layout, LayoutError, ModelLanguage, ProjectError};
+
+/// Checks every `.sql` model of `layout`, parsed by `parser`, against the tables that
+/// `configuration` declares.
+///
+/// # Errors
+///
+/// Fails with [`LayoutError::Port`] when a model cannot be read or the parser cannot be
+/// reached, and with [`LayoutError::Invalid`] carrying every problem found: the models in the
+/// order of `layout`, the problems of each model ordered by line and column.
+pub fn check_sql_models(
+    files: &dyn FileSystem,
+    root: &Path,
+    layout: &Layout,
+    configuration: &Configuration,
+    parser: &dyn SqlParser,
+) -> Result<(), LayoutError> {
+    let known = KnownTables::new(layout, configuration);
+    let mut problems = Vec::new();
+    for model in &layout.models {
+        if model.language == ModelLanguage::Sql {
+            let bytes = files.read(&root.join(&model.path))?;
+            problems.extend(check_sql(&model.path, &bytes, &known, parser)?);
+        }
+    }
+    if problems.is_empty() {
+        Ok(())
+    } else {
+        Err(LayoutError::Invalid(problems))
+    }
+}
+
+/// Returns the problems of the `.sql` model at `path` holding `bytes`, ordered by line, then
+/// column, then code.
+///
+/// # Errors
+///
+/// Fails when the parser cannot be reached.
+pub fn check_sql(
+    path: &str,
+    bytes: &[u8],
+    known: &KnownTables,
+    parser: &dyn SqlParser,
+) -> Result<Vec<ProjectError>, LayoutError> {
+    let Ok(text) = std::str::from_utf8(bytes) else {
+        let at = Position { line: 1, column: 1 };
+        return Ok(vec![forbidden(
+            path,
+            at,
+            "text that is not UTF-8".to_owned(),
+        )]);
+    };
+    let tree = parser.parse(text)?;
+    let mut problems = match serde_json::from_str::<Value>(&tree) {
+        Ok(tree) => tree::check(path, text, &tree, known),
+        Err(error) => {
+            return Err(LayoutError::Port(mergus_ports::PortError::Failed(format!(
+                "the SQL parser returned a tree that is not JSON: {error}"
+            ))));
+        }
+    };
+    problems.sort_by(|left, right| {
+        (left.line(), left.column(), left.code()).cmp(&(right.line(), right.column(), right.code()))
+    });
+    Ok(problems)
+}
+
+/// A line and a column of a text, both from 1, the column counted in Unicode scalar values.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct Position {
+    pub(crate) line: usize,
+    pub(crate) column: usize,
+}
+
+impl Position {
+    /// The position of the byte `offset` of `text`; the start of the text when `offset` is
+    /// not in it.
+    pub(crate) fn of(text: &str, offset: usize) -> Self {
+        let Some(before) = text.get(..offset) else {
+            return Self { line: 1, column: 1 };
+        };
+        let line_start = before.rfind('\n').map_or(0, |newline| newline + 1);
+        Self {
+            line: before.matches('\n').count() + 1,
+            column: before[line_start..].chars().count() + 1,
+        }
+    }
+}
+
+/// The error of MG-REQ-0374 for `construct`, at `at` of `path`.
+pub(crate) fn forbidden(path: &str, at: Position, construct: String) -> ProjectError {
+    ProjectError::ForbiddenSql {
+        path: path.to_owned(),
+        line: at.line,
+        column: at.column,
+        construct,
+    }
+}

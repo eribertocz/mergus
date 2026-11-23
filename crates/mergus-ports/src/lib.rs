@@ -16,6 +16,7 @@ mod object_store;
 mod process;
 mod random;
 mod source;
+mod sql_parser;
 
 #[cfg(feature = "real")]
 #[allow(
@@ -34,3 +35,4 @@ pub use object_store::ObjectStore;
 pub use process::{Process, ProcessCommand, ProcessOutput};
 pub use random::Random;
 pub use source::{SourceConnector, SourceReader};
+pub use sql_parser::SqlParser;

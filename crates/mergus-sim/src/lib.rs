@@ -20,6 +20,7 @@ mod random;
 mod rng;
 mod simulation;
 mod source;
+mod sql_parser;
 
 pub use clock::{ClockFaults, SimClock};
 pub use environment::SimEnvironment;
@@ -31,3 +32,4 @@ pub use random::SimRandom;
 pub use rng::Rate;
 pub use simulation::{Failure, Outcome, Replay, Scenario, Simulator, StepRecord, Violation};
 pub use source::{SimSourceConnector, SourceFaults};
+pub use sql_parser::SimSqlParser;
