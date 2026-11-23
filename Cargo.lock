@@ -342,6 +342,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "mergus-plan"
+version = "0.1.0"
+dependencies = [
+ "mergus-contracts",
+ "mergus-project",
+ "serde_json",
+ "sha2",
+ "thiserror",
+]
+
+[[package]]
 name = "mergus-ports"
 version = "0.1.0"
 dependencies = [
