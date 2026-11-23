@@ -6,10 +6,6 @@
 use mergus_contracts::names::BINARY;
 
 /// The product name, as the binary, help, completions and messages show it.
-#[cfg_attr(
-    not(test),
-    expect(dead_code, reason = "the commands of later issues use it")
-)]
 pub(crate) const PRODUCT: &str = BINARY;
 
 /// The prefix of every environment variable Mergus reads: the product name in upper case,

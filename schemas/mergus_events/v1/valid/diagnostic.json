@@ -1,0 +1,29 @@
+{
+  "contract": "mergus_events",
+  "contract_version": 1,
+  "run_id": "4bf92f3577b34da6a3ce929d0e0e4736",
+  "timestamp": "2026-11-22T23:15:14.123Z",
+  "type": "diagnostic",
+  "sequence": 2,
+  "code": "MG-0304",
+  "severity": "error",
+  "message": "`project.toml` line 3: unknown key `nmae`; did you mean `name`?",
+  "location": {
+    "file": "project.toml",
+    "line": 3,
+    "column": 1
+  },
+  "hint": "Remove the key or rename it to the key the message suggests.",
+  "next": [
+    [
+      "mergus",
+      "explain",
+      "MG-0304"
+    ]
+  ],
+  "actor": {
+    "id": "u-1",
+    "kind": "agent",
+    "on_behalf_of": "u-2"
+  }
+}

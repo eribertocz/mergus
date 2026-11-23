@@ -4,12 +4,16 @@
 //! (MG-REQ-0126.5); they create these values and pass them to the crates that need them.
 
 mod clock;
+mod environment;
 mod file_system;
 mod process;
+mod random;
 
 pub use clock::RealClock;
+pub use environment::RealEnvironment;
 pub use file_system::RealFileSystem;
 pub use process::RealProcess;
+pub use random::RealRandom;
 
 use std::io;
 

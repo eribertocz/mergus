@@ -1,0 +1,14 @@
+{
+  "contract": "mergus_events",
+  "contract_version": 1,
+  "run_id": "4bf92f3577b34da6a3ce929d0e0e4736",
+  "timestamp": "2026-11-22T23:15:14.123Z",
+  "type": "run_started",
+  "sequence": 1,
+  "command": "validate",
+  "arguments": [
+    "validate",
+    "--json"
+  ],
+  "environment": "prod"
+}

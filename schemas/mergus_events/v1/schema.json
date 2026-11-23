@@ -1,0 +1,238 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://mergus.dev/schemas/mergus_events/v1/schema.json",
+  "title": "mergus_events",
+  "description": "One event of the `--json` output of a Mergus command (`contracts/events.md`). The fields that an event type requires besides the common ones are optional here and are checked by `mergus-contracts` before the event is emitted.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "contract",
+    "contract_version",
+    "type",
+    "run_id",
+    "sequence",
+    "timestamp"
+  ],
+  "properties": {
+    "contract": {
+      "description": "The name of the contract.",
+      "const": "mergus_events"
+    },
+    "contract_version": {
+      "description": "The major version of the contract.",
+      "const": 1
+    },
+    "type": {
+      "description": "What happened.",
+      "enum": [
+        "run_started",
+        "plan_ready",
+        "step_started",
+        "step_finished",
+        "diagnostic",
+        "quality_result",
+        "published",
+        "run_finished"
+      ]
+    },
+    "run_id": {
+      "description": "The identifier of the command run: 32 lowercase hexadecimal characters, not all zero (a W3C trace id).",
+      "type": "string"
+    },
+    "sequence": {
+      "description": "The position of the event in the run, from 1, growing by 1.",
+      "type": "integer"
+    },
+    "timestamp": {
+      "description": "When the event was emitted: RFC 3339 in UTC with milliseconds and `Z`.",
+      "type": "string"
+    },
+    "actor": {
+      "description": "Who started the command, for audit only.",
+      "$ref": "#/$defs/actor"
+    },
+    "command": {
+      "description": "The command that runs, such as `validate`.",
+      "type": "string"
+    },
+    "arguments": {
+      "description": "The command-line arguments after the program name.",
+      "type": "array",
+      "items": {
+        "description": "One argument.",
+        "type": "string"
+      }
+    },
+    "environment": {
+      "description": "The environment the command works on.",
+      "type": "string"
+    },
+    "steps": {
+      "description": "The steps of the plan.",
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/step",
+        "description": "One step of the plan."
+      }
+    },
+    "step_id": {
+      "description": "The identifier of the step.",
+      "type": "string"
+    },
+    "model": {
+      "description": "The model of the step or of the test.",
+      "type": "string"
+    },
+    "engine": {
+      "description": "The engine that runs the step.",
+      "type": "string"
+    },
+    "status": {
+      "description": "How the step, the test or the run ended.",
+      "type": "string"
+    },
+    "rows": {
+      "description": "The number of rows the step wrote.",
+      "type": "integer"
+    },
+    "bytes": {
+      "description": "The number of bytes the step wrote.",
+      "type": "integer"
+    },
+    "duration_ms": {
+      "description": "How long the step or the run took, in milliseconds.",
+      "type": "integer"
+    },
+    "code": {
+      "description": "The `MG-####` code of the diagnostic.",
+      "type": "string"
+    },
+    "severity": {
+      "description": "Whether the diagnostic is an error or a warning.",
+      "enum": [
+        "error",
+        "warning"
+      ]
+    },
+    "message": {
+      "description": "What the diagnostic found.",
+      "type": "string"
+    },
+    "location": {
+      "description": "Where the cause of the diagnostic is.",
+      "$ref": "#/$defs/location"
+    },
+    "hint": {
+      "description": "One sentence that says what to do next.",
+      "type": "string"
+    },
+    "next": {
+      "description": "Command-line invocations that address the diagnostic; never run automatically.",
+      "type": "array",
+      "items": {
+        "description": "One invocation, as a list of arguments.",
+        "type": "array",
+        "items": {
+          "description": "One argument.",
+          "type": "string"
+        }
+      }
+    },
+    "test": {
+      "description": "The name of the test or check.",
+      "type": "string"
+    },
+    "failing_rows": {
+      "description": "The number of rows that fail the test.",
+      "type": "integer"
+    },
+    "manifest_id": {
+      "description": "The manifest the pointer now names.",
+      "type": "string"
+    },
+    "exit_code": {
+      "description": "The exit code of the command (`contracts/events.md` section 2).",
+      "type": "integer"
+    },
+    "retryable": {
+      "description": "Whether running the command again may succeed, as the exit code table states.",
+      "type": "boolean"
+    }
+  },
+  "$defs": {
+    "actor": {
+      "description": "Who started a command.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "kind"
+      ],
+      "properties": {
+        "id": {
+          "description": "The identifier of the actor.",
+          "type": "string"
+        },
+        "kind": {
+          "description": "What the actor is.",
+          "enum": [
+            "person",
+            "agent",
+            "service"
+          ]
+        },
+        "on_behalf_of": {
+          "description": "The identifier of the person an agent or a service acts for.",
+          "type": "string"
+        }
+      }
+    },
+    "step": {
+      "description": "One step of a plan.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "model",
+        "action",
+        "reason"
+      ],
+      "properties": {
+        "model": {
+          "description": "The model of the step.",
+          "type": "string"
+        },
+        "action": {
+          "description": "What the step does.",
+          "type": "string"
+        },
+        "reason": {
+          "description": "Why the step is needed.",
+          "type": "string"
+        }
+      }
+    },
+    "location": {
+      "description": "A place in a project file.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "file",
+        "line"
+      ],
+      "properties": {
+        "file": {
+          "description": "The path of the file, relative to the project root, with `/`.",
+          "type": "string"
+        },
+        "line": {
+          "description": "The line, from 1.",
+          "type": "integer"
+        },
+        "column": {
+          "description": "The column, from 1.",
+          "type": "integer"
+        }
+      }
+    }
+  }
+}

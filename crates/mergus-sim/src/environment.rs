@@ -1,13 +1,18 @@
-//! A simulated environment: variables and a configuration directory set by the test.
+//! A simulated environment: arguments, current directory, variables and a configuration
+//! directory set by the test.
 
 use std::collections::BTreeMap;
 use std::path::PathBuf;
 
-use mergus_ports::Environment;
+use mergus_ports::{Environment, PortError};
 
-/// Environment variables and a configuration directory given at creation.
+/// Environment variables and a configuration directory given at creation; no arguments and
+/// no current directory until [`SimEnvironment::with_args`] and
+/// [`SimEnvironment::with_current_dir`] set them.
 #[derive(Clone, Debug, Default)]
 pub struct SimEnvironment {
+    args: Vec<String>,
+    current_dir: Option<PathBuf>,
     vars: BTreeMap<String, String>,
     config_dir: Option<PathBuf>,
 }
@@ -22,6 +27,8 @@ impl SimEnvironment {
         V: Into<String>,
     {
         Self {
+            args: Vec::new(),
+            current_dir: None,
             vars: vars
                 .into_iter()
                 .map(|(name, value)| (name.into(), value.into()))
@@ -29,9 +36,39 @@ impl SimEnvironment {
             config_dir,
         }
     }
+
+    /// Returns this environment with the command-line arguments `args`, after the program
+    /// name.
+    #[must_use]
+    pub fn with_args<I, A>(mut self, args: I) -> Self
+    where
+        I: IntoIterator<Item = A>,
+        A: Into<String>,
+    {
+        self.args = args.into_iter().map(Into::into).collect();
+        self
+    }
+
+    /// Returns this environment with the current directory `current_dir`.
+    #[must_use]
+    pub fn with_current_dir(mut self, current_dir: impl Into<PathBuf>) -> Self {
+        self.current_dir = Some(current_dir.into());
+        self
+    }
 }
 
 impl Environment for SimEnvironment {
+    fn args(&self) -> Vec<String> {
+        self.args.clone()
+    }
+
+    /// Fails with [`PortError::NotFound`] when no current directory was set.
+    fn current_dir(&self) -> Result<PathBuf, PortError> {
+        self.current_dir
+            .clone()
+            .ok_or_else(|| PortError::NotFound("the current directory".to_owned()))
+    }
+
     fn var(&self, name: &str) -> Option<String> {
         self.vars.get(name).cloned()
     }
