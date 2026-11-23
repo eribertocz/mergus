@@ -17,6 +17,7 @@ fn in_dir(files: &dyn FileSystem, cwd: &str) -> super::Outcome {
         vars: &[],
         random: &random,
         seed: 7,
+        terminal: false,
     }
     .run()
 }

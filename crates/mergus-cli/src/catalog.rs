@@ -1,5 +1,5 @@
 //! The error catalog of `errors/`, compiled into the binary: the exit code, whether it is
-//! retryable, and the hint of every code (MG-REQ-0008, MG-REQ-1334).
+//! retryable, the hint and the cause of every code (MG-REQ-0008, MG-REQ-1334, MG-REQ-1346).
 
 /// The text of every catalog file, by code.
 const FILES: [(&str, &str); 13] = [
@@ -29,6 +29,9 @@ pub(crate) struct Entry {
     pub(crate) retryable: bool,
     /// The first sentence of the `Fix` section: what to do next.
     pub(crate) hint: String,
+    /// The first paragraph of the `Cause` section, on one line: why the error matters
+    /// (MG-REQ-1346.3).
+    pub(crate) cause: String,
 }
 
 /// Returns the catalog entry of `code`, or `None` when it has no well-formed file.
@@ -51,24 +54,31 @@ fn parse(code: &'static str, text: &str) -> Option<Entry> {
         "no" => false,
         _ => return None,
     };
-    let fix: Vec<&str> = text
-        .lines()
-        .skip_while(|line| line.trim_end() != "## Fix")
-        .skip(1)
-        .take_while(|line| !line.trim().is_empty() && !line.starts_with('#'))
-        .map(str::trim)
-        .collect();
-    let fix = fix.join(" ");
+    let fix = paragraph(text, "## Fix");
+    let cause = paragraph(text, "## Cause");
     let hint = match fix.find(". ") {
         Some(end) => &fix[..=end],
         None => fix.as_str(),
     };
-    (!hint.is_empty()).then(|| Entry {
+    (!hint.is_empty() && !cause.is_empty()).then(|| Entry {
         code,
         exit_code,
         retryable,
         hint: hint.to_owned(),
+        cause,
     })
+}
+
+/// The first paragraph under `heading`, its lines joined by a space.
+fn paragraph(text: &str, heading: &str) -> String {
+    let lines: Vec<&str> = text
+        .lines()
+        .skip_while(|line| line.trim_end() != heading)
+        .skip(1)
+        .take_while(|line| !line.trim().is_empty() && !line.starts_with('#'))
+        .map(str::trim)
+        .collect();
+    lines.join(" ")
 }
 
 #[cfg(test)]

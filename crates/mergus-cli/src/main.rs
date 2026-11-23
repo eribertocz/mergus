@@ -6,9 +6,9 @@
 //!
 //! `main` wires the real ports and hands them to [`run::run`], which parses the command line
 //! ([`args`]), runs the command and reports what it found: events on standard output with
-//! `--json` ([`output`]), plain diagnostics on standard error otherwise. Every error carries an
-//! `MG-####` code whose exit code and hint come from the catalog of `errors/` ([`catalog`]).
-//! Human output modes and error layout come with a later issue.
+//! `--json` ([`output`]), errors in the layout of [`layout`] on standard error otherwise, with
+//! colors only in the interactive mode ([`mode`]). Every error carries an `MG-####` code whose
+//! exit code, hint and cause come from the catalog of `errors/` ([`catalog`]).
 
 #![forbid(unsafe_code)]
 
@@ -17,6 +17,8 @@ mod catalog;
 mod diagnostic;
 mod error;
 mod exit;
+mod layout;
+mod mode;
 mod name;
 mod output;
 mod project;
@@ -24,6 +26,7 @@ mod run;
 mod time;
 mod validate;
 
+use std::io::IsTerminal;
 use std::process::ExitCode;
 
 use mergus_ports::real::{RealClock, RealEnvironment, RealFileSystem, RealRandom};
@@ -35,6 +38,7 @@ fn main() -> ExitCode {
         files: &RealFileSystem,
         clock: &RealClock::new(),
         random: &random,
+        terminal: std::io::stdout().is_terminal(),
     };
     let code = run::run(&ports, &mut std::io::stdout(), &mut std::io::stderr());
     ExitCode::from(code)
