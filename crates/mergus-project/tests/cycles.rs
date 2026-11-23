@@ -27,47 +27,44 @@ fn base_table(table: &str, offset: usize) -> Value {
     })
 }
 
-/// The text and tree of a model that reads `tables`, one per line after `SELECT *` and
-/// `blank` empty lines, joined with `JOIN`.
-fn model_sql(tables: &[&str], blank: usize) -> (String, String) {
-    let mut text = format!("SELECT *\n{}FROM ", "\n".repeat(blank));
+/// The tree of the model text `text`: the tables after each `FROM ` and `JOIN `, joined.
+fn tree(text: &str) -> String {
     let mut from: Option<Value> = None;
-    for (index, table) in tables.iter().enumerate() {
-        if index > 0 {
-            text.push_str("\nJOIN ");
+    for keyword in ["FROM ", "JOIN "] {
+        for (offset, _) in text.match_indices(keyword) {
+            let start = offset + keyword.len();
+            let table = text[start..].split_whitespace().next().unwrap_or("");
+            let node = base_table(table, start);
+            from = Some(match from {
+                None => node,
+                Some(left) => json!({"type": "JOIN", "left": left, "right": node}),
+            });
         }
-        let node = base_table(table, text.len());
-        text.push_str(table);
-        from = Some(match from {
-            None => node,
-            Some(left) => json!({"type": "JOIN", "left": left, "right": node}),
-        });
     }
-    let tree = json!({
+    json!({
         "error": false,
         "statements": [{"node": {
             "type": "SELECT_NODE",
             "cte_map": {"map": []},
             "from_table": from,
         }}],
-    });
-    (text, tree.to_string())
+    })
+    .to_string()
 }
 
-/// Reads the references of a project whose `.sql` models are `models`: each a name, the
-/// tables it reads and the number of blank lines before its `FROM`.
-fn read(models: &[(&str, &[&str], usize)]) -> Result<Vec<String>, LayoutError> {
+/// Reads the references of a project whose `.sql` models are `models`: each a name and its
+/// text.
+fn read(models: &[(&str, &str)]) -> Result<Vec<String>, LayoutError> {
     let fs = SimFileSystem::new();
     let parser = SimSqlParser::new();
     let mut layout = Layout { models: Vec::new() };
-    for (name, tables, blank) in models {
-        let (text, tree) = model_sql(tables, *blank);
+    for (name, text) in models {
         let full = Path::new("/project").join(path(name));
         if let Some(parent) = full.parent() {
             fs.create_dir_all(parent)?;
         }
         fs.write(&full, text.as_bytes())?;
-        parser.record(text, tree);
+        parser.record(*text, tree(text));
         layout.models.push(Model {
             name: (*name).to_owned(),
             path: path(name),
@@ -103,9 +100,9 @@ fn cycle(models: &[(&str, usize)]) -> ProjectError {
 fn mg_req_0375_model_cycle_rejected() {
     // Two models: named from the first in name order, each with the line of its reference.
     let found = read(&[
-        ("stg_b", &["stg_a"], 2),
-        ("stg_a", &["stg_b"], 0),
-        ("stg_c", &["stg_a"], 0),
+        ("stg_b", "SELECT *\n\n\nFROM stg_a"),
+        ("stg_a", "SELECT *\nFROM stg_b"),
+        ("stg_c", "SELECT *\nFROM stg_a"),
     ]);
     let expected = cycle(&[("stg_a", 2), ("stg_b", 4)]);
     assert_eq!(found, Err(LayoutError::Invalid(vec![expected.clone()])));
@@ -121,21 +118,25 @@ fn mg_req_0375_model_cycle_rejected() {
 
     // A longer cycle, in reference order, with a model that reads into it from outside.
     let found = read(&[
-        ("m_b", &["m_d"], 0),
-        ("m_c", &["m_b"], 1),
-        ("m_d", &["m_a", "m_c"], 0),
-        ("m_a", &[], 0),
-        ("m_e", &["m_c"], 0),
+        ("m_b", "SELECT *\nFROM m_d"),
+        ("m_c", "SELECT *\n\nFROM m_b"),
+        ("m_d", "SELECT *\nFROM m_a\nJOIN m_c"),
+        ("m_a", "SELECT 1"),
+        ("m_e", "SELECT *\nFROM m_c"),
     ]);
     let expected = cycle(&[("m_b", 2), ("m_d", 3), ("m_c", 3)]);
     assert_eq!(found, Err(LayoutError::Invalid(vec![expected])));
 
     // A model that reads itself, whatever the case of the reference.
-    let found = read(&[("cyc", &["CYC"], 0), ("ok", &["cyc"], 0)]);
+    let found = read(&[("cyc", "SELECT *\nFROM CYC"), ("ok", "SELECT *\nFROM cyc")]);
     assert_eq!(found, Err(LayoutError::Invalid(vec![cycle(&[("cyc", 2)])])));
 
     // Models without a cycle are listed.
-    let found = read(&[("x", &["y", "z"], 0), ("y", &["z"], 0), ("z", &[], 0)]);
+    let found = read(&[
+        ("x", "SELECT *\nFROM y\nJOIN z"),
+        ("y", "SELECT *\nFROM z"),
+        ("z", "SELECT 1"),
+    ]);
     assert_eq!(
         found,
         Ok(vec!["x".to_owned(), "y".to_owned(), "z".to_owned()])
@@ -144,9 +145,10 @@ fn mg_req_0375_model_cycle_rejected() {
 
 #[test]
 fn mg_req_0375_cycle_reported_with_other_problems() {
-    let Err(LayoutError::Invalid(problems)) =
-        read(&[("p", &["q"], 0), ("q", &["p", "nowhere"], 0)])
-    else {
+    let Err(LayoutError::Invalid(problems)) = read(&[
+        ("p", "SELECT *\nFROM q"),
+        ("q", "SELECT *\nFROM p\nJOIN nowhere"),
+    ]) else {
         panic!("a cycle and an unknown table are problems");
     };
     let codes: Vec<&str> = problems.iter().map(ProjectError::code).collect();
