@@ -22,9 +22,9 @@ jobs:
   ci:
     name: ci (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
-    # MG-REQ-0166, decision 0029: under ten minutes on a warm cache; a cold cache may take up
-    # to thirty, which is the limit.
-    timeout-minutes: 30
+    # MG-REQ-0166, decisions 0029 and 0030: under ten minutes on a warm cache; a cold cache may
+    # take up to thirty, sixty on Windows, which are the limits.
+    timeout-minutes: ${{ matrix.os == 'windows-latest' && 60 || 30 }}
     strategy:
       fail-fast: false
       matrix:
