@@ -81,7 +81,8 @@ The plan contract MUST be named `mergus_plan`, live in `schemas/mergus_plan/v1/`
 version `1.0.0`. A plan has `contract`, `contract_version`, `plan_id`, `mergus_version`,
 `environment` (MG-REQ-0296.5), `max_parallel`, `selected` (model names), `steps` and
 `stale_upstream`. A step has `model`, `model_id` (MG-REQ-0368), `fingerprint`, `inputs`
-(names as written in code, sorted), `action` (`compute` or `skip`), `reason`, `refresh`
+(the resolved references of MG-REQ-0373, lowercase, one per target, `raw.` kept, sorted; `[]`
+for a Python model in 0.2), `action` (`compute` or `skip`), `reason`, `refresh`
 (`full` in 0.2) and `parallel_group`. Every list is sorted by byte order unless stated.
 
 - Kind: behavior
@@ -94,9 +95,10 @@ version `1.0.0`. A plan has `contract`, `contract_version`, `plan_id`, `mergus_v
 `plan_id` MUST be the lowercase hexadecimal SHA-256 of the canonical JSON (MG-REQ-0208) of the
 plan without `plan_id`. A fingerprint (MG-REQ-0711) MUST be the same encoding of the object
 `code` (the model file's text with CRLF turned into LF), `config` (effective option values,
-without origins), `inputs` (input name to the upstream fingerprint, or to the version the
-caller gives, or `null`), `parameters`, `engines` (name to version, as the caller gives) and
-`output_contract` (`null` until locked outputs exist). Nothing else MAY enter either hash.
+without origins; lists in the order of MG-REQ-0333), `inputs` (input name to the upstream
+fingerprint, or to the version the caller gives, or `null`), `parameters` (`{}` in 0.2),
+`engines` (name to version, as the caller gives) and `output_contract` (`null` until locked
+outputs exist). Nothing else MAY enter either hash.
 
 - Kind: behavior
 - Verify: test `mg_req_0743_plan_id_and_fingerprint_inputs`
