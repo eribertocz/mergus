@@ -112,13 +112,13 @@ advances when it files the issues of the next phase; rules of a later phase are 
 
 The blocking checks of a pull request MUST finish in under ten minutes on Linux, macOS and
 Windows when the build cache is warm. A run on a cold cache (after a `Cargo.lock` change that
-adds native code, such as bundled DuckDB) MAY take up to thirty minutes, which is the jobs'
-time limit. `cargo xtask ci` MUST run locally exactly what CI runs.
+adds native code, such as bundled DuckDB) MAY take up to thirty minutes, sixty on Windows,
+which are the jobs' time limits. `cargo xtask ci` MUST run locally exactly what CI runs.
 
 - Kind: process
 - Verify: check `ci-duration`
 - Phase: 0.1
-- Decision: 0029
+- Decision: 0029, 0030
 
 ### MG-REQ-0168 · External agent compatibility
 
