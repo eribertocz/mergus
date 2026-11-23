@@ -8,7 +8,11 @@ all-features = true
 [advisories]
 unmaintained = "all"
 yanked = "deny"
-ignore = []
+ignore = [
+    # MG-REQ-1746.5: unmaintained notice for `chrono`, not a vulnerability; reached through
+    # `arrow` of `duckdb`. Remove when `duckdb` no longer pulls it.
+    { id = "RUSTSEC-2026-0543", reason = "Unmaintained notice for chrono, no vulnerability; reached through arrow of duckdb" },
+]
 
 # MG-REQ-1745 and MG-REQ-1746.1: only these OSI-approved licenses are allowed. A crate whose
 # license cannot be determined fails.
@@ -27,7 +31,11 @@ allow = [
     "BSL-1.0",
 ]
 confidence-threshold = 0.8
-exceptions = []
+exceptions = [
+    # MG-REQ-1746.5: `CC0-1.0` is public domain and is allowed for `tiny-keccak` only; it is
+    # reached through `arrow` of `duckdb`. Remove when no dependency needs it.
+    { crate = "tiny-keccak", allow = ["CC0-1.0"] },
+]
 # The list is fixed by MG-REQ-1746.1, so licenses no dependency uses yet are not reported.
 unused-allowed-license = "allow"
 
