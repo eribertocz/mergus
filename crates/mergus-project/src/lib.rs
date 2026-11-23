@@ -10,11 +10,16 @@
 //! [`read_configuration`] reads `project.toml` and every `sources/<source>.toml`, checks them
 //! against the JSON Schemas of `schemas/` of this crate (MG-REQ-0316), rejects expressions
 //! (MG-REQ-0364) and returns each file as JSON with its canonical form (MG-REQ-0318).
+//!
+//! [`read_renames`] reads `ids.toml` (MG-REQ-0370), and [`Identifiers`] gives each model,
+//! source, source table and column its stable identifier (MG-REQ-0209): the stored one, or one
+//! derived from its name (MG-REQ-0369), never shared (MG-REQ-0371).
 
 #![forbid(unsafe_code)]
 
 mod config;
 mod error;
+mod ids;
 mod layout;
 mod names;
 
@@ -23,5 +28,6 @@ pub use config::{
     read_configuration, read_model_options,
 };
 pub use error::{LayoutError, NameKind, ProjectError};
+pub use ids::{IdKind, Identifier, Identifiers, Renames, derive_identifier, read_renames};
 pub use layout::{Layout, Model, ModelLanguage, Publication, read_layout};
 pub use names::{closest_name, is_valid_name, suggest_valid_name};
