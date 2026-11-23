@@ -220,6 +220,40 @@ pub enum ProjectError {
         /// The rejected construct.
         construct: String,
     },
+    /// The references of `.sql` models form a cycle (MG-REQ-0375).
+    #[error(
+        "models {} form a cycle: {}",
+        cycle_names(models),
+        cycle_references(models, references)
+    )]
+    ModelCycle {
+        /// Every model of the cycle in reference order, from the first in name order.
+        models: Vec<String>,
+        /// For each model of `models`, the path of its file and the line, from 1, of its
+        /// reference to the next model of the cycle.
+        references: Vec<(String, usize)>,
+    },
+}
+
+/// Formats the models of a cycle, back to the first.
+fn cycle_names(models: &[String]) -> String {
+    models
+        .iter()
+        .chain(models.first())
+        .map(|name| format!("`{name}`"))
+        .collect::<Vec<_>>()
+        .join(" -> ")
+}
+
+/// Formats each reference of a cycle with the model it reads.
+fn cycle_references(models: &[String], references: &[(String, usize)]) -> String {
+    let next = models.iter().skip(1).chain(models.first());
+    references
+        .iter()
+        .zip(next)
+        .map(|((path, line), name)| format!("`{path}` line {line} reads `{name}`"))
+        .collect::<Vec<_>>()
+        .join("; ")
 }
 
 /// Formats the key of an error, when there is one.
@@ -251,6 +285,7 @@ impl ProjectError {
             Self::DuplicateIdentifier { .. } => "MG-0312",
             Self::UnknownReference { .. } => "MG-0313",
             Self::ForbiddenSql { .. } => "MG-0314",
+            Self::ModelCycle { .. } => "MG-0315",
         }
     }
 
@@ -272,6 +307,7 @@ impl ProjectError {
             | Self::DuplicateIdentifier { path, .. }
             | Self::UnknownReference { path, .. }
             | Self::ForbiddenSql { path, .. } => path,
+            Self::ModelCycle { references, .. } => references.first().map_or("", |(path, _)| path),
         }
     }
 
@@ -293,6 +329,7 @@ impl ProjectError {
             | Self::DuplicateIdsEntry { line, .. }
             | Self::UnknownReference { line, .. }
             | Self::ForbiddenSql { line, .. } => Some(*line),
+            Self::ModelCycle { references, .. } => references.first().map(|(_, line)| *line),
         }
     }
 
@@ -316,7 +353,8 @@ impl ProjectError {
             | Self::InvalidToml { .. }
             | Self::DuplicateIdentifier { .. }
             | Self::UnknownReference { .. }
-            | Self::ForbiddenSql { .. } => None,
+            | Self::ForbiddenSql { .. }
+            | Self::ModelCycle { .. } => None,
             Self::InvalidIds { key, .. } => key.as_deref(),
             Self::UnknownKey { key, .. }
             | Self::InvalidValue { key, .. }

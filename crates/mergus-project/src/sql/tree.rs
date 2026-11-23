@@ -2,7 +2,7 @@
 //! table functions (MG-REQ-0374.2), base tables (MG-REQ-0374.3, MG-REQ-0373) and functions
 //! (MG-REQ-0374.4).
 
-use std::collections::BTreeSet;
+use std::collections::BTreeMap;
 
 use serde_json::{Map, Value};
 
@@ -20,8 +20,9 @@ const FUNCTIONS: [&str; 4] = ["getenv", "nextval", "currval", "setseed"];
 pub(crate) struct Checked {
     /// The problems, in walking order.
     pub(crate) problems: Vec<ProjectError>,
-    /// The references that resolve, lowercase: a model bare, a raw table as `raw.<table>`.
-    pub(crate) references: BTreeSet<String>,
+    /// The references that resolve, lowercase: a model bare, a raw table as `raw.<table>`;
+    /// each with the position of its first occurrence in the text.
+    pub(crate) references: BTreeMap<String, Position>,
 }
 
 /// Returns the problems and the resolved references of the tree `tree` of the text `text` of
@@ -33,7 +34,7 @@ pub(crate) fn check(path: &str, text: &str, tree: &Value, known: &KnownTables) -
         known,
         ctes: Vec::new(),
         problems: Vec::new(),
-        references: BTreeSet::new(),
+        references: BTreeMap::new(),
     };
     if tree.get("error").and_then(Value::as_bool) != Some(false) {
         walk.parse_error(tree);
@@ -64,7 +65,7 @@ struct Walk<'a> {
     known: &'a KnownTables,
     ctes: Vec<String>,
     problems: Vec<ProjectError>,
-    references: BTreeSet<String>,
+    references: BTreeMap<String, Position>,
 }
 
 impl Walk<'_> {
@@ -154,11 +155,16 @@ impl Walk<'_> {
         if !is_valid_name(&lowered) {
             self.problem(at, format!("table name `{table}`"));
         } else if self.known.resolves(catalog, schema, table) {
-            self.references.insert(if schema.is_empty() {
+            let name = if schema.is_empty() {
                 lowered
             } else {
                 format!("{}.{lowered}", schema.to_lowercase())
-            });
+            };
+            let at = self.position(at);
+            self.references
+                .entry(name)
+                .and_modify(|first| *first = (*first).min(at))
+                .or_insert(at);
         } else {
             let name: Vec<&str> = [catalog, schema, table]
                 .into_iter()
