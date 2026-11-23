@@ -18,6 +18,7 @@
 //! [`check_sql_models`] checks each `.sql` model on the tree DuckDB's parser gives through the
 //! [`SqlParser`](mergus_ports::SqlParser) port (MG-REQ-0193): it reads only models, declared
 //! source tables and seeds (MG-REQ-0373) and is one read-only `SELECT` (MG-REQ-0374).
+//! [`read_sql_references`] returns the references of each `.sql` model that resolve.
 
 #![forbid(unsafe_code)]
 
@@ -36,4 +37,4 @@ pub use error::{LayoutError, NameKind, ProjectError};
 pub use ids::{IdKind, Identifier, Identifiers, Renames, derive_identifier, read_renames};
 pub use layout::{Layout, Model, ModelLanguage, Publication, read_layout};
 pub use names::{closest_name, is_valid_name, suggest_valid_name};
-pub use sql::{KnownTables, check_sql, check_sql_models};
+pub use sql::{KnownTables, check_sql, check_sql_models, read_sql_references};

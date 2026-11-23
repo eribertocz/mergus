@@ -2,6 +2,8 @@
 //! table functions (MG-REQ-0374.2), base tables (MG-REQ-0374.3, MG-REQ-0373) and functions
 //! (MG-REQ-0374.4).
 
+use std::collections::BTreeSet;
+
 use serde_json::{Map, Value};
 
 use super::{KnownTables, Position, forbidden};
@@ -14,23 +16,28 @@ const TABLE_FUNCTIONS: [&str; 3] = ["range", "generate_series", "unnest"];
 /// The functions a model may not call (MG-REQ-0374.4).
 const FUNCTIONS: [&str; 4] = ["getenv", "nextval", "currval", "setseed"];
 
-/// Returns the problems of the tree `tree` of the text `text` of the model at `path`.
-pub(crate) fn check(
-    path: &str,
-    text: &str,
-    tree: &Value,
-    known: &KnownTables,
-) -> Vec<ProjectError> {
+/// What a walk finds in a model: its problems, and the references that resolve.
+pub(crate) struct Checked {
+    /// The problems, in walking order.
+    pub(crate) problems: Vec<ProjectError>,
+    /// The references that resolve, lowercase: a model bare, a raw table as `raw.<table>`.
+    pub(crate) references: BTreeSet<String>,
+}
+
+/// Returns the problems and the resolved references of the tree `tree` of the text `text` of
+/// the model at `path`.
+pub(crate) fn check(path: &str, text: &str, tree: &Value, known: &KnownTables) -> Checked {
     let mut walk = Walk {
         path,
         text,
         known,
         ctes: Vec::new(),
         problems: Vec::new(),
+        references: BTreeSet::new(),
     };
     if tree.get("error").and_then(Value::as_bool) != Some(false) {
         walk.parse_error(tree);
-        return walk.problems;
+        return walk.finish();
     }
     let statements = tree
         .get("statements")
@@ -47,7 +54,7 @@ pub(crate) fn check(
     for statement in statements {
         walk.value(statement, None);
     }
-    walk.problems
+    walk.finish()
 }
 
 /// The state of one walk: the CTEs visible at the current node, lowercase.
@@ -57,9 +64,18 @@ struct Walk<'a> {
     known: &'a KnownTables,
     ctes: Vec<String>,
     problems: Vec<ProjectError>,
+    references: BTreeSet<String>,
 }
 
 impl Walk<'_> {
+    /// Ends the walk.
+    fn finish(self) -> Checked {
+        Checked {
+            problems: self.problems,
+            references: self.references,
+        }
+    }
+
     /// Records the error the parser reports, at its position when it gives one
     /// (MG-REQ-0374.1).
     fn parse_error(&mut self, tree: &Value) {
@@ -137,7 +153,13 @@ impl Walk<'_> {
         }
         if !is_valid_name(&lowered) {
             self.problem(at, format!("table name `{table}`"));
-        } else if !self.known.resolves(catalog, schema, table) {
+        } else if self.known.resolves(catalog, schema, table) {
+            self.references.insert(if schema.is_empty() {
+                lowered
+            } else {
+                format!("{}.{lowered}", schema.to_lowercase())
+            });
+        } else {
             let name: Vec<&str> = [catalog, schema, table]
                 .into_iter()
                 .filter(|part| !part.is_empty())

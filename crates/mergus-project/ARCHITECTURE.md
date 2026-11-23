@@ -21,7 +21,7 @@
 | `Renames` | The entries of `ids.toml`: current name to stored identifier |
 | `Identifiers` | Gives each object its identifier and collects the ones given twice |
 
-Functions: `read_layout`, `read_configuration`, `read_model_options`, `is_valid_name`, `suggest_valid_name`, `closest_name`, `read_renames` and `derive_identifier`.
+Functions: `read_layout`, `read_configuration`, `read_model_options`, `is_valid_name`, `suggest_valid_name`, `closest_name`, `read_renames`, `derive_identifier` and `read_sql_references`.
 
 ## Data flow
 

@@ -32,6 +32,8 @@ Read and validate the project: files, `project.toml`, folder `mergus.toml`.
   value has. A model moved to another folder keeps it (MG-REQ-0209). An invalid `ids.toml` is
   `MG-0310`, an identifier twice in it `MG-0311`, two objects with one identifier `MG-0312`
   (MG-REQ-0371).
+- Returns the resolved references of each `.sql` model, lowercase, a model bare and a raw
+  table as `raw.<table>`, sorted (`read_sql_references`, MG-REQ-0373).
 - Collects every problem, not only the first, each file's problems ordered by line, code and
   key.
 
