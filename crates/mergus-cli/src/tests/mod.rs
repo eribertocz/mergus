@@ -12,7 +12,9 @@ mod schema;
 
 use std::cell::RefCell;
 use std::path::Path;
+use std::sync::LazyLock;
 
+use mergus_ports::real::RealSqlParser;
 use mergus_ports::{FileSystem, Random, Timestamp};
 use mergus_sim::{ClockFaults, SimClock, SimEnvironment, SimFileSystem, SimRandom};
 use serde_json::Value;
@@ -25,6 +27,10 @@ pub(crate) const ROOT: &str = "/work/sales";
 /// The wall-clock time the simulated clock starts at: 2026-11-22T23:15:14.123456Z, rounded
 /// down.
 pub(crate) const START: i128 = 1_795_389_314_123_000_456;
+
+/// The real SQL parser, shared by every test: `validate` checks `.sql` models with DuckDB's
+/// parser itself (MG-REQ-0193).
+static SQL_PARSER: LazyLock<RealSqlParser> = LazyLock::new(RealSqlParser::new);
 
 /// A valid `project.toml`.
 pub(crate) const PROJECT: &str = "name = \"sales\"\n";
@@ -98,6 +104,7 @@ impl Setup<'_> {
             files: self.files,
             clock: &clock,
             random: self.random,
+            sql_parser: &*SQL_PARSER,
             terminal: self.terminal,
             input: input.as_ref().map(|typed| typed as &dyn Answers),
         };

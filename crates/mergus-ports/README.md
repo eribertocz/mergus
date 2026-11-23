@@ -5,10 +5,12 @@ I/O traits and their real implementations.
 ## What it does
 
 - Defines one trait per port: `Clock`, `FileSystem`, `ObjectStore`, `Network`,
-  `SourceConnector`, `Random`, `Process` and `Environment`, and the `PortError` they return.
+  `SourceConnector`, `Random`, `Process`, `Environment` and `SqlParser`, and the `PortError`
+  they return.
 - Holds, under the non-default feature `real`, the real implementations that wrap the
   operating system: `RealClock`, `RealEnvironment`, `RealFileSystem`, `RealProcess` and
-  `RealRandom`.
+  `RealRandom`, and `RealSqlParser`, DuckDB's parser in an in-memory DuckDB without external
+  access that never executes the text (MG-REQ-0193).
 - Is the only crate allowed to call the standard library's clock, file, environment, network
   and process functions (MG-REQ-0130); Clippy forbids them everywhere else.
 

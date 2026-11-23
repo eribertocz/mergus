@@ -13,7 +13,8 @@
 | `Process` | Runs a `ProcessCommand` and returns its `ProcessOutput` |
 | `Environment` | Command-line arguments, current directory, environment variables and the user configuration directory |
 | `PortError` | `NotFound` or `Failed`, returned by every fallible call |
-| `real::*` | `RealClock`, `RealEnvironment`, `RealFileSystem`, `RealProcess`, `RealRandom` (feature `real`) |
+| `SqlParser` | Returns the tree DuckDB's `json_serialize_sql` gives for a SQL text, without executing it |
+| `real::*` | `RealClock`, `RealEnvironment`, `RealFileSystem`, `RealProcess`, `RealRandom`, `RealSqlParser` (feature `real`) |
 
 Every trait is `Send + Sync` and takes `&self`, so one value can be shared behind an `Arc`.
 
@@ -27,6 +28,8 @@ Every trait is `Send + Sync` and takes `&self`, so one value can be shared behin
 ## Dependencies
 
 - `thiserror`: derives `PortError`.
+- `duckdb` (feature `real` only; features `bundled` and `json`, default features off): the
+  in-memory DuckDB of `RealSqlParser` (MG-REQ-0193).
 - The standard library, used directly only in `src/real/`, which allows Clippy's
   `disallowed_methods` and `disallowed_types` with a written reason (MG-REQ-0130).
 - A dev-dependency on itself with the feature `real`, so `cargo test` runs the tests of the
