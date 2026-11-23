@@ -16,6 +16,7 @@ fn is_code(text: &str) -> bool {
 #[test]
 fn mg_req_0008_every_error_has_code() {
     cli_errors_have_codes();
+    scaffolding_errors_have_codes();
     project_codes_are_in_the_catalog();
     emitted_diagnostics_have_codes();
 }
@@ -53,6 +54,32 @@ fn cli_errors_have_codes() {
     for error in &errors {
         assert!(catalog::entry(error.code()).is_some(), "{}", error.code());
         assert!(!error.to_string().is_empty());
+    }
+}
+
+fn scaffolding_errors_have_codes() {
+    let errors = [
+        CliError::InvalidName {
+            kind: "model",
+            name: "Orders".to_owned(),
+            suggestion: "orders".to_owned(),
+        },
+        CliError::NameTaken {
+            name: "orders".to_owned(),
+            path: "models/staging/orders.sql".to_owned(),
+        },
+        CliError::FileExists {
+            path: "project.toml".to_owned(),
+        },
+        CliError::Unwritable {
+            path: "models".to_owned(),
+            message: "read only".to_owned(),
+        },
+    ];
+    let codes: Vec<&str> = errors.iter().map(CliError::code).collect();
+    assert_eq!(codes, ["MG-1305", "MG-1306", "MG-1307", "MG-1308"]);
+    for error in &errors {
+        assert!(catalog::entry(error.code()).is_some(), "{}", error.code());
     }
 }
 

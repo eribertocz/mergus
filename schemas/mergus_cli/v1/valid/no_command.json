@@ -1,0 +1,6 @@
+{
+  "contract": "mergus_cli",
+  "contract_version": 1,
+  "mergus_version": "0.2.0",
+  "commands": []
+}

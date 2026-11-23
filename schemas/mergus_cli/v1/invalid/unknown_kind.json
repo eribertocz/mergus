@@ -1,0 +1,25 @@
+{
+  "contract": "mergus_cli",
+  "contract_version": 1,
+  "mergus_version": "0.2.0",
+  "commands": [
+    {
+      "name": "validate",
+      "summary": "Check the project.",
+      "arguments": [
+        {
+          "name": "--json",
+          "kind": "switch",
+          "type": "boolean",
+          "required": false,
+          "repeatable": false
+        }
+      ],
+      "exit_codes": [
+        0
+      ],
+      "json": true,
+      "dry_run": false
+    }
+  ]
+}

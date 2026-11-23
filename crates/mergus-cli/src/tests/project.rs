@@ -17,6 +17,7 @@ fn in_dir(files: &dyn FileSystem, cwd: &str) -> super::Outcome {
         vars: &[],
         random: &random,
         seed: 7,
+        input: None,
         terminal: false,
     }
     .run()
@@ -55,9 +56,9 @@ fn mg_req_1344_project_found_upwards() {
 }
 
 /// A file system that refuses and records every change.
-struct ReadOnly {
-    inner: SimFileSystem,
-    changes: Mutex<Vec<PathBuf>>,
+pub(crate) struct ReadOnly {
+    pub(crate) inner: SimFileSystem,
+    pub(crate) changes: Mutex<Vec<PathBuf>>,
 }
 
 impl ReadOnly {

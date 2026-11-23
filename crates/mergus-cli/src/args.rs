@@ -1,48 +1,41 @@
-//! The command line (MG-REQ-0297).
+//! The command line (MG-REQ-0297), read against the table of [`crate::commands`].
 
 use mergus_project::closest_name;
 
+use crate::commands::{self, Argument, Command, JSON, Kind, NAMES, QUIET, VERBOSE};
 use crate::error::CliError;
 use crate::mode::Verbosity;
 
-/// The option that asks for events on standard output.
-pub(crate) const JSON: &str = "--json";
+/// The commands in the order they are suggested when nothing is closer.
+const SUGGESTED: [&str; 5] = ["validate", "init", "new model", "add source", "schema"];
 
-/// The option that shows only errors.
-const QUIET: &str = "--quiet";
-
-/// The option that adds a line per stage.
-const VERBOSE: &str = "--verbose";
-
-/// Every command, in the order they are suggested.
-const COMMANDS: [&str; 1] = ["validate"];
-
-/// Every option.
-const OPTIONS: [&str; 3] = [JSON, QUIET, VERBOSE];
-
-/// A command the binary runs.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) enum Command {
-    /// `mergus validate` (MG-REQ-1345).
-    Validate,
-}
-
-impl Command {
-    /// The name of the command, as typed.
-    pub(crate) fn name(self) -> &'static str {
-        match self {
-            Self::Validate => "validate",
-        }
-    }
-}
+/// The options every command accepts.
+const GLOBAL: [&str; 3] = [JSON, QUIET, VERBOSE];
 
 /// A parsed command line.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct Invocation {
     /// The command to run.
     pub(crate) command: Command,
     /// How much human output to show (MG-REQ-1347.3).
     pub(crate) verbosity: Verbosity,
+    /// The arguments given, by name; a flag has an empty value.
+    given: Vec<(&'static str, String)>,
+}
+
+impl Invocation {
+    /// Returns whether the flag `name` is given.
+    pub(crate) fn flag(&self, name: &str) -> bool {
+        self.value(name).is_some()
+    }
+
+    /// Returns the value given to the option or positional argument `name`.
+    pub(crate) fn value(&self, name: &str) -> Option<&str> {
+        self.given
+            .iter()
+            .find(|(given, _)| *given == name)
+            .map(|(_, value)| value.as_str())
+    }
 }
 
 /// Returns whether `--json` is among `args`.
@@ -54,47 +47,198 @@ pub(crate) fn wants_json(args: &[String]) -> bool {
 ///
 /// # Errors
 ///
-/// Fails with the first unknown option, unknown command or unexpected argument, when no
-/// command is given, and when `--quiet` and `--verbose` are both given (MG-REQ-1347.4).
+/// Fails with [`CliError`] code `MG-1301` when no command or an unknown one is given, for the
+/// first argument the command does not accept, for a missing or disallowed value, for a
+/// missing required argument, and for options that exclude each other (MG-REQ-1347.4).
 pub(crate) fn parse(args: &[String]) -> Result<Invocation, CliError> {
-    let mut command = None;
-    let (mut quiet, mut verbose) = (false, false);
-    for argument in args {
-        match argument.as_str() {
-            JSON => continue,
-            QUIET => {
-                quiet = true;
-                continue;
-            }
-            VERBOSE => {
-                verbose = true;
-                continue;
-            }
-            _ => {}
-        }
+    let (command, words) = find_command(args)?;
+    let mut given: Vec<(&'static str, String)> = Vec::new();
+    let mut rest = args
+        .iter()
+        .enumerate()
+        .filter(|(index, _)| !words.contains(index))
+        .map(|(_, argument)| argument);
+    let mut positionals = Vec::new();
+    while let Some(argument) = rest.next() {
         if argument.starts_with('-') {
-            return Err(CliError::UnknownOption {
-                given: argument.clone(),
-                closest: closest(argument, &OPTIONS),
-            });
-        }
-        match command {
-            Some(command) => {
-                return Err(CliError::UnexpectedArgument {
-                    given: argument.clone(),
-                    command: Command::name(command),
-                });
+            let (spec, value) = dashed(command, argument, &mut rest)?;
+            if given.iter().any(|(name, _)| *name == spec.name) {
+                if spec.kind == Kind::Flag {
+                    continue;
+                }
+                return Err(CliError::RepeatedOption { option: spec.name });
             }
-            None => command = Some(lookup(argument)?),
+            given.push((spec.name, value));
+        } else {
+            positionals.push(argument.clone());
         }
     }
-    let command = command.ok_or(CliError::MissingCommand {
-        closest: COMMANDS[0],
-    })?;
-    Ok(Invocation {
+    for (spec, value) in assign(command, positionals)? {
+        given.push((spec.name, value));
+    }
+    for (name, value) in &given {
+        check_value(command, name, value)?;
+    }
+    if let Some(missing) = command
+        .arguments()
+        .iter()
+        .find(|spec| spec.required && !given.iter().any(|(name, _)| *name == spec.name))
+    {
+        return Err(CliError::MissingArgument {
+            argument: missing.name,
+            command: command.name(),
+        });
+    }
+    let invocation = Invocation {
         command,
-        verbosity: verbosity(quiet, verbose)?,
+        verbosity: Verbosity::Normal,
+        given,
+    };
+    exclusive(&invocation)?;
+    Ok(Invocation {
+        verbosity: verbosity(invocation.flag(QUIET), invocation.flag(VERBOSE))?,
+        ..invocation
     })
+}
+
+/// Finds the command: the first word, or the first two for `new model` and `add source`.
+/// Returns it with the positions of its words.
+fn find_command(args: &[String]) -> Result<(Command, Vec<usize>), CliError> {
+    let Some(first) = args.iter().position(|argument| !argument.starts_with('-')) else {
+        if let Some(unknown) = args
+            .iter()
+            .find(|argument| !GLOBAL.contains(&argument.as_str()))
+        {
+            return Err(CliError::UnknownOption {
+                given: unknown.clone(),
+                closest: closest(unknown, &GLOBAL),
+            });
+        }
+        return Err(CliError::MissingCommand {
+            closest: SUGGESTED[0],
+        });
+    };
+    let word = args[first].as_str();
+    if let Some(command) = commands::lookup(word) {
+        return Ok((command, vec![first]));
+    }
+    let second = args
+        .get(first + 1)
+        .filter(|argument| !argument.starts_with('-'));
+    if let Some(command) = second.and_then(|second| commands::lookup(&format!("{word} {second}"))) {
+        return Ok((command, vec![first, first + 1]));
+    }
+    let closest = NAMES
+        .iter()
+        .find(|name| name.split(' ').next() == Some(word))
+        .copied()
+        .unwrap_or_else(|| closest(word, &SUGGESTED));
+    Err(CliError::UnknownCommand {
+        given: word.to_owned(),
+        closest,
+    })
+}
+
+/// Reads the option or flag `argument` of `command`, taking the value of an option from
+/// `rest` when it is not written after `=`.
+fn dashed<'a>(
+    command: Command,
+    argument: &str,
+    rest: &mut impl Iterator<Item = &'a String>,
+) -> Result<(&'static Argument, String), CliError> {
+    let (name, inline) = match argument.split_once('=') {
+        Some((name, value)) => (name, Some(value)),
+        None => (argument, None),
+    };
+    let dashed: Vec<&'static str> = command
+        .arguments()
+        .iter()
+        .filter(|spec| spec.kind != Kind::Positional)
+        .map(|spec| spec.name)
+        .collect();
+    let unknown = || CliError::UnknownOption {
+        given: argument.to_owned(),
+        closest: closest(argument, &dashed),
+    };
+    let spec = command
+        .arguments()
+        .iter()
+        .find(|spec| spec.kind != Kind::Positional && spec.name == name)
+        .ok_or_else(unknown)?;
+    match (spec.kind, inline) {
+        (Kind::Flag, None) => Ok((spec, String::new())),
+        (Kind::Flag, Some(_)) => Err(unknown()),
+        (_, Some(value)) => Ok((spec, value.to_owned())),
+        (_, None) => rest
+            .next()
+            .map(|value| (spec, value.clone()))
+            .ok_or(CliError::MissingValue { option: spec.name }),
+    }
+}
+
+/// Gives each positional word to the positional arguments of `command`, in order. The words
+/// after `schema` form one command name, such as `new model`.
+fn assign(
+    command: Command,
+    mut words: Vec<String>,
+) -> Result<Vec<(&'static Argument, String)>, CliError> {
+    if command == Command::Schema && !words.is_empty() {
+        words = vec![words.join(" ")];
+    }
+    let mut specs = command
+        .arguments()
+        .iter()
+        .filter(|spec| spec.kind == Kind::Positional);
+    words
+        .into_iter()
+        .map(|word| match specs.next() {
+            Some(spec) => Ok((spec, word)),
+            None => Err(CliError::UnexpectedArgument {
+                given: word,
+                command: command.name(),
+            }),
+        })
+        .collect()
+}
+
+/// Fails when `value` is not one of the values the argument `name` allows.
+fn check_value(command: Command, name: &str, value: &str) -> Result<(), CliError> {
+    let Some(spec) = command.arguments().iter().find(|spec| spec.name == name) else {
+        return Ok(());
+    };
+    if spec.values.is_empty() || spec.values.contains(&value) {
+        return Ok(());
+    }
+    Err(CliError::InvalidValue {
+        argument: spec.name,
+        given: value.to_owned(),
+        closest: closest(value, spec.values),
+    })
+}
+
+/// Fails when two arguments that exclude each other are given, or `schema` has neither a
+/// command name nor `--all`.
+fn exclusive(invocation: &Invocation) -> Result<(), CliError> {
+    let pairs: &[(&'static str, &'static str)] = match invocation.command {
+        Command::NewModel => &[("--sql", "--py")],
+        Command::Schema => &[("--all", "command")],
+        _ => &[],
+    };
+    for (first, second) in pairs {
+        if invocation.flag(first) && invocation.flag(second) {
+            return Err(CliError::ConflictingOptions { first, second });
+        }
+    }
+    if invocation.command == Command::Schema
+        && !invocation.flag("--all")
+        && !invocation.flag("command")
+    {
+        return Err(CliError::MissingArgument {
+            argument: "command",
+            command: invocation.command.name(),
+        });
+    }
+    Ok(())
 }
 
 /// The verbosity of `--quiet` and `--verbose`, which exclude each other (MG-REQ-1347.4).
@@ -107,16 +251,6 @@ fn verbosity(quiet: bool, verbose: bool) -> Result<Verbosity, CliError> {
         (true, false) => Ok(Verbosity::Quiet),
         (false, true) => Ok(Verbosity::Verbose),
         (false, false) => Ok(Verbosity::Normal),
-    }
-}
-
-fn lookup(word: &str) -> Result<Command, CliError> {
-    match word {
-        "validate" => Ok(Command::Validate),
-        _ => Err(CliError::UnknownCommand {
-            given: word.to_owned(),
-            closest: closest(word, &COMMANDS),
-        }),
     }
 }
 
