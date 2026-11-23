@@ -63,13 +63,7 @@ pub(crate) fn init(
             closest: PROFILES[0],
         });
     }
-    let project = format!(
-        "#:schema {}\nname = {}\n\n[gold]\nprofile = {}\nlocation = {}\n",
-        ConfigKind::Project.schema_id(),
-        toml_string(&name),
-        toml_string(&profile),
-        toml_string(&location),
-    );
+    let project = project_toml(&name, &profile, &location);
     let plan = Plan {
         root,
         entries: vec![
@@ -81,6 +75,17 @@ pub(crate) fn init(
     };
     plan.check(ports.files)?;
     Ok(plan)
+}
+
+/// The text of `project.toml`, with its `#:schema` line (MG-REQ-0321, MG-REQ-1349.2).
+fn project_toml(name: &str, profile: &str, location: &str) -> String {
+    format!(
+        "#:schema {}\nname = {}\n\n[gold]\nprofile = {}\nlocation = {}\n",
+        ConfigKind::Project.schema_id(),
+        toml_string(name),
+        toml_string(profile),
+        toml_string(location),
+    )
 }
 
 /// The next steps `init` ends with (MG-REQ-1349.3).

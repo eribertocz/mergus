@@ -74,6 +74,7 @@ fn mg_req_1301_init_three_questions_three_next_steps() {
 #[test]
 fn mg_req_1349_init_defaults_files_and_next_steps() {
     init_defaults_files_and_next_steps_1();
+    init_defaults_files_and_next_steps_1_refused();
     init_defaults_files_and_next_steps_2();
     init_defaults_files_and_next_steps_3();
 }
@@ -119,7 +120,10 @@ fn init_defaults_files_and_next_steps_1() {
     assert_eq!(mergus_in(&files, ROOT, &options, Some("")).exit, 0);
     let written = text(&files, "project.toml").unwrap();
     assert!(written.contains("location = \"a\\\"b\"\n"), "{written}");
+}
 
+/// MG-REQ-1349.1: an answer that is not allowed writes nothing.
+fn init_defaults_files_and_next_steps_1_refused() {
     let files = project(&[]);
     let wrong = mergus(&files, &["init", "--profile", "cloud", "--json"]);
     assert_eq!(wrong.exit, 1);
