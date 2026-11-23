@@ -3,7 +3,7 @@
 use std::cell::RefCell;
 use std::io::{BufRead, Write};
 
-use mergus_ports::{Clock, Environment, FileSystem, Random};
+use mergus_ports::{Clock, Environment, FileSystem, Random, SqlParser};
 
 use crate::args::{self, Invocation};
 use crate::cli_schema;
@@ -40,6 +40,8 @@ pub(crate) struct Ports<'a> {
     pub(crate) files: &'a dyn FileSystem,
     pub(crate) clock: &'a dyn Clock,
     pub(crate) random: &'a dyn Random,
+    /// DuckDB's SQL parser, which `validate` checks `.sql` models with (MG-REQ-0193).
+    pub(crate) sql: &'a dyn SqlParser,
     /// Whether standard output is a terminal (MG-REQ-1321).
     pub(crate) terminal: bool,
     /// Standard input when it is a terminal, which `init` asks its questions on

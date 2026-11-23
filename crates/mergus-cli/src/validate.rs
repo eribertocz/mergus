@@ -4,7 +4,9 @@
 use std::path::Path;
 
 use mergus_ports::FileSystem;
-use mergus_project::{LayoutError, read_configuration, read_layout, read_model_options};
+use mergus_project::{
+    LayoutError, check_sql_models, read_configuration, read_layout, read_model_options,
+};
 
 use crate::diagnostic::Diagnostic;
 use crate::error::CliError;
@@ -12,8 +14,10 @@ use crate::project;
 use crate::run::Ports;
 
 /// Runs stage 1 on the project found from the current directory and returns every
-/// diagnostic: those of the layout, then of the configuration, then of the folder options.
-/// The folder options are checked only when the layout is valid, since they name its models.
+/// diagnostic: those of the layout, then of the configuration, then of the folder options,
+/// then of the `.sql` models. The folder options are checked only when the layout is valid,
+/// since they name its models; the `.sql` models only when the configuration is valid too,
+/// since they name its source tables and seeds.
 /// Each diagnostic with a line carries the text of that line when its file can be read.
 ///
 /// # Errors
@@ -23,12 +27,16 @@ pub(crate) fn validate(ports: &Ports<'_>) -> Result<Vec<Diagnostic>, CliError> {
     let root = project::find(ports.environment, ports.files)?;
     let mut diagnostics = Vec::new();
     let layout = collect(read_layout(ports.files, &root), &mut diagnostics)?;
-    collect(read_configuration(ports.files, &root), &mut diagnostics)?;
-    if let Some(layout) = layout {
+    let configuration = collect(read_configuration(ports.files, &root), &mut diagnostics)?;
+    if let Some(layout) = &layout {
         collect(
-            read_model_options(ports.files, &root, &layout),
+            read_model_options(ports.files, &root, layout),
             &mut diagnostics,
         )?;
+    }
+    if let (Some(layout), Some(configuration)) = (&layout, &configuration) {
+        let checked = check_sql_models(ports.files, &root, layout, configuration, ports.sql);
+        collect(checked, &mut diagnostics)?;
     }
     for diagnostic in &mut diagnostics {
         diagnostic.source = source_line(ports.files, &root, diagnostic);

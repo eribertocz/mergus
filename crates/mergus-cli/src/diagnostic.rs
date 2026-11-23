@@ -48,7 +48,7 @@ impl Diagnostic {
             location: Some(Location {
                 file: error.path().to_owned(),
                 line: error.line(),
-                column: None,
+                column: error.column(),
             }),
             hint: project_hint(error.code()).map(str::to_owned),
             next: Vec::new(),

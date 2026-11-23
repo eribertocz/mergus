@@ -6,11 +6,12 @@ use std::time::Duration;
 
 use mergus_ports::{
     Clock, Environment, FileSystem, HttpRequest, HttpResponse, Network, ObjectStore, PortError,
-    Process, ProcessCommand, ProcessOutput, Random, SourceConnector, Timestamp,
+    Process, ProcessCommand, ProcessOutput, Random, SourceConnector, SqlParser, Timestamp,
 };
 use mergus_sim::{
     ClockFaults, NetworkFaults, ObjectStoreFaults, Rate, SimClock, SimEnvironment, SimFileSystem,
-    SimNetwork, SimObjectStore, SimProcess, SimRandom, SimSourceConnector, SourceFaults,
+    SimNetwork, SimObjectStore, SimProcess, SimRandom, SimSourceConnector, SimSqlParser,
+    SourceFaults,
 };
 
 /// One value of every port, as the code under simulation receives them.
@@ -23,6 +24,7 @@ struct Ports {
     random: Arc<dyn Random>,
     process: Arc<dyn Process>,
     environment: Arc<dyn Environment>,
+    sql_parser: Arc<dyn SqlParser>,
 }
 
 const SOMETIMES: Rate = Rate::per_million(300_000);
@@ -52,6 +54,8 @@ fn simulated(seed: u64) -> Ports {
     let network = network(seed + 2, latency, Arc::clone(&clock));
     let process = SimProcess::new();
     process.register("duckdb", output(b"v1.4.0"));
+    let sql_parser = SimSqlParser::new();
+    sql_parser.record("SELECT 1", r#"{"error":false,"statements":[]}"#);
     Ports {
         clock,
         file_system: Arc::new(SimFileSystem::new()),
@@ -65,6 +69,7 @@ fn simulated(seed: u64) -> Ports {
                 .with_args(["validate", "--json"])
                 .with_current_dir("/project"),
         ),
+        sql_parser: Arc::new(sql_parser),
     }
 }
 
@@ -162,7 +167,7 @@ fn trace(ports: &Ports) -> Result<String, PortError> {
         };
         trace.push_str(&format!(
             "{write:?} {read:?} {put:?} {get:?} {list:?} {http:?} {tcp:?} {batches:?} \
-             {:?} {:?} {:?} {bytes:?} {:?} {:?} {:?} {:?} {:?}\n",
+             {:?} {:?} {:?} {bytes:?} {:?} {:?} {:?} {:?} {:?} {:?} {:?}\n",
             ports.clock.now(),
             ports.clock.monotonic(),
             ports.random.next_u64(),
@@ -171,6 +176,8 @@ fn trace(ports: &Ports) -> Result<String, PortError> {
             ports.environment.args(),
             ports.environment.current_dir(),
             ports.file_system.list_dir(dir),
+            ports.sql_parser.parse("SELECT 1"),
+            ports.sql_parser.parse("SELECT 2"),
         ));
     }
     Ok(trace)

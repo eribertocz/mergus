@@ -8,12 +8,14 @@ mod environment;
 mod file_system;
 mod process;
 mod random;
+mod sql_parser;
 
 pub use clock::RealClock;
 pub use environment::RealEnvironment;
 pub use file_system::RealFileSystem;
 pub use process::RealProcess;
 pub use random::RealRandom;
+pub use sql_parser::RealSqlParser;
 
 use std::io;
 

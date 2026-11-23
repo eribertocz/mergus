@@ -14,6 +14,10 @@
 //! [`read_renames`] reads `ids.toml` (MG-REQ-0370), and [`Identifiers`] gives each model,
 //! source, source table and column its stable identifier (MG-REQ-0209): the stored one, or one
 //! derived from its name (MG-REQ-0369), never shared (MG-REQ-0371).
+//!
+//! [`check_sql_models`] checks each `.sql` model on the tree DuckDB's parser gives through the
+//! [`SqlParser`](mergus_ports::SqlParser) port (MG-REQ-0193): it reads only models, declared
+//! source tables and seeds (MG-REQ-0373) and is one read-only `SELECT` (MG-REQ-0374).
 
 #![forbid(unsafe_code)]
 
@@ -22,6 +26,7 @@ mod error;
 mod ids;
 mod layout;
 mod names;
+mod sql;
 
 pub use config::{
     ConfigFile, ConfigKind, Configuration, Effective, ModelOptions, Origin, Setting, Source,
@@ -31,3 +36,4 @@ pub use error::{LayoutError, NameKind, ProjectError};
 pub use ids::{IdKind, Identifier, Identifiers, Renames, derive_identifier, read_renames};
 pub use layout::{Layout, Model, ModelLanguage, Publication, read_layout};
 pub use names::{closest_name, is_valid_name, suggest_valid_name};
+pub use sql::{KnownTables, check_sql, check_sql_models};
