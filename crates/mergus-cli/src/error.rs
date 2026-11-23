@@ -27,6 +27,14 @@ pub(crate) enum CliError {
         /// The command.
         command: &'static str,
     },
+    /// The command line asks for two options that exclude each other (MG-REQ-1347.4).
+    #[error("`{first}` and `{second}` cannot be used together")]
+    ConflictingOptions {
+        /// The first option.
+        first: &'static str,
+        /// The second option.
+        second: &'static str,
+    },
     /// The command line names no command.
     #[error("no command given; did you mean `{closest}`?")]
     MissingCommand {
@@ -54,6 +62,7 @@ impl CliError {
             Self::UnknownCommand { .. }
             | Self::UnknownOption { .. }
             | Self::UnexpectedArgument { .. }
+            | Self::ConflictingOptions { .. }
             | Self::MissingCommand { .. } => "MG-1301",
             Self::ProjectNotFound { .. } => "MG-1302",
             Self::Unreadable(_) => "MG-1303",
@@ -69,6 +78,9 @@ impl CliError {
             | Self::UnknownOption { closest, .. }
             | Self::MissingCommand { closest } => Some(format!("Use `{closest}`.")),
             Self::UnexpectedArgument { given, .. } => Some(format!("Remove `{given}`.")),
+            Self::ConflictingOptions { first, second } => {
+                Some(format!("Remove `{first}` or `{second}`."))
+            }
             Self::ProjectNotFound { .. } | Self::Unreadable(_) | Self::Internal(_) => None,
         }
     }

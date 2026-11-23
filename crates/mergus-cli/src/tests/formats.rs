@@ -33,6 +33,7 @@ fn run_id(random: &dyn Random) -> String {
         vars: &[],
         random,
         seed: 7,
+        terminal: false,
     }
     .run();
     let ids: Vec<Value> = outcome

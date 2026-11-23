@@ -1,7 +1,9 @@
 //! What a command prints: events on standard output with `--json` (MG-REQ-0260, MG-REQ-0261),
-//! otherwise plain diagnostics on standard error.
+//! otherwise errors in the layout of MG-REQ-1322 and, with `--verbose`, stage lines on
+//! standard error (MG-REQ-1347).
 
 use std::io::Write;
+use std::time::Duration;
 
 use mergus_contracts::generated::mergus_events_v1::{
     Location, MergusEvents, MergusEventsSeverity, MergusEventsType,
@@ -12,6 +14,8 @@ use mergus_ports::{Clock, MonotonicTime, Random};
 use crate::diagnostic::Diagnostic;
 use crate::error::CliError;
 use crate::exit;
+use crate::layout::render;
+use crate::mode::{Mode, Verbosity};
 use crate::time::rfc3339;
 
 /// The environment every command works on until environments exist (MG-REQ-0296.5).
@@ -20,6 +24,8 @@ const ENVIRONMENT: &str = "prod";
 /// The output of one command run.
 pub(crate) struct Output<'a> {
     json: bool,
+    color: bool,
+    verbosity: Verbosity,
     clock: &'a dyn Clock,
     run_id: String,
     sequence: i64,
@@ -29,16 +35,19 @@ pub(crate) struct Output<'a> {
 }
 
 impl<'a> Output<'a> {
-    /// Starts the output of a run; `json` chooses events.
+    /// Starts the output of a run in `mode`, with colors when `color` is true.
     pub(crate) fn new(
-        json: bool,
+        mode: Mode,
+        color: bool,
         clock: &'a dyn Clock,
         random: &dyn Random,
         stdout: &'a mut dyn Write,
         stderr: &'a mut dyn Write,
     ) -> Self {
         Self {
-            json,
+            json: mode == Mode::Events,
+            color,
+            verbosity: Verbosity::Normal,
             clock,
             run_id: run_id(random),
             sequence: 0,
@@ -46,6 +55,22 @@ impl<'a> Output<'a> {
             stdout,
             stderr,
         }
+    }
+
+    /// Sets how much human output the rest of the run shows.
+    pub(crate) fn set_verbosity(&mut self, verbosity: Verbosity) {
+        self.verbosity = verbosity;
+    }
+
+    /// Reports, with `--verbose` and without `--json`, that stage `number` took `duration`.
+    pub(crate) fn stage(&mut self, number: u8, duration: Duration) -> Result<(), CliError> {
+        if self.json || self.verbosity != Verbosity::Verbose {
+            return Ok(());
+        }
+        write(
+            self.stderr,
+            &format!("stage {number}: {} ms\n", duration.as_millis()),
+        )
     }
 
     /// Reports that `command` starts with the arguments `args`.
@@ -68,21 +93,18 @@ impl<'a> Output<'a> {
             event.code = Some(diagnostic.code.to_owned());
             event.severity = Some(MergusEventsSeverity::Error);
             event.message = Some(diagnostic.message.clone());
-            event.location = diagnostic.location.as_ref().map(|at| Location {
-                file: at.file.clone(),
-                line: i64::try_from(at.line).unwrap_or(i64::MAX),
-                column: None,
+            event.location = diagnostic.location.as_ref().and_then(|at| {
+                at.line.map(|line| Location {
+                    file: at.file.clone(),
+                    line: number(line),
+                    column: at.column.map(number),
+                })
             });
             event.hint = Some(resolved.hint.clone());
             event.next = (!diagnostic.next.is_empty()).then(|| diagnostic.next.clone());
             self.emit(&event)?;
         } else {
-            let mut text = format!("error[{}]: {}\n", diagnostic.code, diagnostic.message);
-            if let Some(at) = &diagnostic.location {
-                text.push_str(&format!("  --> {}:{}\n", at.file, at.line));
-            }
-            text.push_str(&format!("  hint: {}\n", resolved.hint));
-            write(self.stderr, &text)?;
+            write(self.stderr, &render(&resolved, self.color))?;
         }
         Ok(resolved.exit_code)
     }
@@ -116,7 +138,11 @@ impl<'a> Output<'a> {
 
     /// Reports an internal error that the output itself cannot carry.
     pub(crate) fn internal(&mut self, error: &CliError) {
-        let text = format!("error[{}]: {error}\n", error.code());
+        let diagnostic = Diagnostic::of_cli(error);
+        let text = match diagnostic.resolve() {
+            Ok(resolved) => render(&resolved, self.color),
+            Err(_) => format!("error[{}]: {error}\n", error.code()),
+        };
         // Nothing is left to report a failure to write standard error to.
         let _ = write(self.stderr, &text);
     }
@@ -162,6 +188,11 @@ impl<'a> Output<'a> {
         let valid = validate_event(event).map_err(|error| CliError::Internal(error.to_string()))?;
         write(self.stdout, &format!("{}\n", valid.value()))
     }
+}
+
+/// A line or a column as an event field.
+fn number(value: usize) -> i64 {
+    i64::try_from(value).unwrap_or(i64::MAX)
 }
 
 fn write(out: &mut dyn Write, text: &str) -> Result<(), CliError> {

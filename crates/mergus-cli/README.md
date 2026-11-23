@@ -9,8 +9,13 @@ The `mergus` binary; translates arguments and output only.
   current one upwards, that holds `project.toml`. It reports every problem in one pass and
   writes no file (MG-REQ-1344, MG-REQ-1345).
 - With `--json`, prints only `mergus_events` events on standard output, one per line, ending
-  with `run_finished` (MG-REQ-0260, MG-REQ-0261). Otherwise it prints plain diagnostics on
-  standard error.
+  with `run_finished` (MG-REQ-0260, MG-REQ-0261). Otherwise it prints every error on
+  standard error, grouped by file, in the layout of MG-REQ-1322: code, message, location,
+  source excerpt, `why`, `fix` and `more` (MG-REQ-1322, MG-REQ-1323, MG-REQ-1346).
+- Is interactive, with colors, only when standard output is a terminal, `--json` is absent
+  and `TERM` is not `dumb`; plain otherwise. A non-empty `NO_COLOR` removes colors.
+  `--quiet` shows only errors, `--verbose` adds one line per stage with its duration, and the
+  two together are an invalid command line (MG-REQ-1321, MG-REQ-1347).
 - Ends with an exit code of `contracts/events.md` section 2 (MG-REQ-0262). Every error has an
   `MG-####` code with a file in `errors/`, a hint, and its location when it has one
   (MG-REQ-0008, MG-REQ-1324, MG-REQ-1334).
@@ -20,7 +25,8 @@ The `mergus` binary; translates arguments and output only.
 
 ## What it does not
 
-- It has no command other than `validate` yet, no human output modes and no error layout.
+- It has no command other than `validate` yet, and no live tree or summary of the
+  interactive mode.
 - It never sets `actor` and ignores any actor given in an argument, a variable or a project
   file (MG-REQ-0264).
 - It holds no business logic: it parses input, calls other crates and renders their results.

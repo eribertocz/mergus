@@ -3,6 +3,8 @@
 mod contract;
 mod diagnostics;
 mod formats;
+mod human;
+mod layout;
 mod project;
 
 use std::path::Path;
@@ -69,6 +71,8 @@ pub(crate) struct Setup<'a> {
     pub(crate) vars: &'a [(&'a str, &'a str)],
     pub(crate) random: &'a dyn Random,
     pub(crate) seed: u64,
+    /// Whether standard output is a terminal.
+    pub(crate) terminal: bool,
 }
 
 impl Setup<'_> {
@@ -87,6 +91,7 @@ impl Setup<'_> {
             files: self.files,
             clock: &clock,
             random: self.random,
+            terminal: self.terminal,
         };
         let mut stdout = Vec::new();
         let mut stderr = Vec::new();
@@ -109,6 +114,7 @@ pub(crate) fn mergus(files: &dyn FileSystem, args: &[&str]) -> Outcome {
         vars: &[],
         random: &random,
         seed: 7,
+        terminal: false,
     }
     .run()
 }
