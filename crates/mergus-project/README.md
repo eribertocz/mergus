@@ -26,6 +26,12 @@ Read and validate the project: files, `project.toml`, folder `mergus.toml`.
   (MG-REQ-0333); `inherit = false` skips the parents (MG-REQ-0334); every value has its
   origin, file and line, `convention` or `default` (MG-REQ-0335, MG-REQ-0367). A configured
   `publish` overrides the folder rule.
+- Gives each model, source, source table and column a stable identifier, a prefix, `_` and 16
+  base32 characters (MG-REQ-0368): the one stored for its current name in `ids.toml`
+  (MG-REQ-0370), or one derived from its name with SHA-256 (MG-REQ-0369) that no `ids.toml`
+  value has. A model moved to another folder keeps it (MG-REQ-0209). An invalid `ids.toml` is
+  `MG-0310`, an identifier twice in it `MG-0311`, two objects with one identifier `MG-0312`
+  (MG-REQ-0371).
 - Collects every problem, not only the first, each file's problems ordered by line, code and
   key.
 

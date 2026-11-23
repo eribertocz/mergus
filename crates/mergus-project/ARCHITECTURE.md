@@ -17,8 +17,11 @@
 | `ModelOptions` | The effective options of one model, and its effective publication |
 | `Effective` | One option: a single `Setting`, or the `Setting` of each list item |
 | `Setting`, `Origin` | A JSON value and where it comes from: file and line, convention or default |
+| `Identifier`, `IdKind` | A stable identifier and the kind that picks its prefix |
+| `Renames` | The entries of `ids.toml`: current name to stored identifier |
+| `Identifiers` | Gives each object its identifier and collects the ones given twice |
 
-Functions: `read_layout`, `read_configuration`, `read_model_options`, `is_valid_name`, `suggest_valid_name` and `closest_name`.
+Functions: `read_layout`, `read_configuration`, `read_model_options`, `is_valid_name`, `suggest_valid_name`, `closest_name`, `read_renames` and `derive_identifier`.
 
 ## Data flow
 
@@ -53,6 +56,17 @@ Functions: `read_layout`, `read_configuration`, `read_model_options`, `is_valid_
    (`publish`) or its default; `checks` and `tags` take every level's items, first one wins.
    `null` stands for an option with no value.
 
+## Identifiers flow
+
+1. `read_renames` reads `ids.toml` if present: only `[model]` and `[source]`, each value an
+   identifier of its table's prefix, no identifier twice. Every value is reserved.
+2. The caller creates `Identifiers` with the `Renames` and asks for each object in a fixed
+   order: models and sources by name, source tables under their source's identifier, columns
+   under their model's or table's identifier.
+3. A model or source with an entry takes it; any other object takes the SHA-256 derivation of
+   MG-REQ-0369 with the first `<n>` from 0 whose result is not reserved.
+4. `finish` returns every identifier given to a second object, naming both and their files.
+
 ## Dependencies
 
 - `mergus-ports`: the `FileSystem` port and `PortError`.
@@ -62,4 +76,6 @@ Functions: `read_layout`, `read_configuration`, `read_model_options`, `is_valid_
 - `jsonschema` 0.63 without default features (no file or network resolution).
 - `serde_json`: the JSON values.
 - `thiserror`: derives the error types.
+- `sha2` without default features: the SHA-256 of derived identifiers (RustCrypto). Base32 is
+  written in this crate and tested against the vectors of RFC 4648.
 - `mergus-sim`, as a dev-dependency only: the in-memory file system of the tests.
