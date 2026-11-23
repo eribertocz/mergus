@@ -5,6 +5,7 @@
 mod known;
 mod tree;
 
+use std::collections::BTreeMap;
 use std::path::Path;
 
 use mergus_ports::{FileSystem, SqlParser};
@@ -56,16 +57,58 @@ pub fn check_sql(
     known: &KnownTables,
     parser: &dyn SqlParser,
 ) -> Result<Vec<ProjectError>, LayoutError> {
+    walk_sql(path, bytes, known, parser).map(|checked| checked.problems)
+}
+
+/// Returns the resolved references of every `.sql` model of `layout`, parsed by `parser`,
+/// by model name (MG-REQ-0373): lowercase, one per table read, a model bare and a raw table
+/// as `raw.<table>`, sorted. CTEs are not references. Python models are not listed.
+///
+/// # Errors
+///
+/// Fails as [`check_sql_models`] does, with every problem of every model when one has any.
+pub fn read_sql_references(
+    files: &dyn FileSystem,
+    root: &Path,
+    layout: &Layout,
+    configuration: &Configuration,
+    parser: &dyn SqlParser,
+) -> Result<BTreeMap<String, Vec<String>>, LayoutError> {
+    let known = KnownTables::new(layout, configuration);
+    let mut problems = Vec::new();
+    let mut references = BTreeMap::new();
+    for model in &layout.models {
+        if model.language == ModelLanguage::Sql {
+            let bytes = files.read(&root.join(&model.path))?;
+            let checked = walk_sql(&model.path, &bytes, &known, parser)?;
+            problems.extend(checked.problems);
+            references.insert(model.name.clone(), checked.references.into_iter().collect());
+        }
+    }
+    if problems.is_empty() {
+        Ok(references)
+    } else {
+        Err(LayoutError::Invalid(problems))
+    }
+}
+
+/// Walks the `.sql` model at `path` holding `bytes`: its problems ordered by line, then
+/// column, then code, and its resolved references.
+fn walk_sql(
+    path: &str,
+    bytes: &[u8],
+    known: &KnownTables,
+    parser: &dyn SqlParser,
+) -> Result<tree::Checked, LayoutError> {
     let Ok(text) = std::str::from_utf8(bytes) else {
         let at = Position { line: 1, column: 1 };
-        return Ok(vec![forbidden(
-            path,
-            at,
-            "text that is not UTF-8".to_owned(),
-        )]);
+        return Ok(tree::Checked {
+            problems: vec![forbidden(path, at, "text that is not UTF-8".to_owned())],
+            references: std::collections::BTreeSet::new(),
+        });
     };
     let tree = parser.parse(text)?;
-    let mut problems = match serde_json::from_str::<Value>(&tree) {
+    let mut checked = match serde_json::from_str::<Value>(&tree) {
         Ok(tree) => tree::check(path, text, &tree, known),
         Err(error) => {
             return Err(LayoutError::Port(mergus_ports::PortError::Failed(format!(
@@ -73,10 +116,10 @@ pub fn check_sql(
             ))));
         }
     };
-    problems.sort_by(|left, right| {
+    checked.problems.sort_by(|left, right| {
         (left.line(), left.column(), left.code()).cmp(&(right.line(), right.column(), right.code()))
     });
-    Ok(problems)
+    Ok(checked)
 }
 
 /// A line and a column of a text, both from 1, the column counted in Unicode scalar values.

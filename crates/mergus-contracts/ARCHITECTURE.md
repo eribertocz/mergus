@@ -45,5 +45,7 @@ The tests compile the types generated from `tests/fixtures/schemas/` into
   documents are validated as `serde_json::Value`. The feature `float_roundtrip` reads every
   number as its closest double, which canonical JSON needs.
 - `thiserror`: derives `SchemaError` and `EmitError`.
+- `sha2` without default features: the SHA-256 of `hash` (RustCrypto), so no other crate
+  depends on it (MG-REQ-0186).
 - A dev-dependency on `mergus-ports` with the feature `real`: the tests read the schemas and
   their examples through `RealFileSystem`. Dev-dependencies are not linked into other crates.

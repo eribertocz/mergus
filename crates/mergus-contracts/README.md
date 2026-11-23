@@ -13,6 +13,8 @@ Rust types generated from `schemas/`.
   major version it knows (MG-REQ-0206).
 - Serializes a document as canonical JSON (RFC 8785) with `canonical_json`; a
   `ValidDocument` gives the bytes to hash or sign with `hash_input` (MG-REQ-0208).
+- Gives SHA-256, the one hash Mergus uses, in `hash`: `sha256` and `sha256_hex`
+  (MG-REQ-0186).
 - Defines, in `names`, every name Mergus uses from another module (MG-REQ-0207).
 
 ## What it does not
@@ -23,7 +25,7 @@ Rust types generated from `schemas/`.
   another keyword is refused rather than half-checked.
 - It does not map an `EmitError` or a `ReadError` to a user-facing error code; the caller
   does.
-- It does not choose a hash algorithm: it gives the canonical bytes, and the caller hashes
-  them.
+- It does not decide what is hashed: it gives the canonical bytes and the SHA-256 function,
+  and the caller combines them.
 - It does not judge schema changes: the `contract-compatibility` guard of `xtask` does
   (MG-REQ-0205).

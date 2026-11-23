@@ -338,6 +338,17 @@ dependencies = [
  "mergus-ports",
  "serde",
  "serde_json",
+ "sha2",
+ "thiserror",
+]
+
+[[package]]
+name = "mergus-plan"
+version = "0.1.0"
+dependencies = [
+ "mergus-contracts",
+ "mergus-project",
+ "serde_json",
  "thiserror",
 ]
 
@@ -358,7 +369,6 @@ dependencies = [
  "mergus-ports",
  "mergus-sim",
  "serde_json",
- "sha2",
  "thiserror",
  "toml",
 ]

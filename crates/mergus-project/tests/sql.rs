@@ -7,7 +7,7 @@ use std::path::Path;
 use mergus_ports::FileSystem;
 use mergus_project::{
     ConfigFile, Configuration, KnownTables, Layout, LayoutError, Model, ModelLanguage,
-    ProjectError, Publication, Source, check_sql, check_sql_models,
+    ProjectError, Publication, Source, check_sql, check_sql_models, read_sql_references,
 };
 use mergus_sim::{SimFileSystem, SimSqlParser};
 use serde_json::{Value, json};
@@ -327,4 +327,58 @@ fn python_models_are_not_parsed() {
         ),
         Ok(())
     );
+}
+
+/// The resolved references of each `.sql` model of `models`, by name and fixture.
+fn references(models: &[(&str, &str)]) -> Result<Vec<(String, Vec<String>)>, LayoutError> {
+    let fs = SimFileSystem::new();
+    let (mut layout, configuration) = project();
+    for (name, fixture) in models {
+        let path = format!("models/staging/{name}.sql");
+        let full = Path::new("/project").join(&path);
+        if let Some(parent) = full.parent() {
+            fs.create_dir_all(parent)?;
+        }
+        fs.write(&full, sql(fixture).as_bytes())?;
+        layout.models.push(model(name, &path, ModelLanguage::Sql));
+    }
+    layout.models.remove(0);
+    let found = read_sql_references(
+        &fs,
+        Path::new("/project"),
+        &layout,
+        &configuration,
+        &parser(),
+    )?;
+    Ok(found.into_iter().collect())
+}
+
+#[test]
+fn mg_req_0373_resolved_references_listed() {
+    let found = references(&[
+        ("stg_orders", "source_table"),
+        ("a_model", "model"),
+        ("b_any_case", "model_any_case"),
+        ("d_seed", "seed"),
+        ("e_shadowing", "shadowing_cte"),
+        ("f_recursive", "recursive_cte"),
+    ]);
+    let owned = |names: &[&str]| names.iter().map(|name| (*name).to_owned()).collect();
+    // Lowercase, models bare, raw tables with `raw.`, CTEs left out; no
+    // Python model is listed.
+    assert_eq!(
+        found,
+        Ok(vec![
+            ("a_model".to_owned(), owned(&["stg_orders"])),
+            ("b_any_case".to_owned(), owned(&["stg_orders"])),
+            ("d_seed".to_owned(), owned(&["raw.seed__countries"])),
+            ("e_shadowing".to_owned(), owned(&[])),
+            ("f_recursive".to_owned(), owned(&[])),
+            ("stg_orders".to_owned(), owned(&["raw.erp__orders"])),
+        ])
+    );
+    let Err(LayoutError::Invalid(problems)) = references(&[("a_bad", "misspelled")]) else {
+        panic!("a model with a problem has no references");
+    };
+    assert_eq!(problems[0].code(), "MG-0313");
 }

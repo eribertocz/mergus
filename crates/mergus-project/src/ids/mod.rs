@@ -10,7 +10,7 @@ pub use file::{Renames, read_renames};
 
 use std::fmt;
 
-use sha2::{Digest, Sha256};
+use mergus_contracts::hash::sha256;
 
 /// The lowercase RFC 4648 base32 alphabet.
 const ALPHABET: &[u8; 32] = b"abcdefghijklmnopqrstuvwxyz234567";
@@ -104,7 +104,7 @@ pub fn derive_identifier(
 ) -> Identifier {
     let prefix = kind.prefix();
     let parent = parent.map_or("", Identifier::as_str);
-    let digest = Sha256::digest(format!("{prefix}\n{parent}\n{name}\n{n}").as_bytes());
+    let digest = sha256(format!("{prefix}\n{parent}\n{name}\n{n}").as_bytes());
     let mut bytes = [0_u8; HASH_BYTES];
     for (byte, hashed) in bytes.iter_mut().zip(digest.iter()) {
         *byte = *hashed;

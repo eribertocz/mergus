@@ -1,0 +1,151 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://mergus.dev/schemas/mergus_plan/v1/schema.json",
+  "title": "mergus_plan",
+  "description": "The plan: what a run would compute or skip for the selected models, each decision with its reason, identified by its hash (MG-REQ-0714, MG-REQ-0742). Every list is sorted by byte order unless stated.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "contract",
+    "contract_version",
+    "plan_id",
+    "mergus_version",
+    "environment",
+    "max_parallel",
+    "selected",
+    "steps",
+    "stale_upstream"
+  ],
+  "properties": {
+    "contract": {
+      "description": "The name of the contract.",
+      "const": "mergus_plan"
+    },
+    "contract_version": {
+      "description": "The major version of the contract.",
+      "const": 1
+    },
+    "plan_id": {
+      "description": "The lowercase hexadecimal SHA-256 of the canonical JSON of the plan without `plan_id` (MG-REQ-0743).",
+      "type": "string"
+    },
+    "mergus_version": {
+      "description": "The version of Mergus that made the plan.",
+      "type": "string"
+    },
+    "environment": {
+      "description": "The environment the plan is for (MG-REQ-0296.5).",
+      "type": "string"
+    },
+    "max_parallel": {
+      "description": "The most steps of one parallel group (MG-REQ-0744.1).",
+      "type": "integer"
+    },
+    "selected": {
+      "description": "The names of the selected models.",
+      "type": "array",
+      "items": {
+        "description": "One model name.",
+        "type": "string"
+      }
+    },
+    "steps": {
+      "description": "One step per selected model, sorted by parallel group and then by model name (MG-REQ-0744.3).",
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/step",
+        "description": "One step."
+      }
+    },
+    "stale_upstream": {
+      "description": "The models left out of the selection, upstream of a selected model, whose result is stale (MG-REQ-0745), sorted by model.",
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/stale",
+        "description": "One stale upstream model."
+      }
+    }
+  },
+  "$defs": {
+    "step": {
+      "description": "The decision for one selected model.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "model",
+        "model_id",
+        "fingerprint",
+        "inputs",
+        "action",
+        "reason",
+        "refresh",
+        "parallel_group"
+      ],
+      "properties": {
+        "model": {
+          "description": "The model name.",
+          "type": "string"
+        },
+        "model_id": {
+          "description": "The stable identifier of the model (MG-REQ-0368).",
+          "type": "string"
+        },
+        "fingerprint": {
+          "description": "The lowercase hexadecimal SHA-256 of the canonical JSON of what the model's result depends on (MG-REQ-0711, MG-REQ-0743).",
+          "type": "string"
+        },
+        "inputs": {
+          "description": "The tables the model reads: lowercase, a model bare, a raw table as `raw.<table>`.",
+          "type": "array",
+          "items": {
+            "description": "One input.",
+            "type": "string"
+          }
+        },
+        "action": {
+          "description": "Whether the model is computed or its available result reused (MG-REQ-0744.2).",
+          "enum": [
+            "compute",
+            "skip"
+          ]
+        },
+        "reason": {
+          "description": "Why: `result_available` for `skip`, `no_result` for `compute` (MG-REQ-0744.2).",
+          "enum": [
+            "no_result",
+            "result_available"
+          ]
+        },
+        "refresh": {
+          "description": "What is computed: the whole result.",
+          "enum": [
+            "full"
+          ]
+        },
+        "parallel_group": {
+          "description": "The parallel group of the step, from 1 (MG-REQ-0744.3).",
+          "type": "integer"
+        }
+      }
+    },
+    "stale": {
+      "description": "A model left out of the selection whose result is stale.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "model",
+        "include"
+      ],
+      "properties": {
+        "model": {
+          "description": "The stale model.",
+          "type": "string"
+        },
+        "include": {
+          "description": "The selector that includes it: `+<model>` of the first selected model downstream of it, in name order.",
+          "type": "string"
+        }
+      }
+    }
+  }
+}

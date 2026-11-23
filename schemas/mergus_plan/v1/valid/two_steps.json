@@ -1,0 +1,32 @@
+{
+  "contract": "mergus_plan",
+  "contract_version": 1,
+  "plan_id": "0f3c5d9b8e7a6c5b4a39281706f5e4d3c2b1a09f8e7d6c5b4a3928170f6e5d4c",
+  "mergus_version": "0.1.0",
+  "environment": "dev",
+  "max_parallel": 4,
+  "selected": ["fact_sales", "stg_orders"],
+  "steps": [
+    {
+      "model": "stg_orders",
+      "model_id": "mdl_abcdefghijklmnop",
+      "fingerprint": "1a2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f708192a3b4c5d6e7f809",
+      "inputs": ["raw.erp__orders"],
+      "action": "skip",
+      "reason": "result_available",
+      "refresh": "full",
+      "parallel_group": 1
+    },
+    {
+      "model": "fact_sales",
+      "model_id": "mdl_qrstuvwxyz234567",
+      "fingerprint": "9f8e7d6c5b4a39281706f5e4d3c2b1a09f8e7d6c5b4a39281706f5e4d3c2b1a0",
+      "inputs": ["stg_orders"],
+      "action": "compute",
+      "reason": "no_result",
+      "refresh": "full",
+      "parallel_group": 2
+    }
+  ],
+  "stale_upstream": []
+}
