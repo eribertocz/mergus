@@ -66,15 +66,18 @@ fn mg_req_0193_sql_parsed_without_execution() {
         assert_eq!(parser.parse(sql).unwrap(), *tree, "fixture `{name}`");
     }
 
-    let out = Path::new(env!("CARGO_TARGET_TMPDIR")).join("mg_req_0193_copy.csv");
+    // Integration tests run in the crate's directory: an executed `COPY` would create
+    // `mg_req_0193_copy.csv` there.
+    let out = Path::new("mg_req_0193_copy.csv");
     let files = RealFileSystem;
-    if files.exists(&out).unwrap() {
-        files.remove_file(&out).unwrap();
+    if files.exists(out).unwrap() {
+        files.remove_file(out).unwrap();
     }
-    let copy = format!("COPY (SELECT 1) TO '{}'", out.display());
-    let tree = parser.parse(&copy).unwrap();
+    let tree = parser
+        .parse("COPY (SELECT 1) TO 'mg_req_0193_copy.csv'")
+        .unwrap();
     assert!(tree.contains("Only SELECT statements"), "{tree}");
-    assert!(!files.exists(&out).unwrap(), "the text was executed");
+    assert!(!files.exists(out).unwrap(), "the text was executed");
 }
 
 #[test]
