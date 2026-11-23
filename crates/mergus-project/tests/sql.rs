@@ -1,6 +1,6 @@
 //! Tests of the checks of `.sql` models (MG-REQ-0193, MG-REQ-0307, MG-REQ-0308, MG-REQ-0373,
-//! MG-REQ-0374). The trees of `sql/` were recorded from the real parser; a test of
-//! `mergus-ports` checks that it still gives them.
+//! MG-REQ-0374). The trees of `sql/` were recorded from `json_serialize_sql` of the `duckdb`
+//! crate 1.20001.0 (features `bundled` and `json`); the real parser arrives with #123.
 
 use std::path::Path;
 

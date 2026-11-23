@@ -92,7 +92,7 @@ fn project_codes_are_in_the_catalog() {
     assert_eq!(project_error.code(), "MG-0301");
     for code in [
         "MG-0301", "MG-0302", "MG-0303", "MG-0304", "MG-0305", "MG-0306", "MG-0307", "MG-0308",
-        "MG-0309", "MG-0310", "MG-0311", "MG-0312", "MG-0313", "MG-0314",
+        "MG-0309",
     ] {
         assert!(catalog::entry(code).is_some(), "{code} has a catalog entry");
     }

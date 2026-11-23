@@ -13,7 +13,6 @@ mod schema;
 use std::cell::RefCell;
 use std::path::Path;
 
-use mergus_ports::real::RealSqlParser;
 use mergus_ports::{FileSystem, Random, Timestamp};
 use mergus_sim::{ClockFaults, SimClock, SimEnvironment, SimFileSystem, SimRandom};
 use serde_json::Value;
@@ -99,7 +98,6 @@ impl Setup<'_> {
             files: self.files,
             clock: &clock,
             random: self.random,
-            sql: &RealSqlParser::new(),
             terminal: self.terminal,
             input: input.as_ref().map(|typed| typed as &dyn Answers),
         };

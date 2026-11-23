@@ -128,35 +128,3 @@ fn mg_req_1345_validate_reports_all_and_writes_nothing() {
     let human = mergus(&valid, &["validate"]);
     assert_eq!((human.exit, human.stdout.as_str()), (0, ""));
 }
-
-#[test]
-fn mg_req_1345_validate_checks_sql_models() {
-    let files = project(&[
-        ("project.toml", PROJECT),
-        ("sources/erp.toml", "[tables.orders]\n"),
-        ("models/stg_orders.sql", "SELECT * FROM raw.erp__orders"),
-        ("models/fact_sales.sql", "SELECT *\nFROM stg_ordr"),
-        ("models/load.sql", "SELECT * FROM read_csv('orders.csv')"),
-    ]);
-    let outcome = mergus(&files, &["validate", "--json"]);
-    let found: Vec<(String, String, u64, u64)> = outcome
-        .of("diagnostic")
-        .iter()
-        .map(|d| {
-            let at = &d["location"];
-            (
-                d["code"].as_str().unwrap().to_owned(),
-                at["file"].as_str().unwrap().to_owned(),
-                at["line"].as_u64().unwrap(),
-                at["column"].as_u64().unwrap(),
-            )
-        })
-        .collect();
-    let expected = [
-        ("MG-0313", "models/fact_sales.sql", 2, 6),
-        ("MG-0314", "models/load.sql", 1, 15),
-    ]
-    .map(|(code, file, line, column)| (code.to_owned(), file.to_owned(), line, column));
-    assert_eq!(found, expected, "{outcome:?}");
-    assert_eq!(outcome.exit, 1);
-}

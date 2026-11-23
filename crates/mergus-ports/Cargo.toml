@@ -10,12 +10,10 @@ description = "I/O traits and their real implementations."
 [features]
 default = []
 # MG-REQ-0133: the real implementations compile only with this feature.
-real = ["dep:duckdb"]
+real = []
 
 [dependencies]
 thiserror = "2.0.21"
-# MG-REQ-0193: the real `SqlParser`; DuckDB and its JSON extension are compiled in.
-duckdb = { version = "=1.20001.0", default-features = false, features = ["bundled", "json"], optional = true }
 
 [lints]
 workspace = true

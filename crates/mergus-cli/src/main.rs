@@ -40,7 +40,7 @@ use std::cell::RefCell;
 use std::io::IsTerminal;
 use std::process::ExitCode;
 
-use mergus_ports::real::{RealClock, RealEnvironment, RealFileSystem, RealRandom, RealSqlParser};
+use mergus_ports::real::{RealClock, RealEnvironment, RealFileSystem, RealRandom};
 
 fn main() -> ExitCode {
     let random = RealRandom::new();
@@ -50,7 +50,6 @@ fn main() -> ExitCode {
         files: &RealFileSystem,
         clock: &RealClock::new(),
         random: &random,
-        sql: &RealSqlParser::new(),
         terminal: std::io::stdout().is_terminal(),
         input: std::io::stdin()
             .is_terminal()
