@@ -142,6 +142,56 @@ pub enum ProjectError {
         /// The closest model name of the folder (MG-REQ-0331).
         suggestion: Option<String>,
     },
+    /// `ids.toml` is not TOML 1.0, or has a table, key or value that MG-REQ-0370.1 does not
+    /// allow.
+    #[error("`{path}` line {line}: {}{message}", key_prefix(key.as_deref()))]
+    InvalidIds {
+        /// The path of the file.
+        path: String,
+        /// The line of the problem, from 1.
+        line: usize,
+        /// The key, dotted from the root of the file, when the problem has one.
+        key: Option<String>,
+        /// What is wrong.
+        message: String,
+    },
+    /// Two entries of `ids.toml` have the same identifier (MG-REQ-0370.3).
+    #[error(
+        "`{path}` line {line}: identifier `{identifier}` is given to both `{first}` and `{second}`"
+    )]
+    DuplicateIdsEntry {
+        /// The path of the file.
+        path: String,
+        /// The line of the later entry, from 1.
+        line: usize,
+        /// The identifier.
+        identifier: String,
+        /// The dotted key of the earlier entry.
+        first: String,
+        /// The dotted key of the later entry.
+        second: String,
+    },
+    /// Two objects resolve to the same identifier (MG-REQ-0371).
+    #[error(
+        "{first} (`{first_path}`) and {second} (`{path}`) have the same identifier `{identifier}`"
+    )]
+    DuplicateIdentifier {
+        /// The identifier.
+        identifier: String,
+        /// The earlier object.
+        first: String,
+        /// The path of the file that declares the earlier object.
+        first_path: String,
+        /// The later object.
+        second: String,
+        /// The path of the file that declares the later object.
+        path: String,
+    },
+}
+
+/// Formats the key of an error, when there is one.
+fn key_prefix(key: Option<&str>) -> String {
+    key.map_or_else(String::new, |key| format!("key `{key}` "))
 }
 
 /// Formats the closest valid name of an error, when there is one.
@@ -163,6 +213,9 @@ impl ProjectError {
             Self::NonFiniteFloat { .. } => "MG-0307",
             Self::UnknownSection { .. } => "MG-0308",
             Self::LiteralSecret { .. } => "MG-0309",
+            Self::InvalidIds { .. } => "MG-0310",
+            Self::DuplicateIdsEntry { .. } => "MG-0311",
+            Self::DuplicateIdentifier { .. } => "MG-0312",
         }
     }
 
@@ -178,7 +231,10 @@ impl ProjectError {
             | Self::Expression { path, .. }
             | Self::NonFiniteFloat { path, .. }
             | Self::UnknownSection { path, .. }
-            | Self::LiteralSecret { path, .. } => path,
+            | Self::LiteralSecret { path, .. }
+            | Self::InvalidIds { path, .. }
+            | Self::DuplicateIdsEntry { path, .. }
+            | Self::DuplicateIdentifier { path, .. } => path,
         }
     }
 
@@ -186,14 +242,18 @@ impl ProjectError {
     #[must_use]
     pub fn line(&self) -> Option<usize> {
         match self {
-            Self::DuplicateModel { .. } | Self::InvalidName { .. } => None,
+            Self::DuplicateModel { .. }
+            | Self::InvalidName { .. }
+            | Self::DuplicateIdentifier { .. } => None,
             Self::InvalidToml { line, .. }
             | Self::UnknownKey { line, .. }
             | Self::InvalidValue { line, .. }
             | Self::Expression { line, .. }
             | Self::NonFiniteFloat { line, .. }
             | Self::UnknownSection { line, .. }
-            | Self::LiteralSecret { line, .. } => Some(*line),
+            | Self::LiteralSecret { line, .. }
+            | Self::InvalidIds { line, .. }
+            | Self::DuplicateIdsEntry { line, .. } => Some(*line),
         }
     }
 
@@ -201,15 +261,18 @@ impl ProjectError {
     #[must_use]
     pub fn key(&self) -> Option<&str> {
         match self {
-            Self::DuplicateModel { .. } | Self::InvalidName { .. } | Self::InvalidToml { .. } => {
-                None
-            }
+            Self::DuplicateModel { .. }
+            | Self::InvalidName { .. }
+            | Self::InvalidToml { .. }
+            | Self::DuplicateIdentifier { .. } => None,
+            Self::InvalidIds { key, .. } => key.as_deref(),
             Self::UnknownKey { key, .. }
             | Self::InvalidValue { key, .. }
             | Self::Expression { key, .. }
             | Self::NonFiniteFloat { key, .. }
             | Self::UnknownSection { section: key, .. }
-            | Self::LiteralSecret { key, .. } => Some(key),
+            | Self::LiteralSecret { key, .. }
+            | Self::DuplicateIdsEntry { second: key, .. } => Some(key),
         }
     }
 }
