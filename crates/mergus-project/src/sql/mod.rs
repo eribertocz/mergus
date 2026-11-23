@@ -2,6 +2,7 @@
 //! known to the project (MG-REQ-0307, MG-REQ-0373), and they are one read-only `SELECT`
 //! (MG-REQ-0308, MG-REQ-0374).
 
+mod cycle;
 mod known;
 mod tree;
 
@@ -66,7 +67,9 @@ pub fn check_sql(
 ///
 /// # Errors
 ///
-/// Fails as [`check_sql_models`] does, with every problem of every model when one has any.
+/// Fails as [`check_sql_models`] does, with every problem of every model when one has any,
+/// followed by one [`ProjectError::ModelCycle`] for each group of models that read one
+/// another in a cycle (MG-REQ-0375).
 pub fn read_sql_references(
     files: &dyn FileSystem,
     root: &Path,
@@ -76,17 +79,21 @@ pub fn read_sql_references(
 ) -> Result<BTreeMap<String, Vec<String>>, LayoutError> {
     let known = KnownTables::new(layout, configuration);
     let mut problems = Vec::new();
-    let mut references = BTreeMap::new();
+    let mut found = Vec::new();
     for model in &layout.models {
         if model.language == ModelLanguage::Sql {
             let bytes = files.read(&root.join(&model.path))?;
             let checked = walk_sql(&model.path, &bytes, &known, parser)?;
             problems.extend(checked.problems);
-            references.insert(model.name.clone(), checked.references.into_iter().collect());
+            found.push((model, checked.references));
         }
     }
+    problems.extend(cycle::cycles(&found));
     if problems.is_empty() {
-        Ok(references)
+        Ok(found
+            .into_iter()
+            .map(|(model, references)| (model.name.clone(), references.into_keys().collect()))
+            .collect())
     } else {
         Err(LayoutError::Invalid(problems))
     }
@@ -104,7 +111,7 @@ fn walk_sql(
         let at = Position { line: 1, column: 1 };
         return Ok(tree::Checked {
             problems: vec![forbidden(path, at, "text that is not UTF-8".to_owned())],
-            references: std::collections::BTreeSet::new(),
+            references: std::collections::BTreeMap::new(),
         });
     };
     let tree = parser.parse(text)?;
@@ -123,7 +130,7 @@ fn walk_sql(
 }
 
 /// A line and a column of a text, both from 1, the column counted in Unicode scalar values.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub(crate) struct Position {
     pub(crate) line: usize,
     pub(crate) column: usize,
