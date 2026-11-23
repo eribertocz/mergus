@@ -130,6 +130,18 @@ rejected construct, with exit code 1, when:
 - Depends: MG-REQ-0308, MG-REQ-0193
 - Decision: 0023
 
+
+### MG-REQ-0375 · Models form no cycle
+
+The references of MG-REQ-0373 MUST NOT form a cycle between models. A cycle MUST be an error
+with exit code 1 naming every model of the cycle in reference order, starting from the first in
+name order, with the file and line of each reference that closes it.
+
+- Kind: behavior
+- Verify: test `mg_req_0375_model_cycle_rejected`
+- Phase: 0.2
+- Depends: MG-REQ-0373
+
 ### MG-REQ-0359 · Closest known name
 
 When an error names the closest known name (MG-REQ-0307, MG-REQ-0316, MG-REQ-0331), Mergus MUST
