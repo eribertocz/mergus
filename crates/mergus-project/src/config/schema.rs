@@ -2,7 +2,7 @@
 
 use jsonschema::ValidationError;
 use jsonschema::error::ValidationErrorKind;
-use jsonschema::paths::PathChunk;
+use jsonschema::paths::LocationSegment;
 use serde_json::Value;
 
 use super::ConfigKind;
@@ -29,10 +29,8 @@ pub(crate) fn validate(
         file,
         schema: &schema,
     };
-    if let Err(errors) = validator.validate(&file.value) {
-        for error in errors {
-            report.push(&error, problems);
-        }
+    for error in validator.iter_errors(&file.value) {
+        report.push(&error, problems);
     }
     Ok(())
 }
@@ -46,17 +44,16 @@ struct Report<'a> {
 impl Report<'_> {
     fn push(&self, error: &ValidationError<'_>, problems: &mut Vec<ProjectError>) {
         let at: Vec<Segment> = error
-            .instance_path
+            .instance_path()
             .iter()
-            .filter_map(|chunk| match chunk {
-                PathChunk::Property(key) => Some(Segment::Key(key.to_string())),
-                PathChunk::Index(index) => Some(Segment::Index(*index)),
-                PathChunk::Keyword(_) => None,
+            .map(|segment| match segment {
+                LocationSegment::Property(key) => Segment::Key(key.into_owned()),
+                LocationSegment::Index(index) => Segment::Index(index),
             })
             .collect();
-        match &error.kind {
+        match error.kind() {
             ValidationErrorKind::AdditionalProperties { unexpected } => {
-                let allowed = self.allowed_keys(&error.schema_path.to_string());
+                let allowed = self.allowed_keys(error.schema_path().as_str());
                 for key in unexpected {
                     let mut child = at.clone();
                     child.push(Segment::Key(key.clone()));

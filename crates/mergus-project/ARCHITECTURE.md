@@ -59,8 +59,7 @@ Functions: `read_layout`, `read_configuration`, `read_model_options`, `is_valid_
 - `mergus-contracts`: `canonical_json`, the RFC 8785 serializer.
 - `toml` 0.9.8, with `toml_parser` 1.0.4 in `Cargo.lock`: the last releases that parse TOML
   1.0 rather than 1.1.
-- `jsonschema` 0.20.0 without default features (no file or network resolution): later
-  releases depend on `borrow-or-share`, whose MIT-0 license `deny.toml` does not allow.
+- `jsonschema` 0.63 without default features (no file or network resolution).
 - `serde_json`: the JSON values.
 - `thiserror`: derives the error types.
 - `mergus-sim`, as a dev-dependency only: the in-memory file system of the tests.
