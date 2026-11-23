@@ -60,13 +60,21 @@ The repository MUST contain `LICENSE`, `NOTICE`, `CONTRIBUTING.md`, `CODE_OF_CON
 3. MG-REQ-1746.3: a source other than crates.io (no other registry, no git dependency);
 4. MG-REQ-1746.4: a wildcard version requirement.
 
-Duplicate versions of one crate are reported as warnings. Adding a license to the list needs
-a specification change and the owner's approval of `deny.toml` (MG-REQ-1723).
+5. MG-REQ-1746.5: anything else, except the exceptions of the table below. Each exception is
+   limited to one crate or one advisory and carries its reason in `deny.toml`.
+
+| Exception | Scope | Reason | Remove when |
+|---|---|---|---|
+| License `CC0-1.0` | crate `tiny-keccak` only | Public domain; reached through `arrow` of `duckdb` | No dependency needs it |
+| Advisory `RUSTSEC-2026-0543` | `chrono` | Unmaintained notice, no vulnerability; reached through `arrow` of `duckdb` | `duckdb` no longer pulls it |
+
+Duplicate versions of one crate are reported as warnings. Adding a license or an exception
+needs a specification change and the owner's approval of `deny.toml` (MG-REQ-1723).
 
 - Kind: process
 - Verify: check `cargo-deny`
 - Depends: MG-REQ-0125, MG-REQ-1745
-- Decision: 0003, 0021
+- Decision: 0003, 0021, 0028
 
 ### MG-REQ-1747 · License check
 
