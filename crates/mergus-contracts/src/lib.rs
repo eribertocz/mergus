@@ -14,6 +14,8 @@
 //! A document is hashed or signed only as its canonical JSON (RFC 8785):
 //! [`ValidDocument::hash_input`] and [`canonical_json`] give it (MG-REQ-0208).
 //!
+//! [`hash`] holds SHA-256, the only hash Mergus uses (MG-REQ-0186).
+//!
 //! The crate is pure: it performs no I/O (MG-REQ-0004).
 
 #![forbid(unsafe_code)]
@@ -22,6 +24,7 @@ mod canonical;
 mod emit;
 mod events;
 pub mod generated;
+pub mod hash;
 pub mod names;
 mod read;
 mod schema;

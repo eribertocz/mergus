@@ -70,12 +70,12 @@ Functions: `read_layout`, `read_configuration`, `read_model_options`, `is_valid_
 ## Dependencies
 
 - `mergus-ports`: the `FileSystem` port and `PortError`.
-- `mergus-contracts`: `canonical_json`, the RFC 8785 serializer.
+- `mergus-contracts`: `canonical_json`, the RFC 8785 serializer, and `hash::sha256`, the
+  SHA-256 of derived identifiers behind a Mergus interface (MG-REQ-0186).
 - `toml` 0.9.8, with `toml_parser` 1.0.4 in `Cargo.lock`: the last releases that parse TOML
   1.0 rather than 1.1.
 - `jsonschema` 0.63 without default features (no file or network resolution).
 - `serde_json`: the JSON values.
 - `thiserror`: derives the error types.
-- `sha2` without default features: the SHA-256 of derived identifiers (RustCrypto). Base32 is
-  written in this crate and tested against the vectors of RFC 4648.
+- Base32 is written in this crate and tested against the vectors of RFC 4648.
 - `mergus-sim`, as a dev-dependency only: the in-memory file system of the tests.

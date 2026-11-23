@@ -8,7 +8,9 @@ use mergus_contracts::generated::mergus_plan_v1::{
 use mergus_contracts::{Contract, ValidDocument, canonical_json, validate};
 use serde_json::Value;
 
-use crate::fingerprint::{FingerprintInputs, fingerprint, sha256_hex};
+use mergus_contracts::hash::sha256_hex;
+
+use crate::fingerprint::{FingerprintInputs, fingerprint};
 use crate::graph::Graph;
 use crate::{PlanError, PlanModel, PlanRequest};
 

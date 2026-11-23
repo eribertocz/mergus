@@ -10,7 +10,7 @@
 | `Plan` | The plan: its contract type and its validated document; read-only |
 | `PlanError` | An internal error: an unknown selected model, a cycle, a broken contract |
 
-Functions: `plan`, `fingerprint`, `sha256_hex`, `effective_config` and `lf_text`.
+Functions: `plan`, `fingerprint`, `effective_config` and `lf_text`.
 
 ## Data flow
 
@@ -34,8 +34,8 @@ Only `BTreeMap` and `BTreeSet` are used, so no output depends on hash order (MG-
 
 ## Dependencies
 
-- `mergus-contracts`: the generated `mergus_plan` type, `validate` and `canonical_json`.
+- `mergus-contracts`: the generated `mergus_plan` type, `validate`, `canonical_json` and
+  `hash::sha256_hex`, the SHA-256 behind a Mergus interface (MG-REQ-0186).
 - `mergus-project`: the read project (`ModelOptions`, `Effective`, `Identifier`).
 - `serde_json`: the JSON values of options and documents.
-- `sha2` without default features: SHA-256 (RustCrypto), as in `mergus-project`.
 - `thiserror`: derives `PlanError`.

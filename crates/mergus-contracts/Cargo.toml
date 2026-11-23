@@ -12,6 +12,8 @@ serde = { version = "1.0.229", features = ["derive"] }
 # `float_roundtrip` reads every number as the double closest to its text, which canonical
 # JSON needs (MG-REQ-0208).
 serde_json = { version = "1.0.154", features = ["float_roundtrip"] }
+# SHA-256 behind `hash` (MG-REQ-0186).
+sha2 = { version = "0.11.1", default-features = false }
 thiserror = "2.0.21"
 
 [lints]

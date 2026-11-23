@@ -9,7 +9,7 @@ use std::num::NonZeroU32;
 use mergus_plan::{Plan, PlanModel, PlanRequest, plan};
 use serde_json::Value;
 
-/// A model `name` whose code is `select from <inputs>` and that reads `inputs`.
+/// A model `name` that reads `inputs`, whose code names them.
 pub fn model(name: &str, inputs: &[&str]) -> PlanModel {
     PlanModel {
         name: name.to_owned(),
@@ -17,7 +17,7 @@ pub fn model(name: &str, inputs: &[&str]) -> PlanModel {
             "mdl_{:a<16}",
             name.replace('_', "").get(..10).unwrap_or(name)
         ),
-        code: format!("SELECT * FROM {}\n", inputs.join(", ")),
+        code: format!("model {name} reads {}\n", inputs.join(", ")),
         config: BTreeMap::from([("refresh".to_owned(), Value::from("full"))]),
         inputs: inputs.iter().map(|input| (*input).to_owned()).collect(),
     }

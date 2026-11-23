@@ -25,5 +25,5 @@ mod input;
 
 pub use build::{Plan, plan};
 pub use error::PlanError;
-pub use fingerprint::{FingerprintInputs, fingerprint, sha256_hex};
+pub use fingerprint::{FingerprintInputs, fingerprint};
 pub use input::{DEFAULT_MAX_PARALLEL, PlanModel, PlanRequest, effective_config, lf_text};

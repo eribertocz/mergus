@@ -155,6 +155,31 @@ fn keys(value: &Value) -> Vec<&str> {
     keys
 }
 
+/// The fields of a plan (MG-REQ-0742), sorted.
+const PLAN_FIELDS: [&str; 9] = [
+    "contract",
+    "contract_version",
+    "environment",
+    "max_parallel",
+    "mergus_version",
+    "plan_id",
+    "selected",
+    "stale_upstream",
+    "steps",
+];
+
+/// The fields of a step (MG-REQ-0742), sorted.
+const STEP_FIELDS: [&str; 8] = [
+    "action",
+    "fingerprint",
+    "inputs",
+    "model",
+    "model_id",
+    "parallel_group",
+    "reason",
+    "refresh",
+];
+
 #[test]
 fn mg_req_0742_plan_contract_fields() {
     assert_eq!(
@@ -169,33 +194,8 @@ fn mg_req_0742_plan_contract_fields() {
     );
     let plan = planned(&shop(), &request(&["stg_orders", "fact_sales"]));
     let value = plan.valid().value();
-    assert_eq!(
-        keys(value),
-        [
-            "contract",
-            "contract_version",
-            "environment",
-            "max_parallel",
-            "mergus_version",
-            "plan_id",
-            "selected",
-            "stale_upstream",
-            "steps",
-        ]
-    );
-    assert_eq!(
-        keys(&value["steps"][0]),
-        [
-            "action",
-            "fingerprint",
-            "inputs",
-            "model",
-            "model_id",
-            "parallel_group",
-            "reason",
-            "refresh",
-        ]
-    );
+    assert_eq!(keys(value), PLAN_FIELDS);
+    assert_eq!(keys(&value["steps"][0]), STEP_FIELDS);
     assert_eq!(value["contract"], json!("mergus_plan"));
     assert_eq!(value["contract_version"], json!(1));
     assert_eq!(value["environment"], json!("dev"));

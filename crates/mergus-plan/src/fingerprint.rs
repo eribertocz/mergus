@@ -1,11 +1,10 @@
 //! Fingerprints (MG-REQ-0711, MG-REQ-0743).
 
 use std::collections::BTreeMap;
-use std::fmt::Write;
 
 use mergus_contracts::canonical_json;
+use mergus_contracts::hash::sha256_hex;
 use serde_json::{Map, Value};
-use sha2::{Digest, Sha256};
 
 /// Everything a model's fingerprint is made of, and nothing else (MG-REQ-0743).
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -43,17 +42,6 @@ pub fn fingerprint(of: &FingerprintInputs<'_>) -> String {
     );
     object.insert("output_contract".to_owned(), optional(of.output_contract));
     sha256_hex(canonical_json(&Value::Object(object)).as_bytes())
-}
-
-/// Returns the lowercase hexadecimal SHA-256 of `bytes`.
-#[must_use]
-pub fn sha256_hex(bytes: &[u8]) -> String {
-    Sha256::digest(bytes)
-        .iter()
-        .fold(String::with_capacity(64), |mut out, byte| {
-            let _ = write!(out, "{byte:02x}");
-            out
-        })
 }
 
 /// A JSON object with the entries of `entries`, each value converted by `convert`.

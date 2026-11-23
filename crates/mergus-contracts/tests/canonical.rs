@@ -125,3 +125,18 @@ fn mg_req_0208_strings_and_integers() {
         "{\"a\":\"\\b\\t\\n\\f\\r\\u001f\u{7f}\u{2028}\",\"b\":[9007199254740992,-1,{}]}"
     );
 }
+
+/// SHA-256 behind the Mergus interface (MG-REQ-0186), against the FIPS 180-2 vectors.
+#[test]
+fn sha256_matches_the_fips_vectors() {
+    use mergus_contracts::hash::{sha256, sha256_hex};
+    assert_eq!(
+        sha256_hex(b"abc"),
+        "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"
+    );
+    assert_eq!(
+        sha256_hex(b""),
+        "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    );
+    assert_eq!(sha256(b"abc")[..2], [0xba, 0x78]);
+}
