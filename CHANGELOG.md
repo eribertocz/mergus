@@ -2,6 +2,72 @@
 
 All notable changes to Mergus. Generated from the commit messages of `main`.
 
+## 0.2.0 - 2026-11-24
+
+Phase 0.2, Read and plan: project layout and configuration, the plan, the commands
+`mergus validate`, `plan`, `ls` and `--json`, the error catalog and the events contract.
+
+### Features
+
+- feat(xtask): release scope accepts the root Cargo.lock and members inherit the version (#74)
+- feat(cli): create the mergus-cli crate with the product name in one constant (#75)
+- feat(xtask): add the error-catalog check (#76)
+- feat(project): read models from the layout and check names (#77)
+- feat(project): read project.toml and sources with schemas and canonical JSON (#78)
+- feat(project): keep the schemas in the crate and the source schema open (#78)
+- feat(project): read folder mergus.toml and resolve model options with origins (#79)
+- feat(project): reject literal secrets in configuration files (#91)
+- feat(ports): arguments and current directory in Environment, real Environment and Random (#81)
+- feat(cli): --json events, exit codes and mergus validate (#81)
+- feat(cli): human output modes, error layout and errors grouped by file (#82)
+- feat(project): stable identifiers and ids.toml (#106)
+- feat(cli): mergus schema, init, new model and add source (#84)
+- feat(project): SQL parser port, known references and read-only SQL (#80)
+- feat(project): return the resolved references of each SQL model (#83)
+- feat(plan): fingerprints, decisions and the mergus_plan artifact (#83)
+- feat(project): reject reference cycles between models (#133)
+- feat(ports): real SqlParser over DuckDB, wired into mergus validate (#127)
+- feat(cli): selection, settings, explain and plan (#111)
+
+### Fixes
+
+- fix(xtask): fail MG-REQ-1739.5 on a member without any version (#90)
+- fix(project): sort configuration problems by line, code and key (#79)
+- fix(cli): read the user configuration file through mergus-project (#111)
+
+### Refactoring
+
+- refactor(xtask): extract the gate findings of release-gates (#74)
+- refactor(project): extract the UTF-8 check of configuration files (#79)
+- refactor(cli): split init and its test under 50 lines (#84)
+- refactor(ports): drop the real SQL parser until #123 (#80)
+- refactor: wrap SHA-256 in mergus-contracts (MG-REQ-0186) (#83)
+- refactor(cli): share the collection of project problems (#111)
+- refactor(cli): split mergus plan and its test under 50 lines (#111)
+
+### Tests
+
+- test(project): split the MG-REQ-0305 layout test under 50 lines (#77)
+- test(project): split the literal-secret test and build its key marker (#91)
+- test(cli): split long rule tests under the size limit (#81)
+- test(project): write the SQL of the cycle tests as literals (#133)
+- test(ports): write the SQL of the COPY test as a literal (#127)
+- test(ports): compare SQL trees as JSON values (#127)
+
+### Build
+
+- build(project): lift the jsonschema =0.20.0 pin to 0.63 (#104)
+- build(deny): scoped exceptions for tiny-keccak and RUSTSEC-2026-0543 (#126)
+
+### Chores
+
+- chore(deny): allow MIT-0 license (#99)
+
+### Continuous integration
+
+- ci: thirty-minute limit for the ci and traceability jobs (#138)
+- ci: sixty-minute limit for the Windows ci job (#142)
+
 ## 0.1.0 - 2026-11-21
 
 Phase 0.1, Foundations: repository, CI guards, specification tool, ports, simulator

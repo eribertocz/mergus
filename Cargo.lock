@@ -893,7 +893,7 @@ checksum = "cf8baf1c55e62ffcace7a9f06f4bd9cd3f0c4beb022d3b367256b91b87513d98"
 
 [[package]]
 name = "mergus-cli"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "mergus-contracts",
  "mergus-plan",
@@ -906,7 +906,7 @@ dependencies = [
 
 [[package]]
 name = "mergus-contracts"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "mergus-ports",
  "serde",
@@ -917,7 +917,7 @@ dependencies = [
 
 [[package]]
 name = "mergus-plan"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "mergus-contracts",
  "mergus-project",
@@ -927,7 +927,7 @@ dependencies = [
 
 [[package]]
 name = "mergus-ports"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "duckdb",
  "mergus-ports",
@@ -937,7 +937,7 @@ dependencies = [
 
 [[package]]
 name = "mergus-project"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "jsonschema",
  "mergus-contracts",
@@ -950,7 +950,7 @@ dependencies = [
 
 [[package]]
 name = "mergus-sim"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "mergus-ports",
 ]
@@ -1676,7 +1676,7 @@ dependencies = [
 
 [[package]]
 name = "xtask"
-version = "0.1.0"
+version = "0.2.0"
 
 [[package]]
 name = "zerocopy"
