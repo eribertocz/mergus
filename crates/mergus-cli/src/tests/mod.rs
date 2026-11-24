@@ -196,8 +196,14 @@ pub(crate) fn broken() -> SimFileSystem {
 pub(crate) fn shop() -> SimFileSystem {
     project(&[
         ("project.toml", PROJECT),
-        ("sources/erp.toml", "[tables.orders]\n"),
-        ("sources/crm.toml", "[tables.customers]\n"),
+        (
+            "sources/erp.toml",
+            "kind = \"database\"\nconnection = \"secret:erp\"\n[tables.orders]\n",
+        ),
+        (
+            "sources/crm.toml",
+            "kind = \"database\"\nconnection = \"secret:crm\"\n[tables.customers]\n",
+        ),
         (
             "models/staging/mergus.toml",
             "[all]\ntags = [\"staging\"]\n",

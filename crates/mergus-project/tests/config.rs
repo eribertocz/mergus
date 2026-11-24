@@ -41,8 +41,8 @@ fn canonical(project: &str) -> Result<String, LayoutError> {
 fn mg_req_0306_source_name_is_file_stem() {
     let configuration = read(&[
         ("project.toml", PROJECT),
-        ("sources/crm.toml", ""),
-        ("sources/erp.toml", "# no key yet\n"),
+        ("sources/crm.toml", "kind = \"rest\"\n"),
+        ("sources/erp.toml", "# a REST source\nkind = \"rest\"\n"),
     ])
     .unwrap();
     let names: Vec<&str> = configuration
@@ -155,6 +155,10 @@ fn mg_req_0361_configuration_schemas_are_closed() {
         assert!(schema["properties"].get("contract_version").is_none());
         check_node(&schema, "#", kind == ConfigKind::Source);
     }
+    let source: serde_json::Value = serde_json::from_str(ConfigKind::Source.schema()).unwrap();
+    for kind in ["database", "files", "rest"] {
+        assert_eq!(source["$defs"][kind]["properties"]["kind"]["const"], kind);
+    }
 }
 
 /// The keywords MG-REQ-0361 allows: those of contract schemas and its additions.
@@ -182,8 +186,9 @@ const KEYWORDS: [&str; 19] = [
 
 /// Checks that a schema node and every node under it is described, closed when it is an
 /// object, and uses only allowed keywords.
-/// The root of the source schema is the one open object (MG-REQ-0362.3): `open` says so.
-fn check_node(node: &serde_json::Value, at: &str, open: bool) {
+/// A REST source is the one open object (MG-REQ-0376.7): `source` says the node is in the
+/// source schema, where `#/$defs/rest` is that object.
+fn check_node(node: &serde_json::Value, at: &str, source: bool) {
     assert!(node.is_object(), "{at}: not an object");
     let Some(map) = node.as_object() else {
         return;
@@ -199,9 +204,15 @@ fn check_node(node: &serde_json::Value, at: &str, open: bool) {
             .is_some_and(serde_json::Value::is_string),
         "{at}: description"
     );
-    if open {
+    if source && at == "#/$defs/rest" {
         assert!(map.get("additionalProperties").is_none(), "{at}: open");
-        assert!(map.get("properties").is_none(), "{at}: no key yet");
+        let keys: Vec<&String> = map
+            .get("properties")
+            .and_then(serde_json::Value::as_object)
+            .into_iter()
+            .flat_map(serde_json::Map::keys)
+            .collect();
+        assert_eq!(keys, ["kind"], "{at}");
     } else if map.get("type").is_some_and(|kind| kind == "object") {
         assert_eq!(
             map.get("additionalProperties"),
@@ -210,7 +221,7 @@ fn check_node(node: &serde_json::Value, at: &str, open: bool) {
         );
     }
     for (path, child) in children(map) {
-        check_node(child, &format!("{at}/{path}"), false);
+        check_node(child, &format!("{at}/{path}"), source);
     }
 }
 
@@ -262,15 +273,24 @@ fn mg_req_0362_only_due_keys_are_known() {
     let keys: Vec<Option<&str>> = later.iter().map(ProjectError::key).collect();
     assert_eq!(keys, [Some("strict_integrity"), Some("environments")]);
 
-    let source = read(&[
+    // MG-REQ-0362.3: from phase 0.3 the source schema holds the keys of MG-REQ-0376, and a
+    // REST source stays open (MG-REQ-0376.7).
+    let source: serde_json::Value = serde_json::from_str(ConfigKind::Source.schema()).unwrap();
+    let mut source_keys: Vec<&str> = source["$defs"]["database"]["properties"]
+        .as_object()
+        .unwrap()
+        .keys()
+        .map(String::as_str)
+        .collect();
+    source_keys.sort_unstable();
+    let due = "connection kind load location max_connections mode overlap query_timeout raw \
+               replica retention tables window";
+    assert_eq!(source_keys, due.split_whitespace().collect::<Vec<_>>());
+    let rest = read(&[
         ("project.toml", PROJECT),
-        (
-            "sources/crm.toml",
-            "kind = \"postgres\"\n[options]\nport = 5432\n",
-        ),
-    ])
-    .unwrap();
-    assert_eq!(source.sources[0].file.value["options"]["port"], 5432);
+        ("sources/crm.toml", "kind = \"rest\"\nport = 1\n"),
+    ]);
+    assert_eq!(rest.unwrap().sources[0].file.value["port"], 1);
     let broken = problems!(&[("project.toml", PROJECT), ("sources/crm.toml", "kind = \n")]);
     assert_eq!(broken[0].code(), "MG-0303");
     assert_eq!(broken[0].path(), "sources/crm.toml");
@@ -293,15 +313,18 @@ fn mg_req_0364_expressions_rejected() {
     }
     let source = problems!(&[
         ("project.toml", PROJECT),
-        ("sources/crm.toml", "hosts = [\"a\", \"${b}\"]\n"),
+        (
+            "sources/crm.toml",
+            "kind = \"rest\"\nhosts = [\"a\", \"${b}\"]\n",
+        ),
     ]);
     assert_eq!(source[0].key(), Some("hosts[1]"));
-    assert_eq!(source[0].line(), Some(1));
+    assert_eq!(source[0].line(), Some(2));
 }
 
 #[test]
 fn mg_req_0365_toml_maps_to_canonical_json() {
-    let source = "s = \"é\\n\"\nt = true\ni = 0x1F\nn = -7\nf = 1.50\ne = 1e3\nz = -0.0\n\
+    let source = "kind = \"rest\"\ns = \"é\\n\"\nt = true\ni = 0x1F\nn = -7\nf = 1.50\ne = 1e3\nz = -0.0\n\
                   a = [1, \"x\"]\n[tab]\nb = { c = 1 }\n\
                   [dates]\nodt = 1979-05-27 07:32:00.500Z\nzero = 1979-05-27t07:32:00+00:00\n\
                   off = 1979-05-27 07:32:00.123000-07:00\nldt = 1979-05-27T07:32:00\n\
@@ -313,11 +336,12 @@ fn mg_req_0365_toml_maps_to_canonical_json() {
             r#"{"a":[1,"x"],"dates":{"ld":"1979-05-27","ldt":"1979-05-27T07:32:00","#,
             r#""lt":"07:32:00","odt":"1979-05-27T07:32:00.5Z","#,
             r#""off":"1979-05-27T07:32:00.123-07:00","zero":"1979-05-27T07:32:00Z"},"#,
-            r#""e":1000,"f":1.5,"i":31,"n":-7,"s":"é\n","t":true,"tab":{"b":{"c":1}},"z":0}"#
+            r#""e":1000,"f":1.5,"i":31,"kind":"rest","n":-7,"s":"é\n","t":true,"tab":{"b":{"c":1}},"z":0}"#
         )
     );
     for bad in ["f = nan\n", "f = +inf\n", "f = -inf\n"] {
-        let found = problems!(&[("project.toml", PROJECT), ("sources/crm.toml", bad)]);
+        let bad = format!("kind = \"rest\"\n{bad}");
+        let found = problems!(&[("project.toml", PROJECT), ("sources/crm.toml", &bad)]);
         assert_eq!(found[0].code(), "MG-0307");
         assert_eq!(found[0].key(), Some("f"));
     }
