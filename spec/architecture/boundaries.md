@@ -96,9 +96,9 @@ following holds. Workspace members are the crates of the crate table in
    MG-REQ-0121, MG-REQ-0133).
 6. MG-REQ-0126.6: `mergus-plan` depends, directly or through normal dependencies, on an
    engine, source or adapter crate or on `mergus-runtime` (MG-REQ-0121).
-7. MG-REQ-0126.7: a member other than `mergus-ports` depends on the `keyring` or the
-   `duckdb` crate, or `mergus-ports` depends on either outside its feature `real`
-   (MG-REQ-0123, MG-REQ-0133, MG-REQ-0194).
+7. MG-REQ-0126.7: a member other than `mergus-ports` depends on the `keyring` crate, the
+   `duckdb` crate or a crate named `adbc_*`, or `mergus-ports` depends on one of them
+   outside its feature `real` (MG-REQ-0123, MG-REQ-0133, MG-REQ-0194, MG-REQ-0195).
 8. MG-REQ-0126.8: a member depends on `mergus-sim` or `mergus-testkit` outside
    `[dev-dependencies]` (MG-REQ-0124).
 
@@ -106,4 +106,4 @@ A rule that names a crate that does not exist yet is skipped for that crate.
 
 - Kind: process
 - Verify: check `boundaries`
-- Decision: 0001, 0032
+- Decision: 0001, 0032, 0033

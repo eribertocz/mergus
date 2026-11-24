@@ -18,7 +18,7 @@ wires the real implementation; tests and the simulator wire simulated ones.
 | `FileSystem` | Local files and directories |
 | `ObjectStore` | S3-compatible and local object storage |
 | `Network` | HTTP and TCP connections |
-| `SourceConnector` | ADBC connections and file readers of sources |
+| `SourceConnector` | ADBC connections and file readers of sources, returning Arrow |
 | `Random` | Random numbers and identifiers |
 | `Process` | Child processes |
 | `Environment` | Command-line arguments, current directory, environment variables and the user configuration directory |
@@ -97,4 +97,28 @@ simulated `SqlParser` does, and injects the faults of `architecture/testing.md`.
 - Phase: 0.3
 - Depends: MG-REQ-0186
 - Decision: 0032
+
+### MG-REQ-0195 · ADBC drivers are pinned, verified and cached
+
+Database sources MUST be read through ADBC by the real `SourceConnector`, which alone
+depends on the ADBC crates (MG-REQ-0186). It loads only the drivers that the Mergus release
+pins, starting with PostgreSQL in phase 0.3:
+
+1. MG-REQ-0195.1: each driver library is fetched from the release artifacts of Apache Arrow
+   ADBC, at a URL and a SHA-256 sum pinned per operating system and architecture in the
+   Mergus release, and is refused when its sum differs;
+2. MG-REQ-0195.2: it is stored in `mergus/adbc/drivers/` under the user cache directory the
+   first time a source needs it, and loaded from there with no network on later uses;
+3. MG-REQ-0195.3: a driver that is missing and cannot be fetched, or a database with no
+   pinned driver, fails with a typed error that names the database, the host and the cache
+   directory.
+
+Its simulated implementation serves Arrow batches from in-memory tables and injects the
+faults of `architecture/testing.md`.
+
+- Kind: behavior
+- Verify: test `mg_req_0195_adbc_driver_pinned_and_cached`
+- Phase: 0.3
+- Depends: MG-REQ-0186, MG-REQ-0401
+- Decision: 0033
 
