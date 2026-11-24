@@ -28,7 +28,7 @@ Phase 0.3 starts. Its first issues would have to guess observable behavior (MG-R
   becomes MG-REQ-1006, in phase 0.9.
 - MG-REQ-1007 defines `mergus secret set <name>`: the value comes from standard input, never
   from an argument, so it does not land in shell history.
-- MG-REQ-0408 lists the keys of a source file. Files sources get `location` per source, and
+- MG-REQ-0376 lists the keys of a source file. Files sources get `location` per source, and
   `path` and `format` per table. REST sources stay open until phase 0.8.
 
 ## Consequences
