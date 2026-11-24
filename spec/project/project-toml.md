@@ -207,6 +207,6 @@ The schema of `sources/*.toml` MUST hold exactly these keys, and every other key
 - Kind: behavior
 - Verify: test `mg_req_0376_source_keys`
 - Phase: 0.3
-- Depends: MG-REQ-0361, MG-REQ-0401
+- Depends: MG-REQ-0361, MG-REQ-0401, MG-REQ-1001
 - Decision: 0031
 
