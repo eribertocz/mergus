@@ -6,6 +6,7 @@
 mod clock;
 mod environment;
 mod file_system;
+mod keychain;
 mod process;
 mod random;
 mod sql_parser;
@@ -13,6 +14,7 @@ mod sql_parser;
 pub use clock::RealClock;
 pub use environment::RealEnvironment;
 pub use file_system::RealFileSystem;
+pub use keychain::RealKeychain;
 pub use process::RealProcess;
 pub use random::RealRandom;
 pub use sql_parser::RealSqlParser;

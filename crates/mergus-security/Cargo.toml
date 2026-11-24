@@ -1,0 +1,23 @@
+[package]
+name = "mergus-security"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+description = "Secret resolution, PII handling, hash chains."
+
+[dependencies]
+mergus-ports = { path = "../mergus-ports" }
+mergus-project = { path = "../mergus-project" }
+# MG-REQ-1002: resolved values are held in `SecretString`, which cannot be printed or
+# serialized. The feature `serde` stays off.
+secrecy = "0.10.3"
+thiserror = "2.0.21"
+
+[lints]
+workspace = true
+
+[dev-dependencies]
+mergus-sim = { path = "../mergus-sim" }
+serde = "1.0.229"
