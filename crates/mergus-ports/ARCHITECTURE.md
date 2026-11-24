@@ -32,5 +32,6 @@ Every trait is `Send + Sync` and takes `&self`, so one value can be shared behin
   in-memory DuckDB of `RealSqlParser` (MG-REQ-0193).
 - The standard library, used directly only in `src/real/`, which allows Clippy's
   `disallowed_methods` and `disallowed_types` with a written reason (MG-REQ-0130).
+- A dev-dependency on `serde_json`, to compare trees as JSON values in tests.
 - A dev-dependency on itself with the feature `real`, so `cargo test` runs the tests of the
   real implementations. Dev-dependencies are not linked into other crates.

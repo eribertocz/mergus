@@ -24,3 +24,4 @@ workspace = true
 # linked into other crates, so this does not enable it anywhere else (MG-REQ-0126.5).
 [dev-dependencies]
 mergus-ports = { path = ".", features = ["real"] }
+serde_json = "1.0.154"

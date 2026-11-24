@@ -59,11 +59,21 @@ const FIXTURES: &[(&str, &str, &str)] = &[
     fixture!("with_catalog"),
 ];
 
+/// The JSON value of `tree`. Trees are compared as values: DuckDB orders the keys of an error
+/// object differently on Windows, and `mergus-project` reads the tree as JSON.
+fn json(tree: &str) -> serde_json::Result<serde_json::Value> {
+    serde_json::from_str(tree)
+}
+
 #[test]
 fn mg_req_0193_sql_parsed_without_execution() {
     let parser = RealSqlParser::new();
     for (name, sql, tree) in FIXTURES {
-        assert_eq!(parser.parse(sql).unwrap(), *tree, "fixture `{name}`");
+        assert_eq!(
+            json(&parser.parse(sql).unwrap()).unwrap(),
+            json(tree).unwrap(),
+            "fixture `{name}`"
+        );
     }
 
     // Integration tests run in the crate's directory: an executed `COPY` would create
@@ -91,6 +101,6 @@ fn real_sql_parser_is_shared_between_threads() {
         })
         .collect();
     for thread in threads {
-        assert_eq!(thread.join().unwrap(), tree);
+        assert_eq!(json(&thread.join().unwrap()).unwrap(), json(tree).unwrap());
     }
 }
