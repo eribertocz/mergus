@@ -11,7 +11,7 @@ depends_on: [governance-workflow]
 
 For the specifier, the release preparer and the owner. Implementers never read it.
 
-Current phase: 0.2
+Current phase: 0.3
 
 Every rule belongs to a phase: the `phase` of its file, or its own `Phase`. `just spec-status`
 prints every rule with its phase and state. The specifier files the issues of a phase with the

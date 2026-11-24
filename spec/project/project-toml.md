@@ -126,9 +126,9 @@ phase 0.2 the schemas hold exactly:
    each with `profile` and `location`, both strings;
 2. MG-REQ-0362.2: folder `mergus.toml`: the table `[all]` and one table per model, each with
    the options of MG-REQ-0366;
-3. MG-REQ-0362.3: `sources/*.toml`: no key yet. Until the rules of `extract/sources.md` are
-   due, the source schema is the one open object of MG-REQ-0361: any key is accepted, and only
-   TOML syntax, MG-REQ-0364 and MG-REQ-0320 apply to a source file.
+3. MG-REQ-0362.3: `sources/*.toml`: no key in phase 0.2, when the source schema is the one
+   open object of MG-REQ-0361 and any key is accepted. From phase 0.3 it holds the keys of
+   MG-REQ-0376.
 
 Each later phase adds its keys as a minor version of the schema (MG-REQ-0204).
 
@@ -179,3 +179,34 @@ serialized as RFC 8785.
 - Verify: test `mg_req_0365_toml_maps_to_canonical_json`
 - Depends: MG-REQ-0318
 - Decision: 0018
+
+### MG-REQ-0376 · Keys of a source file
+
+The schema of `sources/*.toml` MUST hold exactly these keys, and every other key is an error
+(MG-REQ-0361). Durations are those of MG-REQ-0366.5; table names are names of MG-REQ-0305.
+
+1. MG-REQ-0376.1: `kind` (required): `database`, `files` or `rest`;
+2. MG-REQ-0376.2: `mode`: `copy`, `connect` or `live`; `raw`: a boolean; `retention`: a
+   duration;
+3. MG-REQ-0376.3: `connection` (required when `kind` is `database`) and `replica`: secret
+   references of MG-REQ-1001;
+4. MG-REQ-0376.4: `location` (required when `kind` is `files`): a non-empty string, a local
+   directory relative to the project root or an object-store URL prefix;
+5. MG-REQ-0376.5: the source options of `extract/source-care.md`: `load` (`low`, `normal` or
+   `high`), `max_connections` (an integer from 1), `window` (`"HH:MM-HH:MM"`, 24-hour, which
+   may cross midnight) and `query_timeout` (a duration); and `overlap` (a duration);
+6. MG-REQ-0376.6: `tables`: one table per declared table, each with the options of
+   `extract/loads.md`: `key` (a name or a non-empty list of names), `incremental` (a name),
+   `overlap`, `deletes` (`column:<name>`, `compare` or `none`), `delete_check` (`every_run`,
+   `hourly`, `daily` or `weekly`) and `delete_window` (a duration); with `kind = "files"`,
+   also `path` (required: a glob under `location`) and `format` (required: `parquet`, `csv` or
+   `json`);
+7. MG-REQ-0376.7: with `kind = "rest"`, until the rules of `extract/rest.md` are due, the
+   source is the one open object of MG-REQ-0361: any other key is accepted.
+
+- Kind: behavior
+- Verify: test `mg_req_0376_source_keys`
+- Phase: 0.3
+- Depends: MG-REQ-0361, MG-REQ-0401
+- Decision: 0031
+
