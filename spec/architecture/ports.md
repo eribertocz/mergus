@@ -23,6 +23,7 @@ wires the real implementation; tests and the simulator wire simulated ones.
 | `Process` | Child processes |
 | `Environment` | Command-line arguments, current directory, environment variables and the user configuration directory |
 | `SqlParser` | DuckDB's SQL parser, without executing anything |
+| `Database` | In-process DuckDB connections: run SQL, read and write Arrow, attach DuckLake catalogs |
 | `Keychain` | Entries of the operating system keychain: read, write and delete by service and account |
 
 ### MG-REQ-0130 · Only ports touch the world
@@ -73,3 +74,27 @@ returns trees recorded from the real one.
 - Verify: test `mg_req_0193_sql_parsed_without_execution`
 - Phase: 0.2
 - Decision: 0023
+
+### MG-REQ-0194 · DuckDB only through the Database port
+
+Crates other than `mergus-ports` MUST NOT depend on the `duckdb` crate; they reach DuckDB
+through the `Database` port (MG-REQ-0186). Its real implementation MUST disable the automatic
+installing and loading of extensions, MUST NOT allow unsigned extensions, and MAY install and
+load only the `ducklake` extension:
+
+1. MG-REQ-0194.1: at the version that matches the DuckDB of the release's `duckdb` crate, from
+   `extensions.duckdb.org`, with DuckDB's signature check;
+2. MG-REQ-0194.2: into `mergus/duckdb/extensions/` under the user cache directory, the first
+   time it is needed, and from there with no network on later uses;
+3. MG-REQ-0194.3: when it is missing and cannot be downloaded, with a typed error that names
+   the host and the cache directory.
+
+Its simulated implementation uses an in-memory DuckDB without extensions and injects the
+faults of `architecture/testing.md`.
+
+- Kind: behavior
+- Verify: test `mg_req_0194_ducklake_extension_pinned_and_cached`
+- Phase: 0.3
+- Depends: MG-REQ-0186
+- Decision: 0032
+
