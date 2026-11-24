@@ -10,9 +10,11 @@ description = "I/O traits and their real implementations."
 [features]
 default = []
 # MG-REQ-0133: the real implementations compile only with this feature.
-real = []
+real = ["dep:duckdb"]
 
 [dependencies]
+# MG-REQ-0193: the real `SqlParser`. Only under the feature `real` (MG-REQ-0133).
+duckdb = { version = "=1.20001.0", default-features = false, features = ["bundled", "json"], optional = true }
 thiserror = "2.0.21"
 
 [lints]
@@ -22,3 +24,4 @@ workspace = true
 # linked into other crates, so this does not enable it anywhere else (MG-REQ-0126.5).
 [dev-dependencies]
 mergus-ports = { path = ".", features = ["real"] }
+serde_json = "1.0.154"

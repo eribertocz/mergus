@@ -120,6 +120,8 @@ fn mg_req_1345_validate_reports_all_and_writes_nothing() {
     assert_eq!(outcome.exit, 1);
     assert_eq!(*files.changes.lock().unwrap(), Vec::<PathBuf>::new());
 
+    sql_models_checked_by_the_real_parser();
+
     let valid = project(&[("project.toml", PROJECT), ("models/orders.sql", "select 1")]);
     let ok = mergus(&valid, &["validate", "--json"]);
     assert_eq!(ok.exit, 0);
@@ -127,4 +129,37 @@ fn mg_req_1345_validate_reports_all_and_writes_nothing() {
     assert_eq!(ok.of("run_finished")[0]["status"], "succeeded");
     let human = mergus(&valid, &["validate"]);
     assert_eq!((human.exit, human.stdout.as_str()), (0, ""));
+}
+
+/// MG-REQ-1345 on `.sql` models: every unknown reference DuckDB's real parser finds is
+/// reported, in one pass, and nothing is written.
+fn sql_models_checked_by_the_real_parser() {
+    let unknown = ReadOnly {
+        inner: project(&[
+            ("project.toml", PROJECT),
+            ("models/orders.sql", "SELECT *\nFROM stg_order\n"),
+            ("models/stg_orders.sql", "SELECT * FROM raw.erp__orders"),
+        ]),
+        changes: Mutex::new(Vec::new()),
+    };
+    let sql = in_dir(&unknown, ROOT);
+    let found: Vec<(String, String, u64)> = sql
+        .of("diagnostic")
+        .iter()
+        .map(|d| {
+            (
+                d["code"].as_str().unwrap().to_owned(),
+                d["location"]["file"].as_str().unwrap().to_owned(),
+                d["location"]["line"].as_u64().unwrap(),
+            )
+        })
+        .collect();
+    let expected = [
+        ("MG-0313", "models/orders.sql", 2),
+        ("MG-0313", "models/stg_orders.sql", 1),
+    ]
+    .map(|(code, file, line)| (code.to_owned(), file.to_owned(), line));
+    assert_eq!(found, expected, "{sql:?}");
+    assert_eq!(sql.exit, 1);
+    assert_eq!(*unknown.changes.lock().unwrap(), Vec::<PathBuf>::new());
 }
