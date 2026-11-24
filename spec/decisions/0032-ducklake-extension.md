@@ -2,7 +2,7 @@
 
 - Status: accepted
 - Date: 2026-11-24
-- Answers: needs-owner #147 (the owner chose option A)
+- Answers: needs-owner #147 (the owner chose option A), spec-defects #154 and #155
 
 ## Context
 
@@ -20,8 +20,16 @@ wrapped behind a Mergus interface.
   version that matches its DuckDB, from `extensions.duckdb.org` with signature checks. It
   caches the extension in the user cache directory and uses it offline after that. Autoload
   and unsigned extensions stay off.
-- The simulated `Database` is an in-memory DuckDB without extensions. Simulator tests of the
-  adapter run on DuckDB tables; the DuckLake behavior is tested on the real port.
+- The simulated `Database` answers from recorded results, like the simulated `SqlParser`,
+  so `mergus-sim` needs no `duckdb`. The DuckLake behavior is tested on the real port, which
+  tests enable as a dev-dependency.
+
+- The real `Keychain` lives in `mergus-ports` under `real`, like every real port
+  (MG-REQ-0133), and its simulated one in `mergus-sim` (MG-REQ-0131). MG-REQ-0126.7 now lets
+  only `mergus-ports` depend on `keyring` and `duckdb`. `mergus-security` still owns resolution
+  (MG-REQ-0123) and the `secrecy` types (#154).
+- MG-REQ-0376 depends on MG-REQ-1001, so its context holds the grammar of a secret
+  reference (#155).
 
 ## Consequences
 

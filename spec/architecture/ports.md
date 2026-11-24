@@ -89,8 +89,8 @@ load only the `ducklake` extension:
 3. MG-REQ-0194.3: when it is missing and cannot be downloaded, with a typed error that names
    the host and the cache directory.
 
-Its simulated implementation uses an in-memory DuckDB without extensions and injects the
-faults of `architecture/testing.md`.
+Its simulated implementation answers from results recorded with the real one, as the
+simulated `SqlParser` does, and injects the faults of `architecture/testing.md`.
 
 - Kind: behavior
 - Verify: test `mg_req_0194_ducklake_extension_pinned_and_cached`
