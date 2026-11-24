@@ -7,14 +7,18 @@ use mergus_ports::{Clock, Environment, FileSystem, Random, SqlParser};
 
 use crate::args::{self, Invocation};
 use crate::cli_schema;
-use crate::commands::{Command, DRY_RUN};
+use crate::commands::{Command, DRY_RUN, EXCLUDE, SELECTION};
 use crate::diagnostic::{Diagnostic, group};
 use crate::error::CliError;
 use crate::exit;
+use crate::explain::explain;
 use crate::init::{init, next_steps};
 use crate::mode::{colors, detect};
+use crate::models;
 use crate::output::Output;
+use crate::planning::plan;
 use crate::scaffold::{add_source, new_model};
+use crate::selection::{listing, select};
 use crate::validate::validate;
 
 /// What the user types on a terminal, one line at a time.
@@ -109,6 +113,15 @@ fn execute(
             output.stage(1, end.saturating_sub(begin))?;
             return Ok(diagnostics);
         }
+        Command::Ls => return ls(ports, invocation, output),
+        Command::Plan => return plan(ports, invocation, output),
+        Command::Explain => {
+            let argument = invocation.value("argument").unwrap_or_default();
+            return match explain(ports, argument)? {
+                Ok(text) => output.report(&text).map(|()| Vec::new()),
+                Err(diagnostics) => Ok(diagnostics),
+            };
+        }
         Command::Init => init(ports, invocation, output)?,
         Command::NewModel => new_model(ports, invocation)?,
         Command::AddSource => add_source(ports, invocation)?,
@@ -126,5 +139,24 @@ fn execute(
     if invocation.command == Command::Init {
         output.report(&next_steps())?;
     }
+    Ok(Vec::new())
+}
+
+/// `mergus ls [<selection>]`: every selected model and why (MG-REQ-1305).
+fn ls(
+    ports: &Ports<'_>,
+    invocation: &Invocation,
+    output: &mut Output<'_>,
+) -> Result<Vec<Diagnostic>, CliError> {
+    let project = match models::read(ports)? {
+        Ok(project) => project,
+        Err(diagnostics) => return Ok(diagnostics),
+    };
+    let selected = select(
+        &project,
+        &invocation.values(SELECTION),
+        invocation.value(EXCLUDE),
+    )?;
+    output.report(&listing(&selected))?;
     Ok(Vec::new())
 }

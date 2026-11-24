@@ -13,6 +13,15 @@ pub(crate) const VERBOSE: &str = "--verbose";
 /// The option that lists the files a command would write and writes none (MG-REQ-1350.3).
 pub(crate) const DRY_RUN: &str = "--dry-run";
 
+/// The option that removes models from a selection (MG-REQ-1305).
+pub(crate) const EXCLUDE: &str = "--exclude";
+
+/// The option that sets `max_parallel` (MG-REQ-1351).
+pub(crate) const MAX_PARALLEL: &str = "--max-parallel";
+
+/// The positional words of a selection (MG-REQ-1305).
+pub(crate) const SELECTION: &str = "selection";
+
 /// The exit codes every command may end with: success, a project error, an internal error.
 const EXIT_CODES: [u8; 3] = [0, 1, 10];
 
@@ -21,10 +30,16 @@ const EXIT_CODES: [u8; 3] = [0, 1, 10];
 pub(crate) enum Command {
     /// `mergus add source` (MG-REQ-1304).
     AddSource,
+    /// `mergus explain` (MG-REQ-1310).
+    Explain,
     /// `mergus init` (MG-REQ-1301).
     Init,
+    /// `mergus ls` (MG-REQ-1305).
+    Ls,
     /// `mergus new model` (MG-REQ-1304).
     NewModel,
+    /// `mergus plan` (MG-REQ-0746).
+    Plan,
     /// `mergus schema` (MG-REQ-0263).
     Schema,
     /// `mergus validate` (MG-REQ-1345).
@@ -32,16 +47,28 @@ pub(crate) enum Command {
 }
 
 /// Every command, sorted by name (MG-REQ-1348).
-pub(crate) const ALL: [Command; 5] = [
+pub(crate) const ALL: [Command; 8] = [
     Command::AddSource,
+    Command::Explain,
     Command::Init,
+    Command::Ls,
     Command::NewModel,
+    Command::Plan,
     Command::Schema,
     Command::Validate,
 ];
 
 /// The names of every command, sorted.
-pub(crate) const NAMES: [&str; 5] = ["add source", "init", "new model", "schema", "validate"];
+pub(crate) const NAMES: [&str; 8] = [
+    "add source",
+    "explain",
+    "init",
+    "ls",
+    "new model",
+    "plan",
+    "schema",
+    "validate",
+];
 
 /// How an argument is given.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -59,6 +86,10 @@ pub(crate) enum Kind {
 pub(crate) enum Type {
     /// Any text.
     String,
+    /// An integer.
+    Integer,
+    /// A selector of MG-REQ-1305.
+    Selection,
     /// A flag.
     Boolean,
 }
@@ -71,6 +102,8 @@ pub(crate) struct Argument {
     pub(crate) kind: Kind,
     pub(crate) r#type: Type,
     pub(crate) required: bool,
+    /// Whether the argument may be given more than once.
+    pub(crate) repeatable: bool,
     /// The value used when the argument is not given.
     pub(crate) default: Option<&'static str>,
     /// The only values allowed; empty when any value is.
@@ -83,6 +116,7 @@ const fn flag(name: &'static str) -> Argument {
         kind: Kind::Flag,
         r#type: Type::Boolean,
         required: false,
+        repeatable: false,
         default: None,
         values: &[],
     }
@@ -94,6 +128,7 @@ const fn option(name: &'static str, default: Option<&'static str>) -> Argument {
         kind: Kind::Option,
         r#type: Type::String,
         required: false,
+        repeatable: false,
         default,
         values: &[],
     }
@@ -105,6 +140,7 @@ const fn positional(name: &'static str, required: bool) -> Argument {
         kind: Kind::Positional,
         r#type: Type::String,
         required,
+        repeatable: false,
         default: None,
         values: &[],
     }
@@ -119,6 +155,40 @@ pub(crate) const PROFILES: [&str; 1] = ["local"];
 const ADD_SOURCE: [Argument; 5] = [
     positional("name", true),
     flag(DRY_RUN),
+    GLOBAL[0],
+    GLOBAL[1],
+    GLOBAL[2],
+];
+
+const EXPLAIN: [Argument; 4] = [
+    positional("argument", true),
+    GLOBAL[0],
+    GLOBAL[1],
+    GLOBAL[2],
+];
+
+/// The words of a selection, each a union member (MG-REQ-1305).
+const SELECTED: Argument = Argument {
+    r#type: Type::Selection,
+    repeatable: true,
+    ..positional(SELECTION, false)
+};
+
+/// The models to leave out of a selection (MG-REQ-1305).
+const EXCLUDED: Argument = Argument {
+    r#type: Type::Selection,
+    ..option(EXCLUDE, None)
+};
+
+const LS: [Argument; 5] = [SELECTED, EXCLUDED, GLOBAL[0], GLOBAL[1], GLOBAL[2]];
+
+const PLAN: [Argument; 6] = [
+    SELECTED,
+    EXCLUDED,
+    Argument {
+        r#type: Type::Integer,
+        ..option(MAX_PARALLEL, Some("4"))
+    },
     GLOBAL[0],
     GLOBAL[1],
     GLOBAL[2],
@@ -165,10 +235,13 @@ impl Command {
     pub(crate) fn name(self) -> &'static str {
         match self {
             Self::AddSource => NAMES[0],
-            Self::Init => NAMES[1],
-            Self::NewModel => NAMES[2],
-            Self::Schema => NAMES[3],
-            Self::Validate => NAMES[4],
+            Self::Explain => NAMES[1],
+            Self::Init => NAMES[2],
+            Self::Ls => NAMES[3],
+            Self::NewModel => NAMES[4],
+            Self::Plan => NAMES[5],
+            Self::Schema => NAMES[6],
+            Self::Validate => NAMES[7],
         }
     }
 
@@ -176,8 +249,11 @@ impl Command {
     pub(crate) fn summary(self) -> &'static str {
         match self {
             Self::AddSource => "Create a source file that references its connection as a secret.",
+            Self::Explain => "Explain an error code, or a model and its effective options.",
             Self::Init => "Create a project in the current folder.",
+            Self::Ls => "List the selected models and why each one is selected.",
             Self::NewModel => "Create a model file with a minimal example.",
+            Self::Plan => "Write the plan of the selected models; execute nothing.",
             Self::Schema => "Print the description of a command, or of every command, in JSON.",
             Self::Validate => "Check the layout and the configuration of the project.",
         }
@@ -187,8 +263,11 @@ impl Command {
     pub(crate) fn arguments(self) -> &'static [Argument] {
         match self {
             Self::AddSource => &ADD_SOURCE,
+            Self::Explain => &EXPLAIN,
             Self::Init => &INIT,
+            Self::Ls => &LS,
             Self::NewModel => &NEW_MODEL,
+            Self::Plan => &PLAN,
             Self::Schema => &SCHEMA,
             Self::Validate => &GLOBAL,
         }

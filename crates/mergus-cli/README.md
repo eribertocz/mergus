@@ -18,6 +18,22 @@ The `mergus` binary; translates arguments and output only.
   (MG-REQ-1304, MG-REQ-1350).
 - Runs `mergus schema <command>` and `mergus schema --all`: the `mergus_cli` document of the
   command line, alone on standard output (MG-REQ-0263, MG-REQ-1348).
+- Runs `mergus ls [<selection>]`: every selected model, one per line, with why it is
+  selected. Selectors are `<model>`, `<model>+`, `+<model>`, `+<model>+`, `tag:<t>`,
+  `source:<s>` (models that read a table of the source), `path:<folder>` (relative to the
+  project root), `changed`, a union by space, an intersection by comma and `--exclude`; no
+  selection is every model. Without storage, `changed` is every model. No command asks for a
+  previous manifest or state file (MG-REQ-1305, MG-REQ-1306, MG-REQ-1352.1).
+- Runs `mergus plan [<selection>]`: writes the plan of `mergus-plan` to
+  `.mergus/plans/<plan_id>.json`, keeps an existing file of that name, emits `plan_ready`
+  and executes nothing (MG-REQ-0746).
+- Resolves `max_parallel`, an integer from 1 (default 4), from `--max-parallel`, then
+  `MERGUS_MAX_PARALLEL`, then `max_parallel` in `<config dir>/mergus/config.toml`, the
+  directory given by the `Environment` port. A missing file is empty; an unknown key is an
+  error (MG-REQ-1309, MG-REQ-1351).
+- Runs `mergus explain <argument>`: the catalog file of an `MG-####` code, otherwise the
+  model's name, identifier, file, inputs, readers and every effective option with its value
+  and origin; an unknown code or model names the closest one (MG-REQ-1310, MG-REQ-1352).
 - With `--json`, prints only `mergus_events` events on standard output, one per line, ending
   with `run_finished` (MG-REQ-0260, MG-REQ-0261). Otherwise it prints every error on
   standard error, grouped by file, in the layout of MG-REQ-1322: code, message, location,
@@ -35,8 +51,7 @@ The `mergus` binary; translates arguments and output only.
 
 ## What it does not
 
-- It has no selection, settings, `explain` or `plan` yet, and no live tree or summary of the
-  interactive mode.
+- It has no live tree or summary of the interactive mode, and no `mergus doctor` yet.
 - It never sets `actor` and ignores any actor given in an argument, a variable or a project
   file (MG-REQ-0264).
 - It holds no business logic: it parses input, calls other crates and renders their results.

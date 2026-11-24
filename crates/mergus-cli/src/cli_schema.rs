@@ -46,10 +46,12 @@ fn describe(command: Command) -> Described {
                 },
                 r#type: match argument.r#type {
                     Type::String => ArgumentType::String,
+                    Type::Integer => ArgumentType::Integer,
+                    Type::Selection => ArgumentType::Selection,
                     Type::Boolean => ArgumentType::Boolean,
                 },
                 required: argument.required,
-                repeatable: false,
+                repeatable: argument.repeatable,
                 default: argument.default.map(str::to_owned),
                 values: (!argument.values.is_empty()).then(|| {
                     argument

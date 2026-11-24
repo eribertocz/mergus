@@ -10,10 +10,6 @@ pub(crate) const PRODUCT: &str = BINARY;
 
 /// The prefix of every environment variable Mergus reads: the product name in upper case,
 /// then `_`.
-#[cfg_attr(
-    not(test),
-    expect(dead_code, reason = "the configuration of later issues uses it")
-)]
 pub(crate) fn env_prefix() -> String {
     format!("{}_", PRODUCT.to_ascii_uppercase())
 }

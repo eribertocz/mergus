@@ -15,6 +15,11 @@
 | `files::Plan` | Files and folders to create: checked first, listed by `--dry-run`, then written |
 | `mode` | The output mode (interactive, plain, events), colors and verbosity |
 | `layout::render` | One error in the layout of MG-REQ-1322, with or without colors |
+| `models::read` | The project for `ls`, `explain` and `plan`: options, identifier, code and inputs of each model |
+| `selection::select` | The models a selection selects, each with its reasons (MG-REQ-1305) |
+| `settings::max_parallel` | `max_parallel` from the flag, the variable, the user file or the default |
+| `planning::plan` | `mergus plan`: the plan of `mergus-plan`, written under `.mergus/plans/` |
+| `explain::explain` | `mergus explain`: a code's catalog file, or a model and its options |
 | `validate::validate` | Stage 1: layout, configuration and folder options of `mergus-project` |
 | `project::find` | The nearest directory upwards that holds `project.toml` |
 | `diagnostic::Diagnostic` | One error: code, message, location, hint, next invocations, source line |
@@ -43,7 +48,11 @@
    `--json`. `init`, `new model` and `add source` build a `files::Plan`, refuse it when a
    name is invalid or taken or a file exists, then list it with `--dry-run` or write it.
    What they print for a person goes to standard output, or to standard error with `--json`.
-6. Every event goes through `mergus_contracts::validate_event` before it is printed. An event
+6. `ls`, `explain <model>` and `plan` read the project with `models::read`; a project that
+   `validate` would reject gives its diagnostics and nothing else. What `ls` and `explain`
+   print, and the steps `plan` lists, go where `init` prints its next steps. `plan` writes
+   only `.mergus/plans/<plan_id>.json` and emits `plan_ready` with `--json`.
+7. Every event goes through `mergus_contracts::validate_event` before it is printed. An event
    that fails is an internal error, `MG-1304`, printed on standard error, exit code 10.
 
 The `[[bin]] name` in `Cargo.toml` is the only other place that spells the product name:
@@ -53,6 +62,8 @@ Cargo cannot read a Rust constant. A unit test checks that it equals `name::PROD
 
 - `mergus-contracts`: the product name and the `mergus_events` and `mergus_cli` contracts.
 - `mergus-ports` with `real`: the ports and their real implementations.
-- `mergus-project`: the checks of stage 1, the name rules, `closest_name` and the `$id` of
-  the configuration schemas.
+- `mergus-project`: the checks of stage 1, the name rules, `closest_name`, the `$id` of
+  the configuration schemas, the effective options, identifiers and references of models.
+- `mergus-plan`: the fingerprints and the `mergus_plan` document of `mergus plan`.
+- `toml`: reads the user configuration file.
 - `thiserror`: derives `CliError`.

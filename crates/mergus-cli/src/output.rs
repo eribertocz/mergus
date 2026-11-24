@@ -6,7 +6,7 @@ use std::io::Write;
 use std::time::Duration;
 
 use mergus_contracts::generated::mergus_events_v1::{
-    Location, MergusEvents, MergusEventsSeverity, MergusEventsType,
+    Location, MergusEvents, MergusEventsSeverity, MergusEventsType, Step,
 };
 use mergus_contracts::{Contract, ValidDocument, validate_event};
 use mergus_ports::{Clock, MonotonicTime, Random};
@@ -19,7 +19,7 @@ use crate::mode::{Mode, Verbosity};
 use crate::time::rfc3339;
 
 /// The environment every command works on until environments exist (MG-REQ-0296.5).
-const ENVIRONMENT: &str = "prod";
+pub(crate) const ENVIRONMENT: &str = "prod";
 
 /// The output of one command run.
 pub(crate) struct Output<'a> {
@@ -105,6 +105,17 @@ impl<'a> Output<'a> {
         event.command = Some(command.to_owned());
         event.arguments = Some(args.to_vec());
         event.environment = Some(ENVIRONMENT.to_owned());
+        self.emit(&event)
+    }
+
+    /// Reports, with `--json`, that the plan of `steps` is ready (MG-REQ-0746).
+    pub(crate) fn plan_ready(&mut self, steps: Vec<Step>) -> Result<(), CliError> {
+        if !self.json {
+            return Ok(());
+        }
+        let mut event = self.event(MergusEventsType::PlanReady);
+        event.environment = Some(ENVIRONMENT.to_owned());
+        event.steps = Some(steps);
         self.emit(&event)
     }
 
