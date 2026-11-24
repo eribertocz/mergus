@@ -126,9 +126,9 @@ phase 0.2 the schemas hold exactly:
    each with `profile` and `location`, both strings;
 2. MG-REQ-0362.2: folder `mergus.toml`: the table `[all]` and one table per model, each with
    the options of MG-REQ-0366;
-3. MG-REQ-0362.3: `sources/*.toml`: no key yet. Until the rules of `extract/sources.md` are
-   due, the source schema is the one open object of MG-REQ-0361: any key is accepted, and only
-   TOML syntax, MG-REQ-0364 and MG-REQ-0320 apply to a source file.
+3. MG-REQ-0362.3: `sources/*.toml`: no key in phase 0.2, when the source schema is the one
+   open object of MG-REQ-0361 and any key is accepted. From phase 0.3 it holds the keys of
+   MG-REQ-0408.
 
 Each later phase adds its keys as a minor version of the schema (MG-REQ-0204).
 

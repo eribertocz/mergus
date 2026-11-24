@@ -11,15 +11,21 @@ depends_on: [kernel, architecture-boundaries]
 
 ### MG-REQ-1001 · Resolution chain
 
-A reference `secret:<name>` MUST be resolved by the first of these that answers:
-1. the environment variable `MERGUS_SECRET_<NAME>`;
-2. the operating system keychain (Keychain, Credential Manager, Secret Service), set with
-   `mergus secret set <name>`;
-3. a cloud secret manager plugin (after the MVP);
-4. federated identity (OIDC) and the cloud's standard credential chain, for object storage.
+A secret reference is `secret:<name>`, where `<name>` is a name of MG-REQ-0305. It MUST be
+resolved by the first of these that answers:
+
+1. MG-REQ-1001.1: the environment variable `MERGUS_SECRET_<NAME>`, where `<NAME>` is `<name>`
+   in ASCII upper case; a variable that is set, even to an empty value, answers;
+2. MG-REQ-1001.2: the operating system keychain (Keychain, Credential Manager, Secret
+   Service), through the `Keychain` port, under the service `mergus` and the account `<name>`;
+3. MG-REQ-1001.3: when neither answers, resolution MUST fail with a typed error that names
+   the reference and both places looked at, and never a value.
+
+Cloud secret manager plugins come after the MVP (`roadmap.md` section 4).
 
 - Kind: behavior
 - Verify: test `mg_req_1001_resolution_chain_order`
+- Decision: 0031
 
 ### MG-REQ-1002 · Secrets cannot be printed
 
@@ -54,3 +60,24 @@ Mergus MUST NOT read `.env` files.
 
 - Kind: behavior
 - Verify: test `mg_req_1005_dotenv_ignored`
+
+### MG-REQ-1006 · Cloud credentials for object storage
+
+Credentials of object storage that no secret reference names MUST come from federated
+identity (OIDC) and the cloud's standard credential chain, never from a project file.
+
+- Kind: behavior
+- Verify: test `mg_req_1006_object_storage_uses_cloud_chain`
+- Phase: 0.9
+- Decision: 0031
+
+### MG-REQ-1007 · mergus secret set
+
+`mergus secret set <name>` MUST read the value from standard input, without echo when it is a
+terminal, and store it in the keychain under the service `mergus` and the account `<name>`.
+The value MUST NOT be accepted as an argument. It prints no value and exits 0 once stored.
+
+- Kind: behavior
+- Verify: test `mg_req_1007_secret_set_stores_in_keychain`
+- Depends: MG-REQ-1001
+- Decision: 0031

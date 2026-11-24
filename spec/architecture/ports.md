@@ -23,6 +23,7 @@ wires the real implementation; tests and the simulator wire simulated ones.
 | `Process` | Child processes |
 | `Environment` | Command-line arguments, current directory, environment variables and the user configuration directory |
 | `SqlParser` | DuckDB's SQL parser, without executing anything |
+| `Keychain` | Entries of the operating system keychain: read, write and delete by service and account |
 
 ### MG-REQ-0130 · Only ports touch the world
 

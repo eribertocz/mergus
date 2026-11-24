@@ -92,3 +92,33 @@ the extraction of that table with a typed error naming the column, the old and t
 
 - Kind: behavior
 - Verify: test `mg_req_0407_breaking_source_change_stops_table`
+
+### MG-REQ-0408 · Keys of a source file
+
+The schema of `sources/*.toml` MUST hold exactly these keys, and every other key is an error
+(MG-REQ-0361). Durations are those of MG-REQ-0366.5; table names are names of MG-REQ-0305.
+
+1. MG-REQ-0408.1: `kind` (required): `database`, `files` or `rest`;
+2. MG-REQ-0408.2: `mode`: `copy`, `connect` or `live`; `raw`: a boolean; `retention`: a
+   duration;
+3. MG-REQ-0408.3: `connection` (required when `kind` is `database`) and `replica`: secret
+   references of MG-REQ-1001;
+4. MG-REQ-0408.4: `location` (required when `kind` is `files`): a non-empty string, a local
+   directory relative to the project root or an object-store URL prefix;
+5. MG-REQ-0408.5: the source options of `extract/source-care.md`: `load` (`low`, `normal` or
+   `high`), `max_connections` (an integer from 1), `window` (`"HH:MM-HH:MM"`, 24-hour, which
+   may cross midnight) and `query_timeout` (a duration); and `overlap` (a duration);
+6. MG-REQ-0408.6: `tables`: one table per declared table, each with the options of
+   `extract/loads.md`: `key` (a name or a non-empty list of names), `incremental` (a name),
+   `overlap`, `deletes` (`column:<name>`, `compare` or `none`), `delete_check` (`every_run`,
+   `hourly`, `daily` or `weekly`) and `delete_window` (a duration); with `kind = "files"`,
+   also `path` (required: a glob under `location`) and `format` (required: `parquet`, `csv` or
+   `json`);
+7. MG-REQ-0408.7: with `kind = "rest"`, until the rules of `extract/rest.md` are due, the
+   source is the one open object of MG-REQ-0361: any other key is accepted.
+
+- Kind: behavior
+- Verify: test `mg_req_0408_source_keys`
+- Depends: MG-REQ-0361, MG-REQ-0401
+- Decision: 0031
+
