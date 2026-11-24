@@ -188,20 +188,53 @@ fn real_ports(workspace: &Workspace, problems: &mut Vec<String>) {
     }
 }
 
-/// MG-REQ-0126.7: only `mergus-security` depends on `keyring`.
+/// MG-REQ-0126.7: only `mergus-ports` depends on `keyring`, and only under its feature
+/// `real`.
 fn keyring(workspace: &Workspace, problems: &mut Vec<String>) {
     for member in &workspace.members {
-        let depends = member
+        let mut dependencies = member
             .dependencies
             .iter()
-            .any(|dependency| dependency.name == "keyring");
-        if depends && member.name != "mergus-security" {
+            .filter(|dependency| dependency.name == "keyring");
+        if member.name != "mergus-ports" {
+            if dependencies.next().is_some() {
+                problems.push(format!(
+                    "MG-REQ-0126.7: `{}` depends on `keyring`",
+                    member.name
+                ));
+            }
+        } else if dependencies.any(|dependency| outside_real(member, dependency)) {
             problems.push(format!(
-                "MG-REQ-0126.7: `{}` depends on `keyring`",
+                "MG-REQ-0126.7: `{}` depends on `keyring` outside its feature `real`",
                 member.name
             ));
         }
     }
+}
+
+/// Whether `member` links `dependency` without its feature `real`: the dependency is not
+/// optional, or a feature other than `real` enables it.
+fn outside_real(member: &Package, dependency: &Dependency) -> bool {
+    if !linked(dependency) {
+        return false;
+    }
+    if !dependency.optional {
+        return true;
+    }
+    let key = dependency.key.as_str();
+    member
+        .features
+        .iter()
+        .filter(|(feature, _)| feature.as_str() != "real")
+        .flat_map(|(_, enables)| enables)
+        .any(|value| enables_dependency(value, key))
+}
+
+/// Whether the feature value `value` enables the optional dependency `key`: `key`,
+/// `dep:key` or `key/feature`. `key?/feature` does not enable it.
+fn enables_dependency(value: &str, key: &str) -> bool {
+    let name = value.strip_prefix("dep:").unwrap_or(value);
+    name.split('/').next() == Some(key)
 }
 
 /// MG-REQ-0126.8: the test crates are only dev-dependencies.

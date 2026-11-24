@@ -111,13 +111,23 @@ fn mg_req_0121_plan_reaching_an_engine_or_the_runtime_fails() {
 }
 
 #[test]
-fn mg_req_0126_keyring_outside_security_fails() {
+fn mg_req_0126_keyring_outside_ports_fails() {
     assert_eq!(
         problems_of("keyring", "MG-REQ-0126.7"),
         [
             "MG-REQ-0126.7: `mergus-catalog` depends on `keyring`",
+            "MG-REQ-0126.7: `mergus-ports` depends on `keyring` outside its feature `real`",
+            "MG-REQ-0126.7: `mergus-security` depends on `keyring`",
             "MG-REQ-0126.7: `xtask` depends on `keyring`",
         ]
+    );
+}
+
+#[test]
+fn mg_req_0126_keyring_required_by_ports_fails() {
+    assert_eq!(
+        problems_of("keyring-required", "MG-REQ-0126.7"),
+        ["MG-REQ-0126.7: `mergus-ports` depends on `keyring` outside its feature `real`"]
     );
 }
 

@@ -6,4 +6,7 @@ publish = false
 
 [features]
 default = []
-real = []
+real = ["dep:keyring"]
+
+[dependencies]
+keyring = { version = "4", optional = true }
