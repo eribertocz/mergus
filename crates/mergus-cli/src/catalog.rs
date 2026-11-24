@@ -2,7 +2,7 @@
 //! retryable, the hint and the cause of every code (MG-REQ-0008, MG-REQ-1334, MG-REQ-1346).
 
 /// The text of every catalog file, by code.
-const FILES: [(&str, &str); 23] = [
+const FILES: [(&str, &str); 28] = [
     ("MG-0301", include_str!("../errors/MG-0301.md")),
     ("MG-0302", include_str!("../errors/MG-0302.md")),
     ("MG-0303", include_str!("../errors/MG-0303.md")),
@@ -26,6 +26,11 @@ const FILES: [(&str, &str); 23] = [
     ("MG-1306", include_str!("../errors/MG-1306.md")),
     ("MG-1307", include_str!("../errors/MG-1307.md")),
     ("MG-1308", include_str!("../errors/MG-1308.md")),
+    ("MG-1309", include_str!("../errors/MG-1309.md")),
+    ("MG-1310", include_str!("../errors/MG-1310.md")),
+    ("MG-1311", include_str!("../errors/MG-1311.md")),
+    ("MG-1312", include_str!("../errors/MG-1312.md")),
+    ("MG-1313", include_str!("../errors/MG-1313.md")),
 ];
 
 /// What the catalog says about one code.
@@ -48,6 +53,20 @@ pub(crate) struct Entry {
 pub(crate) fn entry(code: &str) -> Option<Entry> {
     let (code, text) = FILES.iter().find(|(known, _)| *known == code)?;
     parse(code, text)
+}
+
+/// Returns the text of the catalog file of `code`, or `None` when the code has none
+/// (MG-REQ-1352.3).
+pub(crate) fn file(code: &str) -> Option<&'static str> {
+    FILES
+        .iter()
+        .find(|(known, _)| *known == code)
+        .map(|(_, text)| *text)
+}
+
+/// Returns every code of the catalog, sorted.
+pub(crate) fn codes() -> impl Iterator<Item = &'static str> {
+    FILES.iter().map(|(code, _)| *code)
 }
 
 /// Returns every entry of the catalog, `None` for a file that is not well formed.

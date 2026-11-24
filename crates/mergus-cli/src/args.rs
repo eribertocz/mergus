@@ -7,7 +7,16 @@ use crate::error::CliError;
 use crate::mode::Verbosity;
 
 /// The commands in the order they are suggested when nothing is closer.
-const SUGGESTED: [&str; 5] = ["validate", "init", "new model", "add source", "schema"];
+const SUGGESTED: [&str; 8] = [
+    "validate",
+    "init",
+    "new model",
+    "add source",
+    "schema",
+    "plan",
+    "ls",
+    "explain",
+];
 
 /// The options every command accepts.
 const GLOBAL: [&str; 3] = [JSON, QUIET, VERBOSE];
@@ -27,6 +36,15 @@ impl Invocation {
     /// Returns whether the flag `name` is given.
     pub(crate) fn flag(&self, name: &str) -> bool {
         self.value(name).is_some()
+    }
+
+    /// Returns every value given to the argument `name`, in order.
+    pub(crate) fn values(&self, name: &str) -> Vec<&str> {
+        self.given
+            .iter()
+            .filter(|(given, _)| *given == name)
+            .map(|(_, value)| value.as_str())
+            .collect()
     }
 
     /// Returns the value given to the option or positional argument `name`.
@@ -189,10 +207,16 @@ fn assign(
         .arguments()
         .iter()
         .filter(|spec| spec.kind == Kind::Positional);
+    let mut repeated: Option<&'static Argument> = None;
     words
         .into_iter()
-        .map(|word| match specs.next() {
-            Some(spec) => Ok((spec, word)),
+        .map(|word| match repeated.or_else(|| specs.next()) {
+            Some(spec) => {
+                if spec.repeatable {
+                    repeated = Some(spec);
+                }
+                Ok((spec, word))
+            }
             None => Err(CliError::UnexpectedArgument {
                 given: word,
                 command: command.name(),

@@ -161,6 +161,20 @@ pub(crate) fn sort_problems(problems: &mut [ProjectError]) {
     });
 }
 
+/// Reads `text`, the TOML document of the file `path`, as JSON with the mapping of
+/// MG-REQ-0365, without checking it against any schema.
+///
+/// # Errors
+///
+/// Fails with every problem found when `text` is not TOML 1.0 or a value cannot be mapped.
+pub fn toml_to_json(path: &str, text: &str) -> Result<Value, Vec<ProjectError>> {
+    let mut problems = Vec::new();
+    match convert::convert(path, text, &mut problems) {
+        Some(converted) if problems.is_empty() => Ok(converted.value),
+        _ => Err(problems),
+    }
+}
+
 /// Parses the bytes of one configuration file of `kind`.
 fn parse(
     kind: ConfigKind,

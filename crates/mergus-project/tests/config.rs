@@ -334,3 +334,15 @@ fn mg_req_0005_problems_in_total_order() {
     let codes: Vec<&str> = found.iter().map(ProjectError::code).collect();
     assert_eq!(codes, ["MG-0304", "MG-0306"]);
 }
+
+#[test]
+fn toml_to_json_maps_a_document_without_a_schema() {
+    let value = mergus_project::toml_to_json("config.toml", "max_parallel = 2\nother = \"x\"\n");
+    assert_eq!(
+        value.unwrap(),
+        serde_json::json!({"max_parallel": 2, "other": "x"})
+    );
+    let problems = mergus_project::toml_to_json("config.toml", "max_parallel = = 2\n").unwrap_err();
+    assert_eq!(problems.len(), 1);
+    assert_eq!(problems[0].path(), "config.toml");
+}

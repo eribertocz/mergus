@@ -14,6 +14,10 @@
 //! them and `mergus schema` prints them ([`cli_schema`]). `init` ([`init`]), `new model` and
 //! `add source` ([`scaffold`]) build a plan of files ([`files`]) that is checked before
 //! anything is written, and that `--dry-run` lists instead.
+//!
+//! `ls` and `plan` read the project ([`models`]) and select models ([`selection`]); `plan`
+//! resolves its settings ([`settings`]) and writes the plan of `mergus-plan` ([`planning`]).
+//! `explain` prints an error code's catalog file or a model's options ([`explain`]).
 
 #![forbid(unsafe_code)]
 
@@ -24,15 +28,20 @@ mod commands;
 mod diagnostic;
 mod error;
 mod exit;
+mod explain;
 mod files;
 mod init;
 mod layout;
 mod mode;
+mod models;
 mod name;
 mod output;
+mod planning;
 mod project;
 mod run;
 mod scaffold;
+mod selection;
+mod settings;
 mod time;
 mod validate;
 

@@ -15,6 +15,7 @@ path = "src/main.rs"
 
 [dependencies]
 mergus-contracts = { path = "../mergus-contracts" }
+mergus-plan = { path = "../mergus-plan" }
 mergus-ports = { path = "../mergus-ports", features = ["real"] }
 mergus-project = { path = "../mergus-project" }
 thiserror = "2.0.21"

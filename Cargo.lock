@@ -896,6 +896,7 @@ name = "mergus-cli"
 version = "0.1.0"
 dependencies = [
  "mergus-contracts",
+ "mergus-plan",
  "mergus-ports",
  "mergus-project",
  "mergus-sim",

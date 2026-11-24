@@ -110,6 +110,49 @@ pub(crate) enum CliError {
         /// The directory the search started in.
         start: String,
     },
+    /// A word of a selection is not a selector (MG-REQ-1305).
+    #[error("`{given}` is not a selector: {reason}")]
+    InvalidSelector {
+        /// The word given.
+        given: String,
+        /// What is wrong with it.
+        reason: &'static str,
+    },
+    /// A selector or `explain` names a model or a source the project does not have
+    /// (MG-REQ-1305, MG-REQ-1352.3).
+    #[error("{kind} `{given}` does not exist{}", closest_suffix(.closest.as_deref()))]
+    UnknownName {
+        /// What the name names: `model` or `source`.
+        kind: &'static str,
+        /// The name given.
+        given: String,
+        /// The closest name of that kind (MG-REQ-0359).
+        closest: Option<String>,
+    },
+    /// `explain` names a code the catalog does not have (MG-REQ-1352.3).
+    #[error("error code `{given}` does not exist{}", closest_suffix(.closest.as_deref()))]
+    UnknownCode {
+        /// The code given.
+        given: String,
+        /// The closest code of the catalog (MG-REQ-0359).
+        closest: Option<&'static str>,
+    },
+    /// A setting has a value it does not allow (MG-REQ-1351).
+    #[error("{origin} sets `max_parallel` to `{given}`, which is not an integer from 1")]
+    InvalidSetting {
+        /// Where the value comes from.
+        origin: String,
+        /// The value given.
+        given: String,
+    },
+    /// The user configuration file is not TOML or has an unknown key (MG-REQ-1351).
+    #[error("`{path}` is not valid: {message}")]
+    InvalidUserConfig {
+        /// The path of the file.
+        path: String,
+        /// What is wrong.
+        message: String,
+    },
     /// A file or directory of the project cannot be read.
     #[error("the project cannot be read: {0}")]
     Unreadable(String),
@@ -138,6 +181,11 @@ impl CliError {
             Self::NameTaken { .. } => "MG-1306",
             Self::FileExists { .. } => "MG-1307",
             Self::Unwritable { .. } => "MG-1308",
+            Self::InvalidSelector { .. } => "MG-1309",
+            Self::UnknownName { .. } => "MG-1310",
+            Self::UnknownCode { .. } => "MG-1311",
+            Self::InvalidSetting { .. } => "MG-1312",
+            Self::InvalidUserConfig { .. } => "MG-1313",
         }
     }
 
@@ -150,6 +198,14 @@ impl CliError {
             | Self::MissingCommand { closest }
             | Self::InvalidValue { closest, .. } => Some(format!("Use `{closest}`.")),
             Self::InvalidName { suggestion, .. } => Some(format!("Use `{suggestion}`.")),
+            Self::UnknownName {
+                closest: Some(closest),
+                ..
+            } => Some(format!("Use `{closest}`.")),
+            Self::UnknownCode {
+                closest: Some(closest),
+                ..
+            } => Some(format!("Use `{closest}`.")),
             Self::MissingValue { option } => Some(format!("Write the value after `{option}`.")),
             Self::RepeatedOption { option } => Some(format!("Give `{option}` once.")),
             Self::MissingArgument {
@@ -165,7 +221,12 @@ impl CliError {
             | Self::Internal(_)
             | Self::NameTaken { .. }
             | Self::FileExists { .. }
-            | Self::Unwritable { .. } => None,
+            | Self::Unwritable { .. }
+            | Self::InvalidSelector { .. }
+            | Self::UnknownName { closest: None, .. }
+            | Self::UnknownCode { closest: None, .. }
+            | Self::InvalidSetting { .. }
+            | Self::InvalidUserConfig { .. } => None,
         }
     }
 
@@ -178,4 +239,11 @@ impl CliError {
             _ => Vec::new(),
         }
     }
+}
+
+/// `; did you mean` and the closest name in backquotes when one exists, otherwise nothing.
+fn closest_suffix(closest: Option<&str>) -> String {
+    closest.map_or_else(String::new, |closest| {
+        format!("; did you mean `{closest}`?")
+    })
 }

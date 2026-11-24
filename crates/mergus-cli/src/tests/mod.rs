@@ -2,13 +2,17 @@
 
 mod contract;
 mod diagnostics;
+mod explain;
 mod formats;
 mod human;
 mod init;
 mod layout;
+mod plan;
 mod project;
 mod scaffold;
 mod schema;
+mod selection;
+mod settings;
 
 use std::cell::RefCell;
 use std::path::Path;
@@ -90,9 +94,16 @@ pub(crate) struct Setup<'a> {
 impl Setup<'_> {
     /// Runs the binary on simulated ports.
     pub(crate) fn run(&self) -> Outcome {
-        let environment = SimEnvironment::new(self.vars.iter().copied(), None)
-            .with_args(self.args.iter().copied())
-            .with_current_dir(self.cwd);
+        self.run_with_config_dir(None)
+    }
+
+    /// Runs the binary on simulated ports whose user configuration directory is
+    /// `config_dir`.
+    pub(crate) fn run_with_config_dir(&self, config_dir: Option<&str>) -> Outcome {
+        let environment =
+            SimEnvironment::new(self.vars.iter().copied(), config_dir.map(Into::into))
+                .with_args(self.args.iter().copied())
+                .with_current_dir(self.cwd);
         let clock = SimClock::new(
             self.seed,
             Timestamp::from_unix_nanos(START),
@@ -176,5 +187,40 @@ pub(crate) fn broken() -> SimFileSystem {
     project(&[
         ("project.toml", "name = \"sales\"\nnmae = \"x\"\n"),
         ("models/Orders.sql", "select 1"),
+    ])
+}
+
+/// A valid project of four `.sql` models reading two sources:
+/// `stg_orders` and `stg_customers` (tag `staging`) read `erp` and `crm`; `fact_sales` (tag
+/// `finance`) reads both; `dim_customer` reads `stg_customers`.
+pub(crate) fn shop() -> SimFileSystem {
+    project(&[
+        ("project.toml", PROJECT),
+        ("sources/erp.toml", "[tables.orders]\n"),
+        ("sources/crm.toml", "[tables.customers]\n"),
+        (
+            "models/staging/mergus.toml",
+            "[all]\ntags = [\"staging\"]\n",
+        ),
+        (
+            "models/staging/stg_orders.sql",
+            "select * from raw.erp__orders\n",
+        ),
+        (
+            "models/staging/stg_customers.sql",
+            "select * from raw.crm__customers\n",
+        ),
+        (
+            "models/gold/sales/mergus.toml",
+            "[fact_sales]\ntags = [\"finance\"]\n",
+        ),
+        (
+            "models/gold/sales/fact_sales.sql",
+            "select o.id from stg_orders o join stg_customers c on o.id = c.id\n",
+        ),
+        (
+            "models/gold/sales/dim_customer.sql",
+            "select * from stg_customers\n",
+        ),
     ])
 }

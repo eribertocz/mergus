@@ -60,7 +60,7 @@ fn source_line(files: &dyn FileSystem, root: &Path, diagnostic: &Diagnostic) -> 
 }
 
 /// Returns the value of a check, or adds its problems to `diagnostics`.
-fn collect<T>(
+pub(crate) fn collect<T>(
     result: Result<T, LayoutError>,
     diagnostics: &mut Vec<Diagnostic>,
 ) -> Result<Option<T>, CliError> {
