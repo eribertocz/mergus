@@ -47,10 +47,8 @@ fn shown(service: &str, account: &str) -> String {
 /// `keyring` error can carry the bytes of an entry, which must never be shown (MG-REQ-1002).
 fn failed(action: &str, service: &str, account: &str, error: &Error) -> PortError {
     let reason = match error {
-        Error::NoDefaultStore | Error::NoStorageAccess(_) | Error::PlatformFailure(_) => {
-            "the keychain cannot be reached"
-        }
-        Error::BadEncoding(_) | Error::BadDataFormat(..) => "the value is not valid text",
+        Error::NoStorageAccess(_) | Error::PlatformFailure(_) => "the keychain cannot be reached",
+        Error::BadEncoding(_) => "the value is not valid text",
         _ => "the keychain refused the operation",
     };
     PortError::Failed(format!(

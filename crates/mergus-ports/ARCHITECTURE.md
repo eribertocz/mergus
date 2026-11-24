@@ -31,10 +31,10 @@ Every trait is `Send + Sync` and takes `&self`, so one value can be shared behin
 - `thiserror`: derives `PortError`.
 - `duckdb` (feature `real` only; features `bundled` and `json`, default features off): the
   in-memory DuckDB of `RealSqlParser` (MG-REQ-0193).
-- `keyring` (feature `real` only; feature `v1`, default features off): `RealKeychain` on
-  Keychain Services, Credential Manager and the Secret Service through `zbus`, none of which
-  needs a system library to build. It is the only crate allowed to depend on `keyring`
-  (MG-REQ-0126.7).
+- `keyring` 3 (feature `real` only; default features off): `RealKeychain` on Keychain
+  Services, Credential Manager and the Secret Service through `dbus`, with libdbus built from
+  source (`vendored`) and pure-Rust cryptography, so no system library is needed to build.
+  It is the only crate allowed to depend on `keyring` (MG-REQ-0126.7).
 - The standard library, used directly only in `src/real/`, which allows Clippy's
   `disallowed_methods` and `disallowed_types` with a written reason (MG-REQ-0130).
 - A dev-dependency on `serde_json`, to compare trees as JSON values in tests.
