@@ -3,10 +3,12 @@
 
 use std::collections::BTreeSet;
 use std::fmt::Write as _;
+use std::path::Path;
 
 use mergus_contracts::generated::mergus_events_v1::Step as EventStep;
 use mergus_contracts::generated::mergus_plan_v1::{StepAction, StepReason};
 use mergus_plan::{Plan, PlanModel, PlanRequest};
+use mergus_ports::{FileSystem, PortError};
 
 use crate::args::Invocation;
 use crate::commands::{EXCLUDE, MAX_PARALLEL, SELECTION};
@@ -64,25 +66,28 @@ pub(crate) fn plan(
     request.max_parallel = setting.value;
     let plan = mergus_plan::plan(&planned, &request)
         .map_err(|error| CliError::Internal(error.to_string()))?;
-    let relative = format!("{PLANS}/{}.json", plan.plan_id());
-    let path = project.root.join(&relative);
-    let unwritable = |error: mergus_ports::PortError| CliError::Unwritable {
-        path: relative.clone(),
-        message: error.to_string(),
-    };
-    if !ports.files.exists(&path).map_err(unwritable)? {
-        ports
-            .files
-            .create_dir_all(&project.root.join(PLANS))
-            .map_err(unwritable)?;
-        ports
-            .files
-            .write(&path, &plan.bytes())
-            .map_err(unwritable)?;
-    }
+    let relative = write(ports.files, &project.root, &plan)?;
     output.plan_ready(steps(&plan))?;
     output.report(&summary(&plan, &relative))?;
     Ok(Vec::new())
+}
+
+/// Writes `plan` to `.mergus/plans/<plan_id>.json` under `root`, unless a file of that name
+/// exists, and returns that path relative to `root`.
+fn write(files: &dyn FileSystem, root: &Path, plan: &Plan) -> Result<String, CliError> {
+    let relative = format!("{PLANS}/{}.json", plan.plan_id());
+    let path = root.join(&relative);
+    let unwritable = |error: PortError| CliError::Unwritable {
+        path: relative.clone(),
+        message: error.to_string(),
+    };
+    if !files.exists(&path).map_err(unwritable)? {
+        files
+            .create_dir_all(&root.join(PLANS))
+            .map_err(unwritable)?;
+        files.write(&path, &plan.bytes()).map_err(unwritable)?;
+    }
+    Ok(relative)
 }
 
 /// The steps of `plan` as the `plan_ready` event carries them.

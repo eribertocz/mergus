@@ -71,7 +71,10 @@ fn mg_req_0746_plan_command_writes_artifact() {
         "{}",
         again.stdout
     );
+}
 
+#[test]
+fn mg_req_0746_plan_reports_stale_upstream() {
     // A stale model left out is reported with the selector that includes it (MG-REQ-0717).
     let partial = mergus(&shop(), &["plan", "fact_sales"]);
     assert!(
