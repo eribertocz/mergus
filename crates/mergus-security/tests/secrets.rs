@@ -19,7 +19,6 @@ fn resolved(env: &[(&str, &str)], keychain: &SimKeychain, text: &str) -> Option<
 
 #[test]
 fn mg_req_1001_resolution_chain_order() {
-    let reference = |text: &str| SecretRef::parse(text).unwrap();
     let keychain = SimKeychain::with_entries([
         ("mergus", "token", "from-keychain"),
         ("other", "api_key", "wrong-service"),
@@ -52,6 +51,16 @@ fn mg_req_1001_resolution_chain_order() {
         Some("from-keychain")
     );
     assert_eq!(resolved(&[], &keychain, "secret:api_key"), None);
+}
+
+#[test]
+fn mg_req_1001_unresolved_reference_names_both_places() {
+    let reference = |text: &str| SecretRef::parse(text).unwrap();
+    let keychain = SimKeychain::with_entries([
+        ("mergus", "token", "from-keychain"),
+        ("other", "api_key", "wrong-service"),
+        ("mergus", "API_KEY", "wrong-account"),
+    ]);
     // MG-REQ-1001.3: when neither answers, a typed error names the reference and both
     // places, and never a value.
     let environment = SimEnvironment::new([("MERGUS_SECRET_TOKEN", "from-env")], None);
