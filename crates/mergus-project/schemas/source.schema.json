@@ -2,6 +2,181 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://mergus.dev/schemas/source.schema.json",
   "title": "sources/<source>.toml",
-  "description": "One source, named after the file stem (MG-REQ-0306). No key is known yet (MG-REQ-0362.3): any valid TOML document is accepted.",
-  "type": "object"
+  "description": "One source, named after the file stem (MG-REQ-0306), with the keys of MG-REQ-0376 for its kind.",
+  "required": ["kind"],
+  "properties": {
+    "kind": {
+      "description": "database, files or rest (MG-REQ-0376.1, MG-REQ-0401).",
+      "type": "string",
+      "enum": ["database", "files", "rest"]
+    }
+  },
+  "oneOf": [
+    { "description": "A database source.", "$ref": "#/$defs/database" },
+    { "description": "A files source.", "$ref": "#/$defs/files" },
+    { "description": "A REST source.", "$ref": "#/$defs/rest" }
+  ],
+  "$defs": {
+    "database": {
+      "description": "A database source, read through ADBC: connection is required (MG-REQ-0376.3).",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "connection"],
+      "properties": {
+        "kind": { "description": "The kind of this source.", "const": "database" },
+        "mode": { "description": "How the source is read.", "$ref": "#/$defs/mode" },
+        "raw": { "description": "Whether the source is kept in the raw zone.", "type": "boolean" },
+        "retention": { "description": "How long raw data is kept.", "$ref": "#/$defs/duration" },
+        "connection": { "description": "The connection.", "$ref": "#/$defs/secret" },
+        "replica": { "description": "The connection of a replica.", "$ref": "#/$defs/secret" },
+        "location": { "description": "A local directory or an object-store URL prefix.", "$ref": "#/$defs/text" },
+        "load": { "description": "The load put on the source.", "$ref": "#/$defs/load" },
+        "max_connections": { "description": "The most connections opened at once.", "$ref": "#/$defs/max_connections" },
+        "window": { "description": "When the source may be read.", "$ref": "#/$defs/window" },
+        "query_timeout": { "description": "The longest a query may run.", "$ref": "#/$defs/duration" },
+        "overlap": { "description": "How far before the last mark a read starts.", "$ref": "#/$defs/duration" },
+        "tables": { "description": "The declared tables.", "$ref": "#/$defs/tables" }
+      }
+    },
+    "files": {
+      "description": "A files source, Parquet, CSV or JSON: location is required (MG-REQ-0376.4).",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "location"],
+      "properties": {
+        "kind": { "description": "The kind of this source.", "const": "files" },
+        "mode": { "description": "How the source is read.", "$ref": "#/$defs/mode" },
+        "raw": { "description": "Whether the source is kept in the raw zone.", "type": "boolean" },
+        "retention": { "description": "How long raw data is kept.", "$ref": "#/$defs/duration" },
+        "connection": { "description": "The connection.", "$ref": "#/$defs/secret" },
+        "replica": { "description": "The connection of a replica.", "$ref": "#/$defs/secret" },
+        "location": { "description": "A local directory or an object-store URL prefix.", "$ref": "#/$defs/text" },
+        "load": { "description": "The load put on the source.", "$ref": "#/$defs/load" },
+        "max_connections": { "description": "The most connections opened at once.", "$ref": "#/$defs/max_connections" },
+        "window": { "description": "When the source may be read.", "$ref": "#/$defs/window" },
+        "query_timeout": { "description": "The longest a query may run.", "$ref": "#/$defs/duration" },
+        "overlap": { "description": "How far before the last mark a read starts.", "$ref": "#/$defs/duration" },
+        "tables": { "description": "The declared tables, each with a path and a format.", "$ref": "#/$defs/file_tables" }
+      }
+    },
+    "rest": {
+      "description": "A REST source: any other key is accepted until extract/rest.md is due (MG-REQ-0376.7).",
+      "type": "object",
+      "required": ["kind"],
+      "properties": {
+        "kind": { "description": "The kind of this source.", "const": "rest" }
+      }
+    },
+    "tables": {
+      "description": "One table per declared table, keyed by its name (MG-REQ-0376.6).",
+      "type": "object",
+      "additionalProperties": false,
+      "patternProperties": {
+        "^[a-z][a-z0-9_]{0,62}$": { "description": "The options of the table of this name.", "$ref": "#/$defs/table" }
+      }
+    },
+    "file_tables": {
+      "description": "One table per declared table of a files source, keyed by its name (MG-REQ-0376.6).",
+      "type": "object",
+      "additionalProperties": false,
+      "patternProperties": {
+        "^[a-z][a-z0-9_]{0,62}$": { "description": "The options of the table of this name.", "$ref": "#/$defs/file_table" }
+      }
+    },
+    "table": {
+      "description": "The load options of a table (MG-REQ-0376.6).",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "key": { "description": "The business key.", "$ref": "#/$defs/key" },
+        "incremental": { "description": "The column that marks new and changed rows.", "$ref": "#/$defs/name" },
+        "overlap": { "description": "How far before the last mark a read starts.", "$ref": "#/$defs/duration" },
+        "deletes": { "description": "How deleted rows are found.", "$ref": "#/$defs/deletes" },
+        "delete_check": { "description": "How often deleted rows are looked for.", "$ref": "#/$defs/delete_check" },
+        "delete_window": { "description": "How far back deleted rows are looked for.", "$ref": "#/$defs/duration" }
+      }
+    },
+    "file_table": {
+      "description": "The load options of a table of a files source, with its path and format (MG-REQ-0376.6).",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "format"],
+      "properties": {
+        "key": { "description": "The business key.", "$ref": "#/$defs/key" },
+        "incremental": { "description": "The column that marks new and changed rows.", "$ref": "#/$defs/name" },
+        "overlap": { "description": "How far before the last mark a read starts.", "$ref": "#/$defs/duration" },
+        "deletes": { "description": "How deleted rows are found.", "$ref": "#/$defs/deletes" },
+        "delete_check": { "description": "How often deleted rows are looked for.", "$ref": "#/$defs/delete_check" },
+        "delete_window": { "description": "How far back deleted rows are looked for.", "$ref": "#/$defs/duration" },
+        "path": { "description": "A glob under the location of the source.", "$ref": "#/$defs/text" },
+        "format": {
+          "description": "parquet, csv or json.",
+          "type": "string",
+          "enum": ["parquet", "csv", "json"]
+        }
+      }
+    },
+    "name": {
+      "description": "A lowercase identifier (MG-REQ-0305).",
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_]{0,62}$"
+    },
+    "key": {
+      "description": "A name, or a non-empty list of names.",
+      "oneOf": [
+        { "description": "One column.", "$ref": "#/$defs/name" },
+        {
+          "description": "Several columns.",
+          "type": "array",
+          "items": { "description": "A column.", "$ref": "#/$defs/name" }
+        },
+        { "description": "The empty list, which also matches the list above, so oneOf rejects it.", "const": [] }
+      ]
+    },
+    "text": {
+      "description": "A non-empty string.",
+      "type": "string",
+      "pattern": "[\\s\\S]"
+    },
+    "secret": {
+      "description": "A secret reference secret:<name>, the name of MG-REQ-0305 (MG-REQ-1001).",
+      "type": "string",
+      "pattern": "^secret:[a-z][a-z0-9_]{0,62}$"
+    },
+    "duration": {
+      "description": "A positive integer followed by m, h or d, such as 6h (MG-REQ-0366.5).",
+      "type": "string",
+      "pattern": "^[1-9][0-9]*[mhd]$"
+    },
+    "mode": {
+      "description": "copy, connect or live (MG-REQ-0376.2).",
+      "type": "string",
+      "enum": ["copy", "connect", "live"]
+    },
+    "load": {
+      "description": "low, normal or high (MG-REQ-0376.5).",
+      "type": "string",
+      "enum": ["low", "normal", "high"]
+    },
+    "max_connections": {
+      "description": "An integer from 1 (MG-REQ-0376.5).",
+      "type": "integer",
+      "minimum": 1
+    },
+    "window": {
+      "description": "HH:MM-HH:MM, 24-hour, which may cross midnight (MG-REQ-0376.5).",
+      "type": "string",
+      "pattern": "^([01][0-9]|2[0-3]):[0-5][0-9]-([01][0-9]|2[0-3]):[0-5][0-9]$"
+    },
+    "deletes": {
+      "description": "column:<name>, compare or none (MG-REQ-0376.6).",
+      "type": "string",
+      "pattern": "^(column:[a-z][a-z0-9_]{0,62}|compare|none)$"
+    },
+    "delete_check": {
+      "description": "every_run, hourly, daily or weekly (MG-REQ-0376.6).",
+      "type": "string",
+      "enum": ["every_run", "hourly", "daily", "weekly"]
+    }
+  }
 }

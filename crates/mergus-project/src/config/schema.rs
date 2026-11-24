@@ -85,8 +85,44 @@ impl Report<'_> {
                 });
                 problems.push(self.invalid(&at, self.line(&at, false), error, suggestion));
             }
+            ValidationErrorKind::OneOfNotValid { context } if self.is_object(&at) => {
+                self.push_branch(&at, context, problems);
+            }
             _ => problems.push(self.invalid(&at, self.line(&at, false), error, None)),
         }
+    }
+
+    /// Reports an object that matches no branch of a `oneOf`, such as a source of one kind
+    /// (MG-REQ-0376). The branches tell themselves apart by the `const` of a key: the one
+    /// branch whose `const` keys match is reported, error by error. When no branch, or more
+    /// than one, matches, the key itself is missing or wrong, and the keywords beside the
+    /// `oneOf` report it.
+    fn push_branch(
+        &self,
+        at: &[Segment],
+        branches: &[Vec<ValidationError<'static>>],
+        problems: &mut Vec<ProjectError>,
+    ) {
+        let depth = at.len() + 1;
+        let mut matching = branches.iter().filter(|errors| {
+            !errors.iter().any(|error| {
+                matches!(error.kind(), ValidationErrorKind::Constant { .. })
+                    && error.instance_path().iter().count() == depth
+            })
+        });
+        if let (Some(errors), None) = (matching.next(), matching.next()) {
+            for error in errors {
+                self.push(error, problems);
+            }
+        }
+    }
+
+    /// Whether the value at `at` is an object.
+    fn is_object(&self, at: &[Segment]) -> bool {
+        self.file
+            .value
+            .pointer(&pointer(at))
+            .is_some_and(Value::is_object)
     }
 
     fn invalid(
@@ -121,7 +157,13 @@ impl Report<'_> {
             .unwrap_or_default();
         let mut node = Some(self.schema);
         for step in parent.split('/').filter(|step| !step.is_empty()) {
-            node = node.and_then(|value| self.follow(value).get(step));
+            node = node.and_then(|value| {
+                let value = self.follow(value);
+                match step.parse::<usize>() {
+                    Ok(index) if value.is_array() => value.get(index),
+                    _ => value.get(step),
+                }
+            });
         }
         node.and_then(|value| self.follow(value).get("properties"))
             .and_then(Value::as_object)
