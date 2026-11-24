@@ -902,7 +902,6 @@ dependencies = [
  "mergus-sim",
  "serde_json",
  "thiserror",
- "toml",
 ]
 
 [[package]]

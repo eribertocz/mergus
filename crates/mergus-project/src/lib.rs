@@ -31,7 +31,7 @@ mod sql;
 
 pub use config::{
     ConfigFile, ConfigKind, Configuration, Effective, ModelOptions, Origin, Setting, Source,
-    read_configuration, read_model_options,
+    read_configuration, read_model_options, toml_to_json,
 };
 pub use error::{LayoutError, NameKind, ProjectError};
 pub use ids::{IdKind, Identifier, Identifiers, Renames, derive_identifier, read_renames};

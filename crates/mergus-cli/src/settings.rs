@@ -5,6 +5,7 @@ use std::num::NonZeroU32;
 use std::path::PathBuf;
 
 use mergus_ports::{Environment, FileSystem, PortError};
+use mergus_project::toml_to_json;
 
 use crate::error::CliError;
 use crate::name::{PRODUCT, env_prefix};
@@ -103,17 +104,25 @@ fn user_file(
         message,
     };
     let text = String::from_utf8(bytes).map_err(|_| invalid("it is not UTF-8".to_owned()))?;
-    let table: toml::Table = toml::from_str(&text).map_err(|error| invalid(error.to_string()))?;
+    let value = toml_to_json(&path.display().to_string(), &text).map_err(|problems| {
+        let messages: Vec<String> = problems.iter().map(ToString::to_string).collect();
+        invalid(messages.join("; "))
+    })?;
+    let Some(table) = value.as_object() else {
+        return Err(invalid("it is not a table".to_owned()));
+    };
     if let Some(key) = table.keys().find(|key| *key != MAX_PARALLEL_KEY) {
         return Err(invalid(format!(
             "unknown key `{key}`; the only key is `{MAX_PARALLEL_KEY}`"
         )));
     }
     Ok(table.get(MAX_PARALLEL_KEY).map(|value| {
-        let text = match value {
-            toml::Value::Integer(number) => number.to_string(),
-            toml::Value::String(text) => format!("\"{text}\""),
-            other => format!("a {}", other.type_str()),
+        let text = if let Some(number) = value.as_i64() {
+            number.to_string()
+        } else if let Some(text) = value.as_str() {
+            format!("\"{text}\"")
+        } else {
+            value.to_string()
         };
         (text, path)
     }))

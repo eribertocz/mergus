@@ -63,7 +63,7 @@ Cargo cannot read a Rust constant. A unit test checks that it equals `name::PROD
 - `mergus-contracts`: the product name and the `mergus_events` and `mergus_cli` contracts.
 - `mergus-ports` with `real`: the ports and their real implementations.
 - `mergus-project`: the checks of stage 1, the name rules, `closest_name`, the `$id` of
-  the configuration schemas, the effective options, identifiers and references of models.
+  the configuration schemas, the effective options, identifiers and references of models,
+  and `toml_to_json`, which reads the user configuration file.
 - `mergus-plan`: the fingerprints and the `mergus_plan` document of `mergus plan`.
-- `toml`: reads the user configuration file.
 - `thiserror`: derives `CliError`.

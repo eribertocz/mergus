@@ -19,7 +19,6 @@ mergus-plan = { path = "../mergus-plan" }
 mergus-ports = { path = "../mergus-ports", features = ["real"] }
 mergus-project = { path = "../mergus-project" }
 thiserror = "2.0.21"
-toml = { version = "=0.9.8", default-features = false, features = ["std", "parse", "serde"] }
 
 [lints]
 workspace = true
