@@ -1,6 +1,6 @@
 # 0038 · The PostgreSQL driver comes from the Apache ADBC release on GitHub
 
-- Status: accepted
+- Status: superseded by 0040
 - Date: 2026-11-25
 - Answers: #163; the owner's choice of the official Apache release
 
