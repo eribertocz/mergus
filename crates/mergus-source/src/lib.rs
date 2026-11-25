@@ -15,7 +15,6 @@
 
 mod check;
 mod kind;
-mod lines;
 mod problem;
 
 pub use check::check_sources;

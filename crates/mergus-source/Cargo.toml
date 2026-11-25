@@ -12,9 +12,6 @@ mergus-ports = { path = "../mergus-ports" }
 mergus-project = { path = "../mergus-project" }
 serde_json = { version = "1.0.154", features = ["float_roundtrip"] }
 thiserror = "2.0.21"
-# The same release as `mergus-project`, which parses TOML 1.0: used only to find the line of
-# a key.
-toml = { version = "=0.9.8", default-features = false, features = ["std", "parse"] }
 
 [lints]
 workspace = true

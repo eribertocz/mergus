@@ -15,7 +15,8 @@
 1. The caller reads the project with `mergus_project::read_configuration`; only a valid
    configuration is checked, so every value has the type of its schema.
 2. `check_sources` takes each source in the order of the configuration and reads its file
-   again through the `FileSystem` port, only to find the line of each key.
+   again through the `FileSystem` port, only to find the line of each key with
+   `mergus_project::key_line`.
 3. For a source of a known kind it checks the `engine` against the `mode` (default `copy`),
    then each table that declares `incremental`: a missing `key` is an error, a missing
    `deletes` a warning. The line is that of `engine`, of `mode` when no engine is declared,
@@ -26,9 +27,8 @@
 ## Dependencies
 
 - `mergus-ports`: the `FileSystem` port and `PortError`.
-- `mergus-project`: `Configuration` and `Source`, the validated source files.
+- `mergus-project`: `Configuration` and `Source`, the validated source files, and
+  `key_line`, the line of a key, so that this crate parses no TOML (MG-REQ-0186).
 - `serde_json`: the JSON values of those files.
-- `toml` 0.9.8, the release `mergus-project` uses: parses a source file again only for the
-  spans of its keys.
 - `thiserror`: derives `SourceProblem`.
 - `mergus-sim`, as a dev-dependency only: the in-memory file system of the tests.

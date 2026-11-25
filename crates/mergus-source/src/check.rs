@@ -3,10 +3,9 @@
 use std::path::Path;
 
 use mergus_ports::{FileSystem, PortError};
-use mergus_project::{Configuration, Source};
+use mergus_project::{Configuration, Source, key_line};
 use serde_json::{Map, Value};
 
-use crate::lines::Lines;
 use crate::{Mode, SourceKind, SourceProblem};
 
 /// Checks every source of `configuration`, a project at `root` whose files are read through
@@ -25,11 +24,21 @@ pub fn check_sources(
     for source in &configuration.sources {
         let bytes = files.read(&root.join(&source.file.path))?;
         let text = String::from_utf8_lossy(&bytes);
-        let mut found = check_source(source, &Lines::new(&text));
+        let mut found = check_source(source, &Lines(&text));
         found.sort_by_cached_key(|problem| (problem.line(), problem.code(), problem.key()));
         problems.append(&mut found);
     }
     Ok(problems)
+}
+
+/// The text of a source file, which gives the line of its keys.
+struct Lines<'a>(&'a str);
+
+impl Lines<'_> {
+    /// The line, from 1, of the key at `keys`; 1 when the file does not hold it.
+    fn of(&self, keys: &[&str]) -> usize {
+        key_line(self.0, keys).unwrap_or(1)
+    }
 }
 
 /// The problems of one source.
