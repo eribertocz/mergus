@@ -105,8 +105,12 @@ depends on the ADBC crates (MG-REQ-0186). It loads only the drivers that the Mer
 pins, starting with PostgreSQL in phase 0.3:
 
 1. MG-REQ-0195.1: each driver library is fetched from the release artifacts of Apache Arrow
-   ADBC, at a URL and a SHA-256 sum pinned per operating system and architecture in the
-   Mergus release, and is refused when its sum differs;
+   ADBC on GitHub, at a URL and a SHA-256 sum pinned per operating system and architecture in
+   the Mergus release, and is refused when its sum differs. Apache publishes each driver as a
+   Python wheel, a zip archive: Mergus verifies the sum of the wheel, then takes from it the
+   one member whose file name is `libadbc_driver_<driver>.so` on Linux, `.dylib` on macOS or
+   `.dll` on Windows, and refuses a wheel that holds none or several. The PostgreSQL pins of
+   phase 0.3 are those of ADBC 25 listed in decision 0038;
 2. MG-REQ-0195.2: it is stored in `mergus/adbc/drivers/` under the user cache directory the
    first time a source needs it, and loaded from there with no network on later uses;
 3. MG-REQ-0195.3: a driver that is missing and cannot be fetched, or a database with no
@@ -125,5 +129,5 @@ faults of `architecture/testing.md`.
 - Verify: test `mg_req_0195_adbc_driver_pinned_and_cached`
 - Phase: 0.3
 - Depends: MG-REQ-0186, MG-REQ-0401
-- Decision: 0033, 0036
+- Decision: 0033, 0036, 0038
 
