@@ -18,7 +18,10 @@ Consumers that cache results had no stated way to know that a table's data had c
   is allowed only on analytical engines: DuckDB, DuckLake, ClickHouse, Iceberg, Delta and
   Parquet. `connect` is allowed only on the versioned formats it pins: DuckLake, Iceberg and
   Delta. Anything else, transactional or unknown, is a validation error that suggests `copy`
-  with `fresh`. The unprotected case disappears instead of needing protection. This is the
+  with `fresh`. The unprotected case disappears instead of needing protection.
+  `engine` is the user's claim, so each connection checks it against the engine that
+  actually answers, and fails typed on a mismatch or an unidentified engine (MG-REQ-0410).
+  A secret that points a `live` source at a transactional database is therefore refused. This is the
   direction of mirroring and zero-ETL products, which copy operational data to analytical
   storage rather than querying it live.
 - CDC principle: the user declares freshness, not mechanism. A `copy` source can move to CDC

@@ -112,3 +112,18 @@ only by extraction, under `extract/source-care.md`.
 - Verify: test `mg_req_0409_live_and_connect_only_on_analytical_engines`
 - Depends: MG-REQ-0376, MG-REQ-0405
 - Decision: 0034
+
+### MG-REQ-0410 · The connected engine matches the declared one
+
+Each time Mergus connects to a `connect` or `live` source, to read a table's schema or pin its
+version, it MUST identify the engine that answers, from the driver, the protocol or the
+table's metadata, before reading any data. If it differs from the declared `engine`, the
+source MUST fail with a typed error that names the source, the declared engine and the
+detected one, with exit code 1 and no data read. An engine that cannot be identified counts
+as different.
+
+- Kind: behavior
+- Verify: test `mg_req_0410_connected_engine_matches_declared`
+- Depends: MG-REQ-0409
+- Decision: 0034
+
