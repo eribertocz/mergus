@@ -2,6 +2,7 @@
 //! (MG-REQ-1324, MG-REQ-1334).
 
 use mergus_project::ProjectError;
+use mergus_source::{Severity, SourceProblem};
 
 use crate::catalog::{self, Entry};
 use crate::error::CliError;
@@ -15,10 +16,12 @@ pub(crate) struct Location {
     pub(crate) column: Option<usize>,
 }
 
-/// One error found by a command.
+/// One error or warning found by a command.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct Diagnostic {
     pub(crate) code: &'static str,
+    /// Whether it is a warning, which does not fail the command (MG-REQ-0416).
+    pub(crate) warning: bool,
     pub(crate) message: String,
     pub(crate) location: Option<Location>,
     /// The hint, when it is more precise than the catalog's.
@@ -44,6 +47,7 @@ impl Diagnostic {
     pub(crate) fn of_project(error: &ProjectError) -> Self {
         Self {
             code: error.code(),
+            warning: false,
             message: error.to_string(),
             location: Some(Location {
                 file: error.path().to_owned(),
@@ -56,10 +60,29 @@ impl Diagnostic {
         }
     }
 
+    /// The diagnostic of a problem of a source file of `mergus-source`, located at its file
+    /// and line; a warning when the problem is one.
+    pub(crate) fn of_source(problem: &SourceProblem) -> Self {
+        Self {
+            code: problem.code(),
+            warning: problem.severity() == Severity::Warning,
+            message: problem.to_string(),
+            location: Some(Location {
+                file: problem.path().to_owned(),
+                line: Some(problem.line()),
+                column: None,
+            }),
+            hint: None,
+            next: Vec::new(),
+            source: None,
+        }
+    }
+
     /// The diagnostic of an error of the binary.
     pub(crate) fn of_cli(error: &CliError) -> Self {
         Self {
             code: error.code(),
+            warning: false,
             message: error.to_string(),
             location: None,
             hint: error.hint(),

@@ -20,9 +20,9 @@
 | `settings::max_parallel` | `max_parallel` from the flag, the variable, the user file or the default |
 | `planning::plan` | `mergus plan`: the plan of `mergus-plan`, written under `.mergus/plans/` |
 | `explain::explain` | `mergus explain`: a code's catalog file, or a model and its options |
-| `validate::validate` | Stage 1: layout, configuration and folder options of `mergus-project` |
+| `validate::validate` | Stage 1: layout, configuration and folder options of `mergus-project`, source checks of `mergus-source` |
 | `project::find` | The nearest directory upwards that holds `project.toml` |
-| `diagnostic::Diagnostic` | One error: code, message, location, hint, next invocations, source line |
+| `diagnostic::Diagnostic` | One error or warning: code, message, location, hint, next invocations, source line |
 | `diagnostic::group` | Orders diagnostics by file, in order of first appearance |
 | `error::CliError` | The errors of the binary itself, `MG-1301` to `MG-1308` |
 | `catalog` | The files of `errors/`, compiled in: exit code, retryable flag, hint and cause of each code |
@@ -43,7 +43,8 @@
    `run_started`. Otherwise `run_started` comes first, then the command's diagnostics,
    grouped by file. `validate` attaches to each located diagnostic the text of its line.
 4. Each diagnostic takes its exit code and, unless it has a more precise one, its hint from
-   the catalog. The run ends with the highest exit code, 0 when there is no diagnostic.
+   the catalog. The run ends with the highest exit code, 0 when there is no diagnostic. A
+   warning, such as `MG-0403`, has exit code 0 and severity `warning`.
 5. `schema` prints its document alone on standard output, without events, with or without
    `--json`. `init`, `new model` and `add source` build a `files::Plan`, refuse it when a
    name is invalid or taken or a file exists, then list it with `--dry-run` or write it.
@@ -65,5 +66,6 @@ Cargo cannot read a Rust constant. A unit test checks that it equals `name::PROD
 - `mergus-project`: the checks of stage 1, the name rules, `closest_name`, the `$id` of
   the configuration schemas, the effective options, identifiers and references of models,
   and `toml_to_json`, which reads the user configuration file.
+- `mergus-source`: the checks of the source files (MG-REQ-0409, MG-REQ-0414, MG-REQ-0416).
 - `mergus-plan`: the fingerprints and the `mergus_plan` document of `mergus plan`.
 - `thiserror`: derives `CliError`.
