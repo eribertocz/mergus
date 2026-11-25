@@ -109,9 +109,10 @@ fn mg_req_0285_adapter_trait_has_six_operations() {
     assert_eq!(memory.expired_with, Some(retention));
 }
 
-#[test]
-fn mg_req_0287_undeclared_capability_refused_early() {
-    let memory = Memory {
+/// An adapter that keeps no versions and declares two write modes, concurrent clients and
+/// the type `Int64`.
+fn unversioned() -> Memory {
+    Memory {
         capabilities: Capabilities {
             versioning: Versioning::None,
             multi_table_transactions: false,
@@ -120,7 +121,12 @@ fn mg_req_0287_undeclared_capability_refused_early() {
             write_modes: vec![WriteMode::Append, WriteMode::Replace],
         },
         ..Memory::default()
-    };
+    }
+}
+
+#[test]
+fn mg_req_0287_undeclared_capability_refused_early() {
+    let memory = unversioned();
     // What the adapter declares is accepted.
     let declared = [
         Requirement::WriteMode(WriteMode::Append),
