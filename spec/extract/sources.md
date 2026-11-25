@@ -126,7 +126,9 @@ source MUST fail with a typed error that names the source, the declared engine a
 detected one, with exit code 1 and no data read. An engine that cannot be identified counts
 as different. For `engine = "duckdb"`, the engine is identified by the ADBC driver's
 `ADBC_INFO_VENDOR_NAME`, which MUST be `duckdb`, and `ADBC_INFO_VENDOR_VERSION` is recorded
-in the load registry.
+in the load registry. A remote DuckDB reached over Quack is identified by its `whoami()`
+macro, whose `duckdb_version` key is recorded; because a server MAY override those keys, the
+result identifies the engine but does not authenticate it (decision 0036).
 
 - Kind: behavior
 - Verify: test `mg_req_0410_connected_engine_matches_declared`
@@ -136,8 +138,9 @@ in the load registry.
 ### MG-REQ-0421 · DuckDB files as sources
 
 A source with `kind = "database"` and `engine = "duckdb"` MUST read the `.duckdb` file at
-`location` through the DuckDB ADBC driver of MG-REQ-0195.4, opened read-only
-(`access_mode = READ_ONLY`), so Mergus never writes to it. With `mode = "copy"` its declared
+`location` through the DuckDB ADBC driver of MG-REQ-0195.4: an in-memory database opened by
+the driver attaches the file with `ATTACH '<location>' (READ_ONLY)`, so Mergus never writes
+to it. With `mode = "copy"` its declared
 tables are extracted into raw like any database source. With `mode = "live"` the executor
 reads the file at query time (MG-REQ-0405, level F). Each file is one source: data kept in
 one file per year is declared as one source per file.
