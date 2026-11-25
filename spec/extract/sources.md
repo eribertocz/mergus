@@ -29,7 +29,7 @@ delete_window = "90d"
 |---|---|---|
 | `copy` (default) | Raw operational data | Extracted into raw |
 | `connect` | Clean, versioned tables (DuckLake, Iceberg, Delta) | Read in place, pinned by version |
-| `live` | Clean tables without versions | Queried by the executor at read time |
+| `live` | Clean tables without versions, on an analytical engine only (MG-REQ-0409) | Queried by the executor at read time |
 
 ### MG-REQ-0401 · Source kinds
 
@@ -92,3 +92,38 @@ the extraction of that table with a typed error naming the column, the old and t
 
 - Kind: behavior
 - Verify: test `mg_req_0407_breaking_source_change_stops_table`
+
+### MG-REQ-0409 · Connect and live only on analytical engines
+
+A source in `connect` or `live` mode MUST declare `engine`, checked against an allowlist:
+
+1. MG-REQ-0409.1: `live`: `duckdb`, `ducklake`, `clickhouse`, `iceberg`, `delta` or
+   `parquet`;
+2. MG-REQ-0409.2: `connect`: `ducklake`, `iceberg` or `delta`, the formats with native
+   versions that `connect` pins;
+3. MG-REQ-0409.3: any other engine, transactional databases and unknown engines included,
+   and `engine` in a `copy` source, MUST be a validation error whose fix suggests
+   `mode = "copy"` with `fresh` on the models that need current data.
+
+A query of the executor therefore never reaches a transactional database: those are read
+only by extraction, under `extract/source-care.md`.
+
+- Kind: behavior
+- Verify: test `mg_req_0409_live_and_connect_only_on_analytical_engines`
+- Depends: MG-REQ-0376, MG-REQ-0405
+- Decision: 0034
+
+### MG-REQ-0410 · The connected engine matches the declared one
+
+Each time Mergus connects to a `connect` or `live` source, to read a table's schema or pin its
+version, it MUST identify the engine that answers, from the driver, the protocol or the
+table's metadata, before reading any data. If it differs from the declared `engine`, the
+source MUST fail with a typed error that names the source, the declared engine and the
+detected one, with exit code 1 and no data read. An engine that cannot be identified counts
+as different.
+
+- Kind: behavior
+- Verify: test `mg_req_0410_connected_engine_matches_declared`
+- Depends: MG-REQ-0409
+- Decision: 0034
+

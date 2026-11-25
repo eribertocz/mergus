@@ -31,6 +31,20 @@ they rely on, so that Mergus keeps providing it. Mergus's obligations are the ru
 | Delta | Version per table when attaching |
 | Parquet | Views over file lists |
 
+Mergus guarantees consumers three things, and only these; what a consumer must do is
+specified by the consumer:
+
+- a data token per table (MG-REQ-0251);
+- readable pinned versions inside the rollback window, and a typed error after it
+  (MG-REQ-0252);
+- detection without notice: the pointer `envs/<environment>/latest` moves only after every
+  document of a publication is written (MG-REQ-0247, MG-REQ-0248), so reading it is enough
+  to see a new publication. A remote event may come after the MVP.
+
+Intended use (informative): a consumer pins one manifest per query or session and puts the
+data tokens of the tables it reads in its cache key, so a stale result cannot be served and
+no invalidation is needed.
+
 ### MG-REQ-0290 · MCP adapter is a thin, separate module
 
 Mergus's MCP server MUST be the crate `mergus-mcp` in the Mergus repository, released and tested

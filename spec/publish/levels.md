@@ -18,7 +18,8 @@ depends_on: [publish-sequence, storage-profiles]
 | C | No versions, tables change separately (ClickHouse) | Atomic swap per table and safe degradation | after MVP |
 | F | External without versions (`live`) | Schema only, no evidence | yes |
 
-OLTP databases are never a managed gold store; they can only be sources or `live` tables.
+OLTP databases are never a managed gold store, nor `connect` or `live` tables: they can only
+be `copy` sources (MG-REQ-0409).
 
 ### MG-REQ-0911 · Level per table
 

@@ -186,8 +186,8 @@ The schema of `sources/*.toml` MUST hold exactly these keys, and every other key
 (MG-REQ-0361). Durations are those of MG-REQ-0366.5; table names are names of MG-REQ-0305.
 
 1. MG-REQ-0376.1: `kind` (required): `database`, `files` or `rest`;
-2. MG-REQ-0376.2: `mode`: `copy`, `connect` or `live`; `raw`: a boolean; `retention`: a
-   duration;
+2. MG-REQ-0376.2: `mode`: `copy`, `connect` or `live`; `engine`: a name, which MG-REQ-0409
+   checks; `raw`: a boolean; `retention`: a duration;
 3. MG-REQ-0376.3: `connection` (required when `kind` is `database`) and `replica`: secret
    references of MG-REQ-1001;
 4. MG-REQ-0376.4: `location` (required when `kind` is `files`): a non-empty string, a local
