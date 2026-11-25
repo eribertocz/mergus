@@ -13,8 +13,13 @@ default = []
 real = ["dep:duckdb", "dep:keyring"]
 
 [dependencies]
-# MG-REQ-0193: the real `SqlParser`. Only under the feature `real` (MG-REQ-0133).
-duckdb = { version = "=1.20001.0", default-features = false, features = ["bundled", "json"], optional = true }
+# MG-REQ-0194: the `Database` port reads and writes Arrow record batches. Only the array and
+# schema types are needed, so default features stay off; the version is the one `duckdb` uses.
+arrow = { version = "60.2.0", default-features = false }
+# MG-REQ-0193 and MG-REQ-0194: the real `SqlParser` and `Database`. Only under the feature
+# `real` (MG-REQ-0133); only this crate may depend on `duckdb` (MG-REQ-0194). DuckDB v2.0.1,
+# which supports DuckLake. `appender-arrow` appends Arrow record batches.
+duckdb = { version = "=1.20001.0", default-features = false, features = ["bundled", "json", "appender-arrow"], optional = true }
 # MG-REQ-1001.2: the real `Keychain`. Only under the feature `real` (MG-REQ-0133); only this
 # crate may depend on `keyring` (MG-REQ-0126.7). Keychain Services on macOS, Credential Manager
 # on Windows, and the Secret Service elsewhere through `dbus`, with libdbus built from source

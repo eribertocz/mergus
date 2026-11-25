@@ -34,6 +34,19 @@ impl Environment for RealEnvironment {
         absolute(self.var("XDG_CONFIG_HOME"))
             .or_else(|| absolute(self.var("HOME")).map(|home| home.join(".config")))
     }
+
+    /// `LOCALAPPDATA` on Windows; `Library/Caches` under `HOME` on macOS; elsewhere
+    /// `XDG_CACHE_HOME` when it is an absolute path, otherwise `.cache` under `HOME`.
+    fn cache_dir(&self) -> Option<PathBuf> {
+        if cfg!(windows) {
+            return absolute(self.var("LOCALAPPDATA"));
+        }
+        let home = || absolute(self.var("HOME"));
+        if cfg!(target_os = "macos") {
+            return home().map(|home| home.join("Library").join("Caches"));
+        }
+        absolute(self.var("XDG_CACHE_HOME")).or_else(|| home().map(|home| home.join(".cache")))
+    }
 }
 
 /// Returns `value` as a path when it is set and absolute.
@@ -52,6 +65,9 @@ mod tests {
         assert!(environment.current_dir().unwrap().is_absolute());
         assert!(environment.var("PATH").is_some());
         assert_eq!(environment.var("MERGUS_PORTS_TEST_UNSET_VARIABLE"), None);
+        if let Some(cache_dir) = environment.cache_dir() {
+            assert!(cache_dir.is_absolute());
+        }
         let _ = environment.args();
     }
 }

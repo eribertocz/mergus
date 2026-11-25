@@ -8,6 +8,8 @@ publish.workspace = true
 description = "Deterministic simulator."
 
 [dependencies]
+# The simulated `Database` reads and writes Arrow record batches, as the port does.
+arrow = { version = "60.2.0", default-features = false }
 mergus-ports = { path = "../mergus-ports" }
 
 [lints]

@@ -730,6 +730,7 @@ dependencies = [
  "fallible-streaming-iterator",
  "hashlink",
  "libduckdb-sys",
+ "num",
  "num-integer",
  "strum 0.27.2",
 ]
@@ -1421,6 +1422,7 @@ dependencies = [
 name = "mergus-ports"
 version = "0.2.0"
 dependencies = [
+ "arrow",
  "duckdb",
  "keyring",
  "mergus-ports",
@@ -1457,6 +1459,7 @@ dependencies = [
 name = "mergus-sim"
 version = "0.2.0"
 dependencies = [
+ "arrow",
  "mergus-ports",
 ]
 

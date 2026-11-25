@@ -1,12 +1,12 @@
 //! The `Environment` port: command-line arguments, current directory, environment variables
-//! and the user configuration directory.
+//! and the user configuration and cache directories.
 
 use std::path::PathBuf;
 
 use crate::PortError;
 
 /// Command-line arguments, current directory, environment variables and the user
-/// configuration directory.
+/// configuration and cache directories.
 pub trait Environment: Send + Sync {
     /// Returns the command-line arguments after the program name, in order. An argument that
     /// is not valid Unicode has each invalid sequence replaced by `U+FFFD`.
@@ -26,4 +26,7 @@ pub trait Environment: Send + Sync {
 
     /// Returns the user configuration directory, or `None` when there is none.
     fn config_dir(&self) -> Option<PathBuf>;
+
+    /// Returns the user cache directory, or `None` when there is none.
+    fn cache_dir(&self) -> Option<PathBuf>;
 }

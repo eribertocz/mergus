@@ -11,6 +11,7 @@
 #![forbid(unsafe_code)]
 
 mod clock;
+mod database;
 mod environment;
 mod file_system;
 mod keychain;
@@ -24,6 +25,7 @@ mod source;
 mod sql_parser;
 
 pub use clock::{ClockFaults, SimClock};
+pub use database::{DatabaseFaults, SimDatabase};
 pub use environment::SimEnvironment;
 pub use file_system::SimFileSystem;
 pub use keychain::SimKeychain;

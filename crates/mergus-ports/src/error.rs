@@ -1,5 +1,7 @@
 //! The error every port returns.
 
+use std::path::PathBuf;
+
 /// A failure reported by a port.
 #[derive(Clone, Debug, PartialEq, Eq, thiserror::Error)]
 pub enum PortError {
@@ -9,4 +11,18 @@ pub enum PortError {
     /// The operation failed.
     #[error("{0}")]
     Failed(String),
+    /// A DuckDB extension is not in its cache directory and cannot be downloaded from its
+    /// host (MG-REQ-0194.3).
+    #[error(
+        "the DuckDB extension `{extension}` is not in `{}` and cannot be downloaded from `{host}`",
+        cache_dir.display()
+    )]
+    ExtensionUnavailable {
+        /// The name of the extension.
+        extension: String,
+        /// The host it is downloaded from.
+        host: String,
+        /// The directory it is cached in.
+        cache_dir: PathBuf,
+    },
 }

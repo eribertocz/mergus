@@ -8,6 +8,7 @@
 #![forbid(unsafe_code)]
 
 mod clock;
+mod database;
 mod environment;
 mod error;
 mod file_system;
@@ -28,6 +29,7 @@ mod sql_parser;
 pub mod real;
 
 pub use clock::{Clock, MonotonicTime, Timestamp};
+pub use database::{Database, DatabaseConnection, DatabaseLocation, DuckLakeCatalog, SqlValue};
 pub use environment::Environment;
 pub use error::PortError;
 pub use file_system::FileSystem;

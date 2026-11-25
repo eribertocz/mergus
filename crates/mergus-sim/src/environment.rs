@@ -1,5 +1,5 @@
-//! A simulated environment: arguments, current directory, variables and a configuration
-//! directory set by the test.
+//! A simulated environment: arguments, current directory, variables and configuration and
+//! cache directories set by the test.
 
 use std::collections::BTreeMap;
 use std::path::PathBuf;
@@ -7,14 +7,15 @@ use std::path::PathBuf;
 use mergus_ports::{Environment, PortError};
 
 /// Environment variables and a configuration directory given at creation; no arguments and
-/// no current directory until [`SimEnvironment::with_args`] and
-/// [`SimEnvironment::with_current_dir`] set them.
+/// no current directory and no cache directory until [`SimEnvironment::with_args`],
+/// [`SimEnvironment::with_current_dir`] and [`SimEnvironment::with_cache_dir`] set them.
 #[derive(Clone, Debug, Default)]
 pub struct SimEnvironment {
     args: Vec<String>,
     current_dir: Option<PathBuf>,
     vars: BTreeMap<String, String>,
     config_dir: Option<PathBuf>,
+    cache_dir: Option<PathBuf>,
 }
 
 impl SimEnvironment {
@@ -34,6 +35,7 @@ impl SimEnvironment {
                 .map(|(name, value)| (name.into(), value.into()))
                 .collect(),
             config_dir,
+            cache_dir: None,
         }
     }
 
@@ -53,6 +55,13 @@ impl SimEnvironment {
     #[must_use]
     pub fn with_current_dir(mut self, current_dir: impl Into<PathBuf>) -> Self {
         self.current_dir = Some(current_dir.into());
+        self
+    }
+
+    /// Returns this environment with the user cache directory `cache_dir`.
+    #[must_use]
+    pub fn with_cache_dir(mut self, cache_dir: impl Into<PathBuf>) -> Self {
+        self.cache_dir = Some(cache_dir.into());
         self
     }
 }
@@ -75,5 +84,9 @@ impl Environment for SimEnvironment {
 
     fn config_dir(&self) -> Option<PathBuf> {
         self.config_dir.clone()
+    }
+
+    fn cache_dir(&self) -> Option<PathBuf> {
+        self.cache_dir.clone()
     }
 }
