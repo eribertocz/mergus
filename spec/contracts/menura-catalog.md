@@ -73,6 +73,20 @@ from the snapshot of the whole catalog:
 - Depends: MG-REQ-0213, MG-REQ-0251
 - Decision: 0034
 
+### MG-REQ-0219 · Live relations are omitted from the state
+
+Relations of `live` tables (level F) MUST be omitted from `catalog_state`. They MUST NOT be
+listed without a version, which CAT-5 rejects for the whole state, nor with a fixed or reused
+version (CAT-7.1.1). Before publication, Mergus MUST check against the manifest that every
+relation of the schema missing from the state is `live`, and that every relation that is not
+`live` is listed; any other result fails the publication with a typed error that names the
+relation.
+
+- Kind: behavior
+- Verify: test `mg_req_0219_live_relations_omitted_and_others_listed`
+- Depends: MG-REQ-0218, MG-REQ-0251
+- Decision: 0034
+
 ### MG-REQ-0214 · Hashes are copied, never computed
 
 Hashes that Menura defines (`definition_hash`, `model_hash`) MUST be copied verbatim from

@@ -42,13 +42,13 @@ Consumers that cache results had no stated way to know that a table's data had c
   `data_token` changes if and only if a period token changes (MG-REQ-0218). The snapshot of
   the whole catalog is never used.
 
-## Open
-
-- `live` relations (level F) in `catalog_state`. CAT-5 requires exactly one of `version`,
-  `partitions` or `aggregate_build`, so a relation cannot be listed without a version. The
-  proposal is to omit live relations from `catalog_state`. This waits for Menura to confirm it
-  accepts the omission. Until then no rule is written, and no version is ever invented for a
-  live relation.
+- `live` relations in `catalog_state` (MG-REQ-0219): Menura confirmed that omitting a
+  relation from the state is valid today. CAT-8.4 only requires that what is in the state
+  exists in the schema, and `compile` then leaves `data_versions` null for the whole plan
+  (PLN-3.3). Live relations are therefore omitted. They are never listed without a version
+  (CAT-5) and never given a fixed or reused version (CAT-7.1.1). Mergus checks, against the
+  manifest, that every omitted relation is `live` and every other one is listed. This tells
+  "is live" apart from "was forgotten" without changing Menura's contract.
 
 ## Consequences
 
