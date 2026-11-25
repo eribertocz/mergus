@@ -7,7 +7,7 @@ use serde_json::Value;
 use super::{PROJECT, mergus, project};
 
 /// Every command of the binary, sorted by name.
-const COMMANDS: [&str; 8] = [
+const COMMANDS: [&str; 9] = [
     "add source",
     "explain",
     "init",
@@ -15,6 +15,7 @@ const COMMANDS: [&str; 8] = [
     "new model",
     "plan",
     "schema",
+    "secret set",
     "validate",
 ];
 

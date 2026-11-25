@@ -17,7 +17,12 @@ impl SecretRef {
     /// by a valid name.
     #[must_use]
     pub fn parse(text: &str) -> Option<Self> {
-        let name = text.strip_prefix(PREFIX)?;
+        Self::from_name(text.strip_prefix(PREFIX)?)
+    }
+
+    /// Returns the reference to the secret `name`, or `None` when `name` is not a valid name.
+    #[must_use]
+    pub fn from_name(name: &str) -> Option<Self> {
         mergus_project::is_valid_name(name).then(|| Self {
             name: name.to_owned(),
         })

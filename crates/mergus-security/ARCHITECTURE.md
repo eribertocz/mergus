@@ -6,6 +6,8 @@
 |---|---|
 | `SecretRef` | A reference `secret:<name>`; gives the name and the variable `MERGUS_SECRET_<NAME>` |
 | `resolve` | The resolution chain of MG-REQ-1001: variable, then keychain |
+| `store` | Writes a value into the keychain entry of a reference (MG-REQ-1007) |
+| `StoreError` | `Empty` (`MG-1001`) or `Unwritable` (`MG-1002`): the reference, never a value |
 | `KEYCHAIN_SERVICE` | `mergus`, the keychain service of every secret |
 | `SecretError` | `NotFound`: the reference and both places looked at, never a value |
 | `SecretString`, `ExposeSecret` | Re-exported from `secrecy`: the value, read only through `expose_secret` |
@@ -19,6 +21,9 @@
    answers, wrapped in `SecretString`.
 5. Otherwise it returns `SecretError::NotFound`. A keychain that failed keeps its port error,
    which carries no value.
+
+`store` refuses an empty value, then calls `Keychain::set` with the service `mergus` and the
+name. A port error becomes `StoreError::Unwritable`; nothing else is tried.
 
 ## Dependencies
 

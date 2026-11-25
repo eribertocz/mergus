@@ -12,13 +12,17 @@ Secret resolution, PII handling, hash chains.
   `Keychain` ports given by the caller.
 - Fails with `SecretError::NotFound` when neither answers. The error names the reference, the
   variable and the keychain entry looked at, and never a value.
+- Stores a value for `mergus secret set` with `store`: in the keychain entry of service
+  `mergus` and account `<name>`, created or replaced. An empty value fails with
+  `StoreError::Empty` (`MG-1001`) and a keychain that cannot be written with
+  `StoreError::Unwritable` (`MG-1002`); nothing is stored then, and the error never holds
+  the value (MG-REQ-1007).
 - Returns every value as a `SecretString` (`secrecy`), which cannot be printed, formatted,
   serialized or logged (MG-REQ-1002).
 
 ## What it does not
 
 - It never reads a `.env` file (MG-REQ-1005).
-- It does not write keychain entries: `mergus secret set` comes with its own issue.
 - It has no cloud secret manager; those plugins come after the MVP.
 - It does not show connection URLs yet; no connection exists in this phase.
 - PII handling and hash chains come with later phases.

@@ -40,16 +40,39 @@ mod planning;
 mod project;
 mod run;
 mod scaffold;
+mod secret;
 mod selection;
 mod settings;
 mod time;
 mod validate;
 
 use std::cell::RefCell;
-use std::io::IsTerminal;
+use std::io::{IsTerminal, Read, StdinLock};
 use std::process::ExitCode;
 
-use mergus_ports::real::{RealClock, RealEnvironment, RealFileSystem, RealRandom, RealSqlParser};
+use mergus_ports::real::{
+    RealClock, RealEnvironment, RealFileSystem, RealKeychain, RealRandom, RealSqlParser,
+};
+
+/// Standard input, read through the lock `main` holds (MG-REQ-1007).
+struct Stdin<'a>(&'a RefCell<StdinLock<'static>>);
+
+impl run::SecretInput for Stdin<'_> {
+    fn is_terminal(&self) -> bool {
+        std::io::stdin().is_terminal()
+    }
+
+    /// Reads the line from the terminal with echo turned off.
+    fn hidden_line(&self) -> Option<String> {
+        rpassword::read_password().ok()
+    }
+
+    fn all(&self) -> Option<String> {
+        let mut value = String::new();
+        self.0.borrow_mut().read_to_string(&mut value).ok()?;
+        Some(value)
+    }
+}
 
 fn main() -> ExitCode {
     let random = RealRandom::new();
@@ -64,6 +87,8 @@ fn main() -> ExitCode {
         input: std::io::stdin()
             .is_terminal()
             .then_some(&stdin as &dyn run::Answers),
+        secret_input: &Stdin(&stdin),
+        keychain: &RealKeychain,
     };
     let code = run::run(&ports, &mut std::io::stdout(), &mut std::io::stderr());
     ExitCode::from(code)
