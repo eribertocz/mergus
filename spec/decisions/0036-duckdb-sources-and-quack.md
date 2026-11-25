@@ -38,10 +38,16 @@ From the official documentation:
   - "Non-local URIs default to HTTPS with a self-signed certificate."
   - "Each Quack node exposes a whoami() table macro", whose output carries
     `duckdb_version` and `platform`. "user-supplied keys win on conflict".
+- Quack troubleshooting (https://duckdb.org/docs/preview/quack/troubleshooting): "Quack was
+  released as a stable extension in DuckDB v2.0", after a preview from 1.5.3.
+- DuckLake catalogs (https://ducklake.select/docs/stable/duckdb/usage/choosing_a_catalog_database):
+  - A Quack server can serve a DuckLake catalog: the server opens the DuckDB metadata file
+    and runs `quack_serve`.
+  - Clients attach `ducklake:quack:<host>` and need shared access to the data files.
+  - With `ducklake` loaded on the server, commits run there through `ducklake_commit`.
 - Not stated in the documentation:
-  - the minimum DuckDB version for Quack;
-  - whether `READ_ONLY` applies to a `quack:` ATTACH;
-  - whether a server can expose DuckLake catalogs;
+  - whether `READ_ONLY` applies to a `quack:` ATTACH. The security guide recommends
+    attaching the database read-only on the server, or using an authorization function;
   - opening `quack:` directly as an ADBC or C API path.
 
 From the pinned source code, where the documentation is silent:
@@ -68,16 +74,18 @@ From the pinned source code, where the documentation is silent:
    server by `whoami()` and its `duckdb_version`. A server can override those keys, so this
    identifies the engine without authenticating it.
 5. Quack is a transport of the `duckdb` engine, not a new `kind`, and Mergus is always the
-   client. It is a core extension in DuckDB 2.0, which Mergus pins. A Quack source opens an
-   in-memory database through the DuckDB ADBC driver and attaches `quack:<host>` with its
-   token from the source's secret. That needs `quack` in the extension allowlist of
-   MG-REQ-0194. It enters once `READ_ONLY` on a `quack:` ATTACH is documented or proven by
-   the conformance tests, because MG-REQ-0429 requires read-only source sessions. Proposed
-   phase: 0.7, with environments.
-6. The `server` profile uses Quack as its protocol, with Mergus as client only, in the same
-   phase as the Quack source. Gold on DuckLake through it is level A, but only once the
-   documentation says a Quack server exposes DuckLake catalogs. Gold on a DuckDB file is
-   level C+, which stays in phase 1.2.
+   client. It has been a stable core extension since DuckDB v2.0, which Mergus pins.
+   - A Quack source opens an in-memory database through the DuckDB ADBC driver and attaches
+     `quack:<host>`, with its token from the source's secret.
+   - That needs `quack` in the extension allowlist of MG-REQ-0194.
+   - A client-side `READ_ONLY` on `quack:` is not documented, and MG-REQ-0429 requires
+     read-only source sessions. So the source enters only once that is documented or proven
+     by the conformance tests. Read-only on the server alone is outside Mergus's control.
+     Proposed phase: 0.7.
+6. The `server` profile uses a DuckLake catalog served over Quack (`ducklake:quack:<host>`,
+   documented), with Mergus as a client only. That is gold on DuckLake, level A. Mergus
+   needs shared access to the data files. Proposed phase: 0.7, with the Quack source. Gold
+   on a DuckDB file through a server is level C+, which stays in phase 1.2.
 7. Phase: DuckDB file sources join phase 0.3, right after the ADBC issue (#163). They add no
    download and no new dependency, so their impact is the smallest.
 

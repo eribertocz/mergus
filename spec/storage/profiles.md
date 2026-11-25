@@ -14,7 +14,7 @@ depends_on: [storage-zones, contracts-adapter]
 | `local` | Development on one machine | DuckLake in a folder |
 | `shared` | Several processes on one machine | DuckLake with a SQLite catalog |
 | `cloud` | Production | DuckLake with a PostgreSQL catalog on S3, GCS or Azure |
-| `server` | A DuckDB server reached over Quack as a client, from phase 0.7 (decision 0036) | DuckLake (level A, once documented) or a DuckDB file (level C+, phase 1.2) through the server |
+| `server` | A DuckLake catalog served over Quack, reached as a client, from phase 0.7 (decision 0036) | DuckLake (level A); a DuckDB file through the server is level C+, phase 1.2 |
 
 | Guarantee | Means | When |
 |---|---|---|
