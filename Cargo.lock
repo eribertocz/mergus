@@ -1376,6 +1376,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "mergus-adapter"
+version = "0.2.0"
+dependencies = [
+ "arrow",
+ "thiserror",
+]
+
+[[package]]
 name = "mergus-cli"
 version = "0.2.0"
 dependencies = [

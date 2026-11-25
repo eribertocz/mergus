@@ -1,0 +1,17 @@
+[package]
+name = "mergus-adapter"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+description = "Storage adapter contract (public API for third parties)."
+
+[dependencies]
+# Data crosses the contract as Arrow record batches (`architecture/dependencies.md`). Only the
+# array and schema types are needed, so default features stay off.
+arrow = { version = "60.2.0", default-features = false }
+thiserror = "2.0.21"
+
+[lints]
+workspace = true
