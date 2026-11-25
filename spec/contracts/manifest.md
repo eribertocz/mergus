@@ -29,7 +29,7 @@ catalog/
 | `environment` | Environment name |
 | `previous_manifest_id` | The manifest it replaces; null for the first |
 | `schema_document_id`, `state_document_id` | The catalog documents it publishes |
-| `tables[]` | Per gold table: logical name, physical table, data version, pin recipe, quality summary, health, row count |
+| `tables[]` | Per gold table: logical name, physical table, level, data version, data token, pin recipe, quality summary, health, row count |
 | `model_hash` | Ossie model hash the catalog was validated against |
 | `run_id` | Run that produced it |
 | `mergus_version` | Version that produced it |
@@ -76,6 +76,35 @@ read the exact version from the manifest alone.
 
 - Kind: behavior
 - Verify: test `mg_req_0249_manifest_alone_pins_every_table`
+
+### MG-REQ-0251 · Data token per table
+
+Each table entry MUST carry `data_token`, which changes whenever the table's data changed
+since the previous manifest and stays equal when the table was not written:
+
+1. MG-REQ-0251.1: levels A, A-ext and B: the native version at which the table last changed,
+   not the newest version of the catalog;
+2. MG-REQ-0251.2: levels C and C+: the identifier of the publication that last wrote the
+   table, valid because only publication writes gold (INV-02);
+3. MG-REQ-0251.3: level F (`live`): `null`, and the entry is marked live.
+
+A rewrite with identical rows MAY change the token; equal tokens always mean equal data.
+
+- Kind: behavior
+- Verify: test `mg_req_0251_data_token_changes_only_with_data`
+- Depends: MG-REQ-0911
+- Decision: 0034
+
+### MG-REQ-0252 · Pinned versions stay readable
+
+Every version that a manifest inside the rollback window references MUST stay readable at
+that version. Reading a version that has expired, or that does not exist, MUST fail with a
+typed error naming the table and the version, never return other data.
+
+- Kind: behavior
+- Verify: test `mg_req_0252_expired_version_fails_typed`
+- Depends: MG-REQ-0245, MG-REQ-0288
+- Decision: 0034
 
 ### MG-REQ-0250 · Manifest hash chain
 

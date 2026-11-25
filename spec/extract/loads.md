@@ -14,9 +14,13 @@ depends_on: [extract-sources]
 | `incremental` | column name | none (full load) |
 | `key` | column or list | none |
 | `overlap` | duration | source `overlap`, else `1h` |
-| `deletes` | `column:<name>` \| `compare` \| `none` \| `cdc` (post-MVP) | none |
+| `deletes` | `column:<name>` \| `compare` \| `none` | none |
 | `delete_check` | `every_run` \| `hourly` \| `daily` \| `weekly` | `daily` |
 | `delete_window` | duration | whole table |
+
+CDC sources come in phase 1.3 (`roadmap.md`). Their principle is fixed now (decision 0034):
+the user declares freshness (`fresh`), not the capture mechanism, so a declared `copy` source
+can move to CDC without changing its models or their `fresh`.
 
 ### MG-REQ-0411 · Full load by default
 
