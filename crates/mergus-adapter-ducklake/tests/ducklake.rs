@@ -100,7 +100,7 @@ impl DatabaseConnection for LoggedConnection {
     }
 
     fn attach_ducklake(&mut self, catalog: &DuckLakeCatalog) -> Result<(), PortError> {
-        self.push(format!("attach {}", catalog.alias));
+        self.push(format!("catalog {} attached", catalog.alias));
         self.inner.attach_ducklake(catalog)
     }
 }
