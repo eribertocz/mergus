@@ -1,0 +1,27 @@
+[package]
+name = "mergus-adapter-ducklake"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+description = "DuckLake storage adapter."
+
+[dependencies]
+# Data crosses the adapter contract as Arrow record batches; only the array and schema types
+# are needed, so default features stay off. The version is the one of `mergus-adapter`.
+arrow = { version = "60.2.0", default-features = false }
+mergus-adapter = { path = "../mergus-adapter" }
+# DuckDB and the clock are reached only through the ports (MG-REQ-0194).
+mergus-ports = { path = "../mergus-ports" }
+thiserror = "2.0.21"
+
+[lints]
+workspace = true
+
+# The simulated `Database` and `Clock` drive the tests. The real `Database` runs the DuckLake
+# test when the `ducklake` extension is in the user cache. Dev-dependencies are not linked
+# into other crates (MG-REQ-0126.5).
+[dev-dependencies]
+mergus-ports = { path = "../mergus-ports", features = ["real"] }
+mergus-sim = { path = "../mergus-sim" }

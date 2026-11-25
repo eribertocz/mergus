@@ -1385,6 +1385,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "mergus-adapter-ducklake"
+version = "0.2.0"
+dependencies = [
+ "arrow",
+ "mergus-adapter",
+ "mergus-ports",
+ "mergus-sim",
+ "thiserror",
+]
+
+[[package]]
 name = "mergus-cli"
 version = "0.2.0"
 dependencies = [
