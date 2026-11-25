@@ -15,10 +15,16 @@ use mergus_ports::{DuckLakeCatalog, Environment, FileSystem, PortError, Random};
 
 /// Opens the adapter on `catalog` with the real `Database`, which installs `ducklake` into
 /// the user cache the first time (MG-REQ-0194). Returns `None` when the extension is not
-/// cached and cannot be downloaded.
+/// cached and cannot be downloaded, except in CI (`CI` set), where that fails the test so
+/// that a green CI proves the DuckLake SQL ran.
 #[cfg(test)]
 fn open(catalog: &DuckLakeCatalog) -> Option<DuckLakeAdapter> {
-    let database = RealDatabase::new(&RealEnvironment.cache_dir()?);
+    let in_ci = RealEnvironment.var("CI").is_some();
+    let Some(cache_dir) = RealEnvironment.cache_dir() else {
+        assert!(!in_ci, "no user cache directory in CI");
+        return None;
+    };
+    let database = RealDatabase::new(&cache_dir);
     match DuckLakeAdapter::open(&database, catalog, Arc::new(RealClock::new())) {
         Ok(adapter) => Some(adapter),
         Err(AdapterError::Storage(error))
@@ -27,6 +33,10 @@ fn open(catalog: &DuckLakeCatalog) -> Option<DuckLakeAdapter> {
                 Some(DuckLakeError::Port(PortError::ExtensionUnavailable { .. }))
             ) =>
         {
+            assert!(
+                !in_ci,
+                "the `ducklake` extension is unavailable in CI: {error}"
+            );
             None
         }
         Err(error) => panic!("{error}"),
