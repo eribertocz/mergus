@@ -33,7 +33,7 @@ delete_window = "90d"
 
 ### MG-REQ-0401 · Source kinds
 
-A source MUST declare `kind` as `database` (through ADBC), `files` (Parquet, CSV, JSON on a
+A source MUST declare `kind` as `database` (read by DuckDB, MG-REQ-0196), `files` (Parquet, CSV, JSON on a
 file system or object store) or `rest` (`extract/rest.md`). Other kinds are an error.
 
 - Kind: behavior
@@ -105,9 +105,9 @@ A source in `connect` or `live` mode, and every source of `kind = "database"`, M
 3. MG-REQ-0409.3: any other engine for `connect` or `live`, transactional databases and
    unknown engines included, MUST be a validation error whose fix suggests `mode = "copy"`
    with `fresh` on the models that need current data;
-4. MG-REQ-0409.4: in a `copy` source of `kind = "database"`, `engine` names the ADBC driver
-   and MUST be one with a pinned driver (MG-REQ-0195): `postgresql` or `duckdb`. A `copy`
-   source of another kind MUST NOT set `engine`.
+4. MG-REQ-0409.4: in a `copy` source of `kind = "database"`, `engine` names the database and
+   MUST be one Mergus reads (MG-REQ-0196): `postgresql` or `duckdb`. A `copy` source of
+   another kind MUST NOT set `engine`.
 
 A query of the executor therefore never reaches a transactional database: those are read
 only by extraction, under `extract/source-care.md`.
@@ -115,7 +115,7 @@ only by extraction, under `extract/source-care.md`.
 - Kind: behavior
 - Verify: test `mg_req_0409_live_and_connect_only_on_analytical_engines`
 - Depends: MG-REQ-0376, MG-REQ-0405
-- Decision: 0034, 0036
+- Decision: 0034, 0036, 0040
 
 ### MG-REQ-0410 · The connected engine matches the declared one
 
@@ -124,29 +124,29 @@ version, it MUST identify the engine that answers, from the driver, the protocol
 table's metadata, before reading any data. If it differs from the declared `engine`, the
 source MUST fail with a typed error that names the source, the declared engine and the
 detected one, with exit code 1 and no data read. An engine that cannot be identified counts
-as different. For `engine = "duckdb"`, the engine is identified by the ADBC driver's
-`ADBC_INFO_VENDOR_NAME`, which MUST be `duckdb`, and `ADBC_INFO_VENDOR_VERSION` is recorded
-in the load registry. A remote DuckDB reached over Quack is identified by its `whoami()`
+as different. A DuckDB file is identified by its attach without a `TYPE`, which DuckDB refuses
+for a file of another format, and the bundled DuckDB's version is recorded in the load
+registry. PostgreSQL is identified by `SELECT version()` sent through `postgres_query`, whose
+answer MUST start with `PostgreSQL`; the answer is recorded. A remote DuckDB reached over Quack is identified by its `whoami()`
 macro, whose `duckdb_version` key is recorded; because a server MAY override those keys, the
 result identifies the engine but does not authenticate it (decision 0036).
 
 - Kind: behavior
 - Verify: test `mg_req_0410_connected_engine_matches_declared`
 - Depends: MG-REQ-0409
-- Decision: 0034
+- Decision: 0034, 0036, 0040
 
 ### MG-REQ-0421 · DuckDB files as sources
 
 A source with `kind = "database"` and `engine = "duckdb"` MUST read the `.duckdb` file at
-`location` through the DuckDB ADBC driver of MG-REQ-0195.4: an in-memory database opened by
-the driver attaches the file with `ATTACH '<location>' (READ_ONLY)`, so Mergus never writes
-to it. With `mode = "copy"` its declared
+`location` through the `Database` port, which attaches it with `ATTACH '<location>'
+(READ_ONLY)` (MG-REQ-0196.1), so Mergus never writes to it. With `mode = "copy"` its declared
 tables are extracted into raw like any database source. With `mode = "live"` the executor
 reads the file at query time (MG-REQ-0405, level F). Each file is one source: data kept in
 one file per year is declared as one source per file.
 
 - Kind: behavior
-- Verify: test `mg_req_0421_duckdb_file_read_only_through_adbc`
+- Verify: test `mg_req_0421_duckdb_file_read_only`
 - Phase: 0.3
-- Depends: MG-REQ-0195, MG-REQ-0409
-- Decision: 0036
+- Depends: MG-REQ-0196, MG-REQ-0409
+- Decision: 0036, 0040
