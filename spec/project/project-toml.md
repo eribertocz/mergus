@@ -188,10 +188,12 @@ The schema of `sources/*.toml` MUST hold exactly these keys, and every other key
 1. MG-REQ-0376.1: `kind` (required): `database`, `files` or `rest`;
 2. MG-REQ-0376.2: `mode`: `copy`, `connect` or `live`; `engine`: a name, which MG-REQ-0409
    checks; `raw`: a boolean; `retention`: a duration;
-3. MG-REQ-0376.3: `connection` (required when `kind` is `database`) and `replica`: secret
-   references of MG-REQ-1001;
+3. MG-REQ-0376.3: `connection` (required when `kind` is `database`, unless `engine` is
+   `duckdb` and `location` is set) and `replica`: secret references of MG-REQ-1001;
 4. MG-REQ-0376.4: `location` (required when `kind` is `files`): a non-empty string, a local
-   directory relative to the project root or an object-store URL prefix;
+   directory relative to the project root or an object-store URL prefix; with
+   `kind = "database"` and `engine = "duckdb"`, the path of a `.duckdb` file relative to the
+   project root (MG-REQ-0421);
 5. MG-REQ-0376.5: the source options of `extract/source-care.md`: `load` (`low`, `normal` or
    `high`), `max_connections` (an integer from 1), `window` (`"HH:MM-HH:MM"`, 24-hour, which
    may cross midnight) and `query_timeout` (a duration); and `overlap` (a duration);
