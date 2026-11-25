@@ -64,6 +64,8 @@ mod lints;
 mod metadata;
 mod release_trigger;
 mod reproducible;
+#[cfg(test)]
+mod secrets_door;
 mod traceability;
 mod unsafe_code;
 mod workspace;
