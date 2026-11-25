@@ -1,6 +1,6 @@
-//! MG-REQ-0286 and MG-REQ-0288 on a real DuckLake catalog. The test never uses the network:
-//! it runs only when the signed `ducklake` extension is already in the user cache, and
-//! returns at once otherwise.
+//! MG-REQ-0286 and MG-REQ-0288 on a real DuckLake catalog. The real `Database` installs the
+//! signed `ducklake` extension into the user cache the first time; the test returns at once
+//! when the extension is not cached and cannot be downloaded.
 
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -9,28 +9,28 @@ use std::time::Duration;
 use arrow::array::{ArrayRef, AsArray, Int64Array, RecordBatch, RecordBatchIterator};
 use arrow::datatypes::{DataType, Field, Int64Type, Schema};
 use mergus_adapter::{AdapterError, BatchStream, Retention, StorageAdapter, VersionRef, WriteMode};
-use mergus_adapter_ducklake::DuckLakeAdapter;
+use mergus_adapter_ducklake::{DuckLakeAdapter, DuckLakeError};
 use mergus_ports::real::{RealClock, RealDatabase, RealEnvironment, RealFileSystem, RealRandom};
-use mergus_ports::{Database, DatabaseLocation, DuckLakeCatalog, Environment, FileSystem, Random};
+use mergus_ports::{DuckLakeCatalog, Environment, FileSystem, PortError, Random};
 
-/// Returns the real database when `ducklake` is in its cache.
+/// Opens the adapter on `catalog` with the real `Database`, which installs `ducklake` into
+/// the user cache the first time (MG-REQ-0194). Returns `None` when the extension is not
+/// cached and cannot be downloaded.
 #[cfg(test)]
-fn cached_database() -> Option<RealDatabase> {
+fn open(catalog: &DuckLakeCatalog) -> Option<DuckLakeAdapter> {
     let database = RealDatabase::new(&RealEnvironment.cache_dir()?);
-    let mut connection = database.connect(&DatabaseLocation::InMemory).ok()?;
-    let sql = "SELECT library_version || '/' || platform FROM pragma_version(), pragma_platform()";
-    let batches = connection.query_arrow(sql, &[]).ok()?;
-    let path = batches
-        .first()?
-        .column(0)
-        .as_string::<i32>()
-        .value(0)
-        .to_owned();
-    let file = database
-        .extension_dir()
-        .join(path)
-        .join("ducklake.duckdb_extension");
-    RealFileSystem.exists(&file).ok()?.then_some(database)
+    match DuckLakeAdapter::open(&database, catalog, Arc::new(RealClock::new())) {
+        Ok(adapter) => Some(adapter),
+        Err(AdapterError::Storage(error))
+            if matches!(
+                error.downcast_ref::<DuckLakeError>(),
+                Some(DuckLakeError::Port(PortError::ExtensionUnavailable { .. }))
+            ) =>
+        {
+            None
+        }
+        Err(error) => panic!("{error}"),
+    }
 }
 
 /// Returns a new, empty directory under the target directory of the tests.
@@ -72,17 +72,15 @@ fn ids(adapter: &DuckLakeAdapter, version: &VersionRef) -> Vec<i64> {
 
 #[test]
 fn ducklake_round_trip_keeps_uncommitted_rows_and_live_versions() {
-    let Some(database) = cached_database() else {
-        return;
-    };
     let dir = scratch();
     let catalog = DuckLakeCatalog {
         alias: "lake".to_owned(),
         metadata: dir.join("metadata.ducklake").display().to_string(),
         data_path: dir.join("data").display().to_string(),
     };
-    let mut adapter =
-        DuckLakeAdapter::open(&database, &catalog, Arc::new(RealClock::new())).unwrap();
+    let Some(mut adapter) = open(&catalog) else {
+        return;
+    };
     adapter
         .write("orders", WriteMode::Append, orders(vec![1, 2]))
         .unwrap();
