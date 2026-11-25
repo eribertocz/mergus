@@ -161,7 +161,7 @@ const CRATES: [Crate; 22] = [
 pub(crate) const TEST_CRATES: [&str; 2] = ["mergus-sim", "mergus-testkit"];
 
 /// Layer-3 crates every other layer-3 crate may depend on (MG-REQ-0120).
-pub(crate) const SHARED_LAYER_3: [&str; 2] = ["mergus-security", "mergus-ops"];
+pub(crate) const SHARED_LAYER_3: [&str; 3] = ["mergus-security", "mergus-ops", "mergus-adapter"];
 
 /// The engine, source and adapter crates, and `mergus-runtime`, that `mergus-plan` must not
 /// reach (MG-REQ-0121).

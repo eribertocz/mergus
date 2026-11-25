@@ -3,7 +3,8 @@
 
 use std::path::Path;
 
-use super::problems;
+use super::crates::find;
+use super::{layer_allows, problems};
 use crate::metadata;
 use crate::workspace;
 
@@ -63,6 +64,16 @@ fn mg_req_0120_upward_same_layer_and_cyclic_dependencies_fail() {
             "MG-REQ-0126.2: dependency cycle `mergus-ops` -> `mergus-security` -> `mergus-ops`",
         ]
     );
+}
+
+#[test]
+fn mg_req_0120_layer_3_may_depend_on_the_adapter_contract() {
+    let allows = |from: &str, to: &str| layer_allows(find(from).unwrap(), find(to).unwrap());
+    assert!(allows("mergus-adapter-ducklake", "mergus-adapter"));
+    assert!(allows("mergus-catalog", "mergus-adapter"));
+    assert!(!allows("mergus-adapter", "mergus-adapter"));
+    assert!(!allows("mergus-adapter-ducklake", "mergus-catalog"));
+    assert!(!allows("mergus-quality", "mergus-adapter-ducklake"));
 }
 
 #[test]
