@@ -163,11 +163,9 @@ impl DatabaseConnection for RealConnection {
     fn attach_ducklake(&mut self, catalog: &DuckLakeCatalog) -> Result<(), PortError> {
         self.load_ducklake()?;
         let metadata = format!("ducklake:{}", catalog.metadata);
+        let alias = quote_identifier(&catalog.alias);
         // sql: identifiers quoted by quote_identifier
-        let attach = format!(
-            "ATTACH ? AS {} (DATA_PATH ?)",
-            quote_identifier(&catalog.alias)
-        );
+        let attach = format!("ATTACH ? AS {alias} (DATA_PATH ?)");
         self.connection
             .execute(&attach, [metadata.as_str(), catalog.data_path.as_str()])
             .map(|_| ())
