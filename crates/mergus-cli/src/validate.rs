@@ -7,6 +7,7 @@ use mergus_ports::FileSystem;
 use mergus_project::{
     LayoutError, check_sql_models, read_configuration, read_layout, read_model_options,
 };
+use mergus_source::check_sources;
 
 use crate::diagnostic::Diagnostic;
 use crate::error::CliError;
@@ -15,10 +16,11 @@ use crate::run::Ports;
 
 /// Runs stage 1 on the project found from the current directory and returns every
 /// diagnostic: those of the layout, then of the configuration, then of the folder options,
-/// then of the `.sql` models, parsed by DuckDB through `ports.sql_parser` (MG-REQ-0193). The
-/// folder options are checked only when the layout is valid, since they name its models; the
-/// `.sql` models only when the configuration is valid too, since it declares the tables they
-/// may read.
+/// then of the sources by `mergus-source` (MG-REQ-0409, MG-REQ-0414, MG-REQ-0416), then of the
+/// `.sql` models, parsed by DuckDB through `ports.sql_parser` (MG-REQ-0193). The folder options
+/// are checked only when the layout is valid, since they name its models; the sources only
+/// when the configuration is valid; the `.sql` models only when both are, since the
+/// configuration declares the tables they may read.
 /// Each diagnostic with a line carries the text of that line when its file can be read.
 ///
 /// # Errors
@@ -34,6 +36,11 @@ pub(crate) fn validate(ports: &Ports<'_>) -> Result<Vec<Diagnostic>, CliError> {
             read_model_options(ports.files, &root, layout),
             &mut diagnostics,
         )?;
+    }
+    if let Some(configuration) = &configuration {
+        let problems = check_sources(ports.files, &root, configuration)
+            .map_err(|error| CliError::Unreadable(error.to_string()))?;
+        diagnostics.extend(problems.iter().map(Diagnostic::of_source));
     }
     if let (Some(layout), Some(configuration)) = (&layout, &configuration) {
         collect(

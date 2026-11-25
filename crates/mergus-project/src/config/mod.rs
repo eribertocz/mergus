@@ -175,6 +175,21 @@ pub fn toml_to_json(path: &str, text: &str) -> Result<Value, Vec<ProjectError>> 
     }
 }
 
+/// Returns the line, from 1, of the key at `keys`, a path of table keys from the root of
+/// `text`, the TOML document of a configuration file: the line the key is written on, in a
+/// table header, a dotted key or an inline table. `None` when `keys` is empty, the file does
+/// not hold that key, or `text` is not TOML 1.0. Other crates locate their problems with it
+/// rather than parsing TOML themselves (MG-REQ-0186).
+#[must_use]
+pub fn key_line(text: &str, keys: &[&str]) -> Option<usize> {
+    let converted = convert::convert("", text, &mut Vec::new())?;
+    let path: Vec<convert::Segment> = keys
+        .iter()
+        .map(|key| convert::Segment::Key((*key).to_owned()))
+        .collect();
+    converted.lines.get(&path).map(|lines| lines.key)
+}
+
 /// Parses the bytes of one configuration file of `kind`.
 fn parse(
     kind: ConfigKind,

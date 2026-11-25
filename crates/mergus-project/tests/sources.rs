@@ -88,11 +88,16 @@ fn source_options() {
     let full = format!(
         "{DATABASE}replica = \"secret:crm_replica\"\nmode = \"copy\"\nraw = true\n\
          retention = \"30d\"\nload = \"low\"\nmax_connections = 1\nwindow = \"22:00-06:30\"\n\
-         query_timeout = \"10m\"\noverlap = \"1h\"\nlocation = \"data/crm\"\n"
+         query_timeout = \"10m\"\noverlap = \"1h\"\nlocation = \"data/crm\"\n\
+         engine = \"postgres\"\n"
     );
     assert_eq!(found(&full), []);
+    let engine = format!("{FILES}engine = \"ducklake\"\n");
+    assert_eq!(found(&engine), []);
     for (line, key) in [
         ("mode = \"stream\"\n", "mode"),
+        ("engine = \"DuckDB\"\n", "engine"),
+        ("engine = 1\n", "engine"),
         ("raw = \"yes\"\n", "raw"),
         ("retention = \"30\"\n", "retention"),
         ("retention = \"0d\"\n", "retention"),

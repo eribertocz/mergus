@@ -283,7 +283,7 @@ fn mg_req_0362_only_due_keys_are_known() {
         .map(String::as_str)
         .collect();
     source_keys.sort_unstable();
-    let due = "connection kind load location max_connections mode overlap query_timeout raw \
+    let due = "connection engine kind load location max_connections mode overlap query_timeout raw \
                replica retention tables window";
     assert_eq!(source_keys, due.split_whitespace().collect::<Vec<_>>());
     let rest = read(&[
@@ -369,4 +369,25 @@ fn toml_to_json_maps_a_document_without_a_schema() {
     let problems = mergus_project::toml_to_json("config.toml", "max_parallel = = 2\n").unwrap_err();
     assert_eq!(problems.len(), 1);
     assert_eq!(problems[0].path(), "config.toml");
+}
+
+/// `key_line` gives the line of a key path in the text of a configuration file, for the
+/// checks of other crates, without their own TOML parser (MG-REQ-0186).
+#[test]
+fn key_line_finds_the_line_of_a_key_path() {
+    use mergus_project::key_line;
+    let text = "kind = \"database\"\nmode = \"live\"\n\n[tables.sales]\nkey = \"id\"\n\
+                incremental = \"at\"\n[tables.lines]\nincremental = \"at\"\n";
+    assert_eq!(key_line(text, &["mode"]), Some(2));
+    assert_eq!(key_line(text, &["tables", "sales"]), Some(4));
+    assert_eq!(key_line(text, &["tables", "sales", "incremental"]), Some(6));
+    assert_eq!(key_line(text, &["tables", "lines", "incremental"]), Some(8));
+    let inline = "tables = { sales = { incremental = \"at\" } }\n";
+    assert_eq!(
+        key_line(inline, &["tables", "sales", "incremental"]),
+        Some(1)
+    );
+    assert_eq!(key_line(text, &["engine"]), None);
+    assert_eq!(key_line(text, &[]), None);
+    assert_eq!(key_line("kind = \n", &["kind"]), None);
 }

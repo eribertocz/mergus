@@ -7,6 +7,7 @@ use crate::layout::render;
 fn diagnostic(code: &'static str, location: Option<Location>, source: Option<&str>) -> Diagnostic {
     Diagnostic {
         code,
+        warning: false,
         message: "key `nmae` is not allowed".to_owned(),
         location,
         hint: None,

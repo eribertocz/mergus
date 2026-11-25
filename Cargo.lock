@@ -1393,6 +1393,7 @@ dependencies = [
  "mergus-ports",
  "mergus-project",
  "mergus-sim",
+ "mergus-source",
  "serde_json",
  "thiserror",
 ]
@@ -1461,6 +1462,17 @@ version = "0.2.0"
 dependencies = [
  "arrow",
  "mergus-ports",
+]
+
+[[package]]
+name = "mergus-source"
+version = "0.2.0"
+dependencies = [
+ "mergus-ports",
+ "mergus-project",
+ "mergus-sim",
+ "serde_json",
+ "thiserror",
 ]
 
 [[package]]

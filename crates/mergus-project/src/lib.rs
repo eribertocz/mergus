@@ -10,6 +10,8 @@
 //! [`read_configuration`] reads `project.toml` and every `sources/<source>.toml`, checks them
 //! against the JSON Schemas of `schemas/` of this crate (MG-REQ-0316), rejects expressions
 //! (MG-REQ-0364) and returns each file as JSON with its canonical form (MG-REQ-0318).
+//! [`key_line`] gives the line of a key in such a file, so that other crates locate their
+//! problems without parsing TOML themselves (MG-REQ-0186).
 //!
 //! [`read_renames`] reads `ids.toml` (MG-REQ-0370), and [`Identifiers`] gives each model,
 //! source, source table and column its stable identifier (MG-REQ-0209): the stored one, or one
@@ -31,7 +33,7 @@ mod sql;
 
 pub use config::{
     ConfigFile, ConfigKind, Configuration, Effective, ModelOptions, Origin, Setting, Source,
-    read_configuration, read_model_options, toml_to_json,
+    key_line, read_configuration, read_model_options, toml_to_json,
 };
 pub use error::{LayoutError, NameKind, ProjectError};
 pub use ids::{IdKind, Identifier, Identifiers, Renames, derive_identifier, read_renames};

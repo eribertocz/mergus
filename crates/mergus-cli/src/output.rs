@@ -125,7 +125,11 @@ impl<'a> Output<'a> {
         if self.json {
             let mut event = self.event(MergusEventsType::Diagnostic);
             event.code = Some(diagnostic.code.to_owned());
-            event.severity = Some(MergusEventsSeverity::Error);
+            event.severity = Some(if diagnostic.warning {
+                MergusEventsSeverity::Warning
+            } else {
+                MergusEventsSeverity::Error
+            });
             event.message = Some(diagnostic.message.clone());
             event.location = diagnostic.location.as_ref().and_then(|at| {
                 at.line.map(|line| Location {

@@ -256,6 +256,7 @@ fn interleaved_errors_are_grouped() {
     use crate::diagnostic::{Diagnostic, Location, group};
     let of = |file: Option<&str>, message: &str| Diagnostic {
         code: "MG-0304",
+        warning: false,
         message: message.to_owned(),
         location: file.map(|file| Location {
             file: file.to_owned(),
