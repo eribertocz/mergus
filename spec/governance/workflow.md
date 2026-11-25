@@ -115,12 +115,15 @@ Commits MUST follow Conventional Commits with the issue number, and carry the
 Each issue MUST be implemented by a new session. Two issues MAY be implemented in parallel
 only when they change no file in common, so that their pull requests cannot conflict; the
 specifier lists them in each other's "Parallel with". Issues that change the same crate or the
-same file MUST NOT be parallel: the later one names the earlier one in "Depends on". An
-implementer session MUST NOT start an issue while an open implementation pull request belongs
-to an issue that is not listed in its "Parallel with".
+same file MUST NOT be parallel: the later one names the earlier one in "Depends on". The root
+`Cargo.lock` does not count as a file in common: Cargo generates it, so a pull request that
+conflicts only there merges `main`, regenerates it with Cargo and passes CI again before it
+is merged. An implementer session MUST NOT start an issue while an open implementation pull
+request belongs to an issue that is not listed in its "Parallel with".
 
 - Kind: process
 - Verify: review `parallel-without-conflicts`
+- Decision: 0035
 
 ## 3. Doubts and escalation
 
