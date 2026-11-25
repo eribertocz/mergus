@@ -27,7 +27,8 @@ MG-REQ-0126. What metadata cannot show is verified elsewhere: direct I/O outside
 ### MG-REQ-0120 · Downward dependencies only
 
 A crate MUST depend only on crates of a strictly lower layer, except that layer-3 crates MAY
-depend on `mergus-security` and `mergus-ops`. Cycles MUST NOT exist.
+depend on the shared layer-3 crates `mergus-security`, `mergus-ops` and `mergus-adapter`.
+Cycles MUST NOT exist.
 
 - Kind: process
 - Verify: check `boundaries`
