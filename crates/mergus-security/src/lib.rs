@@ -7,7 +7,7 @@
 //! formatted, serialized or logged (MG-REQ-1002). No `.env` file is ever read (MG-REQ-1005).
 //!
 //! [`store`] writes a value into the keychain entry of a reference, for `mergus secret set`
-//! (MG-REQ-1007).
+//! (MG-REQ-1007); [`check`] makes the same checks without writing, for `--dry-run`.
 
 #![forbid(unsafe_code)]
 
@@ -20,4 +20,4 @@ pub use error::SecretError;
 pub use reference::SecretRef;
 pub use resolve::{KEYCHAIN_SERVICE, resolve};
 pub use secrecy::{ExposeSecret, SecretString};
-pub use store::{StoreError, store};
+pub use store::{StoreError, check, store};

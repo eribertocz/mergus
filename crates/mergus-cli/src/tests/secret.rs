@@ -114,6 +114,30 @@ fn mg_req_1007_secret_set_stores_in_keychain() {
         Some("new")
     );
     assert_eq!(keychain.get("mergus", "erp").unwrap().as_deref(), Some("e"));
+    dry_run_stores_nothing();
+}
+
+/// MG-REQ-0192: `--dry-run` checks the name and the value as a run would, and stores nothing.
+fn dry_run_stores_nothing() {
+    let keychain = SimKeychain::new();
+    let stdin = Stdin {
+        terminal: false,
+        text: "hunter2\n",
+    };
+    let outcome = secret(&["secret", "set", "crm", "--dry-run"], &stdin, &keychain);
+    assert_eq!(outcome.exit, 0, "{outcome:?}");
+    assert!(!shows(&outcome, "hunter2"), "{outcome:?}");
+    assert_eq!(keychain.get("mergus", "crm").unwrap(), None);
+    let empty = Stdin {
+        terminal: false,
+        text: "\n",
+    };
+    let outcome = secret(&["secret", "set", "crm", "--dry-run"], &empty, &keychain);
+    assert_eq!(outcome.exit, 1, "{outcome:?}");
+    assert!(outcome.stderr.contains("MG-1001"), "{}", outcome.stderr);
+    let outcome = secret(&["secret", "set", "Crm", "--dry-run"], &stdin, &keychain);
+    assert!(outcome.stderr.contains("MG-1305"), "{}", outcome.stderr);
+    assert_eq!(keychain.get("mergus", "crm").unwrap(), None);
 }
 
 #[test]

@@ -16,7 +16,7 @@ Secret resolution, PII handling, hash chains.
   `mergus` and account `<name>`, created or replaced. An empty value fails with
   `StoreError::Empty` (`MG-1001`) and a keychain that cannot be written with
   `StoreError::Unwritable` (`MG-1002`); nothing is stored then, and the error never holds
-  the value (MG-REQ-1007).
+  the value (MG-REQ-1007). `check` makes the same check without writing, for `--dry-run`. `check` makes the same check without writing, for `--dry-run`.
 - Returns every value as a `SecretString` (`secrecy`), which cannot be printed, formatted,
   serialized or logged (MG-REQ-1002).
 

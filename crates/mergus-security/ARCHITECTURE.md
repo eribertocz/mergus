@@ -7,6 +7,8 @@
 | `SecretRef` | A reference `secret:<name>`; gives the name and the variable `MERGUS_SECRET_<NAME>` |
 | `resolve` | The resolution chain of MG-REQ-1001: variable, then keychain |
 | `store` | Writes a value into the keychain entry of a reference (MG-REQ-1007) |
+| `check` | The checks of `store`, without writing: for `secret set --dry-run` |
+| `check` | The checks of `store`, without writing: for `secret set --dry-run` |
 | `StoreError` | `Empty` (`MG-1001`) or `Unwritable` (`MG-1002`): the reference, never a value |
 | `KEYCHAIN_SERVICE` | `mergus`, the keychain service of every secret |
 | `SecretError` | `NotFound`: the reference and both places looked at, never a value |

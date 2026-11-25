@@ -39,7 +39,9 @@ The `mergus` binary; translates arguments and output only.
   prompt `Value of secret <name>: ` on standard error once and reads one line without echo;
   otherwise it reads all of standard input and removes one trailing line ending. An empty
   value (`MG-1001`) or a keychain that cannot be written (`MG-1002`) stores nothing. The
-  value is never an argument, and no output shows it (MG-REQ-1007).
+  value is never an argument, and no output shows it (MG-REQ-1007). `--dry-run` makes the
+  same checks and stores nothing (MG-REQ-0192). `--dry-run` makes the
+  same checks and stores nothing (MG-REQ-0192).
 - With `--json`, prints only `mergus_events` events on standard output, one per line, ending
   with `run_finished` (MG-REQ-0260, MG-REQ-0261). Otherwise it prints every error on
   standard error, grouped by file, in the layout of MG-REQ-1322: code, message, location,

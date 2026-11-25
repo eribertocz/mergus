@@ -1,9 +1,10 @@
 //! `mergus secret set <name>`: the value read from standard input, stored in the keychain
 //! (MG-REQ-1007).
 
-use mergus_security::{SecretRef, SecretString, store};
+use mergus_security::{SecretRef, SecretString, check, store};
 
 use crate::args::Invocation;
+use crate::commands::DRY_RUN;
 use crate::diagnostic::Diagnostic;
 use crate::error::CliError;
 use crate::output::Output;
@@ -11,7 +12,8 @@ use crate::run::{Ports, SecretInput};
 use crate::scaffold::valid;
 
 /// Reads the value of the secret named by `invocation` and stores it under the service
-/// `mergus` and the account its name. It prints no value.
+/// `mergus` and the account its name. With `--dry-run` it checks the name and the value the
+/// same way and stores nothing (MG-REQ-0192). It prints no value.
 ///
 /// # Errors
 ///
@@ -27,7 +29,12 @@ pub(crate) fn secret_set(
     let reference = SecretRef::from_name(name)
         .ok_or_else(|| CliError::Internal(format!("`{name}` is valid but is not a secret name")))?;
     let value = SecretString::from(read(ports.secret_input, name, output)?);
-    Ok(match store(&reference, &value, ports.keychain) {
+    let stored = if invocation.flag(DRY_RUN) {
+        check(&reference, &value)
+    } else {
+        store(&reference, &value, ports.keychain)
+    };
+    Ok(match stored {
         Ok(()) => Vec::new(),
         Err(error) => vec![Diagnostic::of_store(&error)],
     })

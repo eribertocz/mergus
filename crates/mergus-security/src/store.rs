@@ -39,6 +39,21 @@ impl StoreError {
     }
 }
 
+/// Checks that `value` may be stored for `reference`, as [`store`] does first, without
+/// writing anything: for `mergus secret set --dry-run` (MG-REQ-0192).
+///
+/// # Errors
+///
+/// Fails with [`StoreError::Empty`] when `value` is empty.
+pub fn check(reference: &SecretRef, value: &SecretString) -> Result<(), StoreError> {
+    if value.expose_secret().is_empty() {
+        return Err(StoreError::Empty {
+            reference: reference.clone(),
+        });
+    }
+    Ok(())
+}
+
 /// Stores `value` in `keychain` under the service [`KEYCHAIN_SERVICE`] and the account the
 /// name of `reference`, creating or replacing the entry (MG-REQ-1007).
 ///
@@ -51,14 +66,9 @@ pub fn store(
     value: &SecretString,
     keychain: &dyn Keychain,
 ) -> Result<(), StoreError> {
-    let value = value.expose_secret();
-    if value.is_empty() {
-        return Err(StoreError::Empty {
-            reference: reference.clone(),
-        });
-    }
+    check(reference, value)?;
     keychain
-        .set(KEYCHAIN_SERVICE, reference.name(), value)
+        .set(KEYCHAIN_SERVICE, reference.name(), value.expose_secret())
         .map_err(|keychain| StoreError::Unwritable {
             reference: reference.clone(),
             keychain,

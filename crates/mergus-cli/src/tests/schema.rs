@@ -126,7 +126,7 @@ fn mg_req_1348_cli_schema_document() {
     for command in &typed.commands {
         assert_eq!(
             command.dry_run,
-            ["add source", "init", "new model"].contains(&command.name.as_str())
+            ["add source", "init", "new model", "secret set"].contains(&command.name.as_str())
         );
         assert_eq!(command.json, command.name != "schema");
         for argument in &command.arguments {

@@ -224,7 +224,13 @@ const NEW_MODEL: [Argument; 8] = [
 ];
 
 /// The value is read from standard input, never taken as an argument (MG-REQ-1007).
-const SECRET_SET: [Argument; 4] = [positional("name", true), GLOBAL[0], GLOBAL[1], GLOBAL[2]];
+const SECRET_SET: [Argument; 5] = [
+    positional("name", true),
+    flag(DRY_RUN),
+    GLOBAL[0],
+    GLOBAL[1],
+    GLOBAL[2],
+];
 
 const SCHEMA: [Argument; 5] = [
     Argument {

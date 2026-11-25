@@ -1,7 +1,7 @@
 //! MG-REQ-1007: storing a secret value in the keychain.
 
 use mergus_ports::{Keychain, PortError};
-use mergus_security::{ExposeSecret, SecretRef, SecretString, StoreError, store};
+use mergus_security::{ExposeSecret, SecretRef, SecretString, StoreError, check, store};
 use mergus_sim::SimKeychain;
 
 /// A keychain that cannot be written.
@@ -77,4 +77,12 @@ fn mg_req_1007_reference_from_name_needs_a_valid_name() {
     );
     assert_eq!(SecretRef::from_name("Crm"), None);
     assert_eq!(SecretRef::from_name(""), None);
+}
+
+#[test]
+fn mg_req_1007_check_refuses_empty_value_and_writes_nothing() {
+    let reference = SecretRef::from_name("crm").unwrap();
+    assert_eq!(check(&reference, &SecretString::from("pw")), Ok(()));
+    let error = check(&reference, &SecretString::from("")).unwrap_err();
+    assert_eq!(error.code(), "MG-1001");
 }
