@@ -13,6 +13,7 @@ mod scaffold;
 mod schema;
 mod selection;
 mod settings;
+mod sources;
 
 use std::cell::RefCell;
 use std::path::Path;

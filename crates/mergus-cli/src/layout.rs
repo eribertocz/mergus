@@ -7,6 +7,7 @@ use crate::name::PRODUCT;
 
 /// The ANSI sequences of the colored layout.
 const RED: &str = "\u{1b}[1;31m";
+const YELLOW: &str = "\u{1b}[1;33m";
 const BLUE: &str = "\u{1b}[1;34m";
 const BOLD: &str = "\u{1b}[1m";
 const RESET: &str = "\u{1b}[0m";
@@ -26,7 +27,7 @@ impl Paint {
 }
 
 /// Renders `resolved` as a block of lines that ends with an empty line: title, location,
-/// source excerpt, then `why`, `fix` and `more`.
+/// source excerpt, then `why`, `fix` and `more`. A warning is titled `warning` in yellow.
 pub(crate) fn render(resolved: &Resolved<'_>, color: bool) -> String {
     let paint = Paint(color);
     let diagnostic = resolved.diagnostic;
@@ -35,9 +36,14 @@ pub(crate) fn render(resolved: &Resolved<'_>, color: bool) -> String {
     let width = line.map_or(0, |line| line.to_string().len()).max(2);
     let pad = " ".repeat(width);
     let bar = paint.on(BLUE, &format!("{pad} |"));
+    let (title, accent) = if diagnostic.warning {
+        ("warning", YELLOW)
+    } else {
+        ("error", RED)
+    };
     let mut text = format!(
         "{}{}\n",
-        paint.on(RED, &format!("error[{}]", diagnostic.code)),
+        paint.on(accent, &format!("{title}[{}]", diagnostic.code)),
         paint.on(BOLD, &format!(": {}", diagnostic.message)),
     );
     if let Some(at) = location {
@@ -50,7 +56,7 @@ pub(crate) fn render(resolved: &Resolved<'_>, color: bool) -> String {
             let number = paint.on(BLUE, &format!("{line:>width$} |"));
             let _ = writeln!(text, "{bar}\n{number} {source}");
             let indent = underline_indent(source, at.column);
-            let _ = writeln!(text, "{bar} {indent}{}", paint.on(RED, "^"));
+            let _ = writeln!(text, "{bar} {indent}{}", paint.on(accent, "^"));
         }
     }
     let equals = paint.on(BLUE, &format!("{pad} ="));
