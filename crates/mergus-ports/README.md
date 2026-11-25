@@ -5,12 +5,18 @@ I/O traits and their real implementations.
 ## What it does
 
 - Defines one trait per port: `Clock`, `FileSystem`, `ObjectStore`, `Network`,
-  `SourceConnector`, `Random`, `Process`, `Environment`, `SqlParser` and `Keychain`, and the
-  `PortError` they return.
+  `SourceConnector`, `Random`, `Process`, `Environment`, `SqlParser`, `Database` and
+  `Keychain`, and the `PortError` they return.
 - Holds, under the non-default feature `real`, the real implementations that wrap the
   operating system: `RealClock`, `RealEnvironment`, `RealFileSystem`, `RealKeychain`, `RealProcess`
   and `RealRandom`, and `RealSqlParser`, DuckDB's parser in an in-memory DuckDB without external
   access that never executes the text (MG-REQ-0193).
+- Holds `RealDatabase`, in-process DuckDB that runs SQL with bound parameters, reads and
+  writes Arrow and attaches DuckLake catalogs. It never installs or loads an extension on its
+  own and refuses unsigned ones; it installs only `ducklake`, from `extensions.duckdb.org`,
+  into `mergus/duckdb/extensions/` under the user cache directory the first time, and loads
+  it from there afterwards (MG-REQ-0194).
+- Is the only crate allowed to depend on `duckdb` (MG-REQ-0194).
 - Is the only crate allowed to call the standard library's clock, file, environment, network
   and process functions (MG-REQ-0130); Clippy forbids them everywhere else.
 

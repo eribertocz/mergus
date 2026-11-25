@@ -11,11 +11,12 @@
 | `SourceConnector` | Opens a source as a `SourceReader` that yields batches of bytes |
 | `Random` | Random numbers and bytes |
 | `Process` | Runs a `ProcessCommand` and returns its `ProcessOutput` |
-| `Environment` | Command-line arguments, current directory, environment variables and the user configuration directory |
-| `PortError` | `NotFound` or `Failed`, returned by every fallible call |
+| `Environment` | Command-line arguments, current directory, environment variables and the user configuration and cache directories |
+| `PortError` | `NotFound`, `Failed` or `ExtensionUnavailable` (extension, host, cache directory), returned by every fallible call |
 | `SqlParser` | Returns the tree DuckDB's `json_serialize_sql` gives for a SQL text, without executing it |
+| `Database`, `DatabaseConnection` | Connects to a `DatabaseLocation`; runs SQL with bound `SqlValue`s, returns and appends Arrow `RecordBatch`es, attaches a `DuckLakeCatalog` |
 | `Keychain` | Get, set and delete operating system keychain entries by service and account |
-| `real::*` | `RealClock`, `RealEnvironment`, `RealFileSystem`, `RealKeychain`, `RealProcess`, `RealRandom`, `RealSqlParser` (feature `real`) |
+| `real::*` | `RealClock`, `RealDatabase`, `RealEnvironment`, `RealFileSystem`, `RealKeychain`, `RealProcess`, `RealRandom`, `RealSqlParser` (feature `real`) |
 
 Every trait is `Send + Sync` and takes `&self`, so one value can be shared behind an `Arc`.
 
@@ -29,8 +30,11 @@ Every trait is `Send + Sync` and takes `&self`, so one value can be shared behin
 ## Dependencies
 
 - `thiserror`: derives `PortError`.
-- `duckdb` (feature `real` only; features `bundled` and `json`, default features off): the
-  in-memory DuckDB of `RealSqlParser` (MG-REQ-0193).
+- `arrow` (default features off): the record batches of the `Database` port, at the version
+  `duckdb` uses.
+- `duckdb` (feature `real` only; features `bundled`, `json` and `appender-arrow`, default
+  features off): the in-memory DuckDB of `RealSqlParser` (MG-REQ-0193) and the DuckDB of
+  `RealDatabase` (MG-REQ-0194). Bundles DuckDB v2.0.1, which supports DuckLake.
 - `keyring` 3 (feature `real` only; default features off): `RealKeychain` on Keychain
   Services, Credential Manager and the Secret Service through `dbus`, with libdbus built from
   source (`vendored`) and pure-Rust cryptography, so no system library is needed to build.

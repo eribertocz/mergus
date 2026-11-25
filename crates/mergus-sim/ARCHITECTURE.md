@@ -12,7 +12,8 @@
 | `SimSourceConnector`, `SourceFaults` | Sources of batches, with a changed version |
 | `SimRandom` | Seeded random numbers |
 | `SimProcess` | Programs answer with outputs set by the test |
-| `SimEnvironment` | Arguments, current directory, variables and a configuration directory set by the test |
+| `SimEnvironment` | Arguments, current directory, variables, a configuration and a cache directory set by the test |
+| `SimDatabase`, `DatabaseFaults` | Results recorded with the real `Database`, appended batches and attached catalogs; errors |
 | `SimKeychain` | Keychain entries in memory, by service and account, set by the test |
 | `Scenario` | What a caller simulates: how a seed draws steps, the world, one step |
 | `Simulator` | Runs, replays and shrinks a scenario from a seed |
@@ -38,4 +39,5 @@
 ## Dependencies
 
 - `mergus-ports`, without the feature `real`: the traits it implements.
+- `arrow` (default features off): the record batches of the simulated `Database`.
 - The standard library only for collections and locks; no I/O.
