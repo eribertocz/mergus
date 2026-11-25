@@ -10,11 +10,18 @@ description = "I/O traits and their real implementations."
 [features]
 default = []
 # MG-REQ-0133: the real implementations compile only with this feature.
-real = ["dep:duckdb"]
+real = ["dep:duckdb", "dep:keyring"]
 
 [dependencies]
 # MG-REQ-0193: the real `SqlParser`. Only under the feature `real` (MG-REQ-0133).
 duckdb = { version = "=1.20001.0", default-features = false, features = ["bundled", "json"], optional = true }
+# MG-REQ-1001.2: the real `Keychain`. Only under the feature `real` (MG-REQ-0133); only this
+# crate may depend on `keyring` (MG-REQ-0126.7). Keychain Services on macOS, Credential Manager
+# on Windows, and the Secret Service elsewhere through `dbus`, with libdbus built from source
+# (`vendored`) and pure-Rust cryptography (`crypto-rust`), so no system library is needed.
+# Version 3: the Secret Service of version 4 goes through `zbus` 5, whose `zvariant` and
+# `zbus_names` are unmaintained (RUSTSEC-2026-0370 to 0372).
+keyring = { version = "3.6.3", default-features = false, features = ["apple-native", "windows-native", "sync-secret-service", "crypto-rust", "vendored"], optional = true }
 thiserror = "2.0.21"
 
 [lints]

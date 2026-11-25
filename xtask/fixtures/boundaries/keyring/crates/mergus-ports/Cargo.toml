@@ -1,0 +1,13 @@
+[package]
+name = "mergus-ports"
+version = "0.0.0"
+edition = "2024"
+publish = false
+
+[features]
+default = []
+real = ["dep:keyring"]
+other = ["dep:keyring"]
+
+[dependencies]
+keyring = { version = "4", optional = true }

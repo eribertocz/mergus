@@ -5,13 +5,14 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use mergus_ports::{
-    Clock, Environment, FileSystem, HttpRequest, HttpResponse, Network, ObjectStore, PortError,
-    Process, ProcessCommand, ProcessOutput, Random, SourceConnector, SqlParser, Timestamp,
+    Clock, Environment, FileSystem, HttpRequest, HttpResponse, Keychain, Network, ObjectStore,
+    PortError, Process, ProcessCommand, ProcessOutput, Random, SourceConnector, SqlParser,
+    Timestamp,
 };
 use mergus_sim::{
     ClockFaults, NetworkFaults, ObjectStoreFaults, Rate, SimClock, SimEnvironment, SimFileSystem,
-    SimNetwork, SimObjectStore, SimProcess, SimRandom, SimSourceConnector, SimSqlParser,
-    SourceFaults,
+    SimKeychain, SimNetwork, SimObjectStore, SimProcess, SimRandom, SimSourceConnector,
+    SimSqlParser, SourceFaults,
 };
 
 /// One value of every port, as the code under simulation receives them.
@@ -25,6 +26,7 @@ struct Ports {
     process: Arc<dyn Process>,
     environment: Arc<dyn Environment>,
     sql_parser: Arc<dyn SqlParser>,
+    keychain: Arc<dyn Keychain>,
 }
 
 const SOMETIMES: Rate = Rate::per_million(300_000);
@@ -70,6 +72,7 @@ fn simulated(seed: u64) -> Ports {
                 .with_current_dir("/project"),
         ),
         sql_parser: Arc::new(sql_parser),
+        keychain: Arc::new(SimKeychain::with_entries([("mergus", "token", "t0")])),
     }
 }
 
@@ -138,6 +141,18 @@ fn network_round(
     (network.http(&request), tcp)
 }
 
+/// Writes, reads and deletes keychain entries, and records what each call returned.
+fn keychain_round(keychain: &dyn Keychain, round: u32) -> String {
+    let account = format!("account_{}", round % 4);
+    let stored = keychain.set("mergus", &account, &round.to_string());
+    format!(
+        "{stored:?} {:?} {:?} {:?}",
+        keychain.get("mergus", &account),
+        keychain.get("mergus", "token"),
+        keychain.delete("mergus", "account_0"),
+    )
+}
+
 /// Uses every port many times and records what each call returned.
 fn trace(ports: &Ports) -> Result<String, PortError> {
     let mut trace = String::new();
@@ -165,8 +180,9 @@ fn trace(ports: &Ports) -> Result<String, PortError> {
             program: "duckdb".to_owned(),
             ..ProcessCommand::default()
         };
+        let keychain = keychain_round(ports.keychain.as_ref(), round);
         trace.push_str(&format!(
-            "{write:?} {read:?} {put:?} {get:?} {list:?} {http:?} {tcp:?} {batches:?} \
+            "{write:?} {read:?} {put:?} {get:?} {list:?} {http:?} {tcp:?} {batches:?} {keychain:?} \
              {:?} {:?} {:?} {bytes:?} {:?} {:?} {:?} {:?} {:?} {:?} {:?}\n",
             ports.clock.now(),
             ports.clock.monotonic(),

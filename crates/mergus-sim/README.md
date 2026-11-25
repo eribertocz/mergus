@@ -6,7 +6,7 @@ Deterministic simulator.
 
 - Gives every port of `mergus-ports` a simulated implementation (MG-REQ-0131): `SimClock`,
   `SimFileSystem`, `SimObjectStore`, `SimNetwork`, `SimSourceConnector`, `SimRandom`,
-  `SimProcess` and `SimEnvironment`.
+  `SimProcess`, `SimEnvironment` and `SimKeychain`.
 - Makes each one deterministic: created with the same seed and called the same way, it
   returns the same results.
 - Injects the faults of MG-REQ-0161 that belong to a port, at a `Rate` per call:

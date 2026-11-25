@@ -13,6 +13,7 @@
 mod clock;
 mod environment;
 mod file_system;
+mod keychain;
 mod network;
 mod object_store;
 mod process;
@@ -25,6 +26,7 @@ mod sql_parser;
 pub use clock::{ClockFaults, SimClock};
 pub use environment::SimEnvironment;
 pub use file_system::SimFileSystem;
+pub use keychain::SimKeychain;
 pub use network::{NetworkFaults, SimNetwork, TcpHandler};
 pub use object_store::{ObjectStoreFaults, SimObjectStore};
 pub use process::SimProcess;

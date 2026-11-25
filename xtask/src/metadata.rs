@@ -53,6 +53,8 @@ pub(crate) struct Dependency {
     pub(crate) path: Option<PathBuf>,
     /// The features the member enables on it.
     pub(crate) features: Vec<String>,
+    /// Whether it is optional: linked only when a feature enables it.
+    pub(crate) optional: bool,
 }
 
 impl Workspace {
@@ -156,6 +158,7 @@ fn dependency(json: &Json) -> Result<Dependency, Failure> {
         source: json.get("source").and_then(Json::as_str).map(str::to_owned),
         path: json.get("path").and_then(Json::as_str).map(PathBuf::from),
         features: json.get("features").map(strings).unwrap_or_default(),
+        optional: matches!(json.get("optional"), Some(Json::Bool(true))),
         name,
     })
 }
@@ -204,7 +207,7 @@ mod tests {
                      "path": "/w/crates/b", "features": []},
                     {"name": "keyring", "kind": "build", "rename": null,
                      "source": "registry+https://github.com/rust-lang/crates.io-index",
-                     "features": []}
+                     "features": [], "optional": true}
                 ],
                 "features": {}
             }
@@ -224,6 +227,7 @@ mod tests {
         assert!(normal.kind == Kind::Normal && normal.features == ["real"]);
         assert!(dev.kind == Kind::Dev && dev.key == "c" && dev.name == "b");
         assert!(build.kind == Kind::Build && build.source.is_some());
+        assert!(build.optional && !normal.optional && !dev.optional);
         assert_eq!(
             workspace.resolve(normal).map(|m| m.name.as_str()),
             Some("b")
