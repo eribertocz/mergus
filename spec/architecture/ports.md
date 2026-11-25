@@ -113,6 +113,11 @@ pins, starting with PostgreSQL in phase 0.3:
    pinned driver, fails with a typed error that names the database, the host and the cache
    directory.
 
+4. MG-REQ-0195.4: the DuckDB driver is not fetched: it is the ADBC driver compiled into the
+   DuckDB that `mergus-ports` already bundles (MG-REQ-0194), loaded statically through its
+   entry point `duckdb_adbc_init`. Its version is therefore the bundled DuckDB's, fixed by
+   the `duckdb` crate pin, and the driver MUST report `ADBC_INFO_VENDOR_VERSION` equal to it.
+
 Its simulated implementation serves Arrow batches from in-memory tables and injects the
 faults of `architecture/testing.md`.
 
@@ -120,5 +125,5 @@ faults of `architecture/testing.md`.
 - Verify: test `mg_req_0195_adbc_driver_pinned_and_cached`
 - Phase: 0.3
 - Depends: MG-REQ-0186, MG-REQ-0401
-- Decision: 0033
+- Decision: 0033, 0036
 

@@ -14,7 +14,7 @@ depends_on: [storage-zones, contracts-adapter]
 | `local` | Development on one machine | DuckLake in a folder |
 | `shared` | Several processes on one machine | DuckLake with a SQLite catalog |
 | `cloud` | Production | DuckLake with a PostgreSQL catalog on S3, GCS or Azure |
-| `server` | A DuckDB server | DuckLake or a DuckDB file through the server |
+| `server` | A DuckDB server reached as a client, after the MVP (decision 0036) | DuckLake (level A) or a DuckDB file (level C+, phase 1.2) through the server |
 
 | Guarantee | Means | When |
 |---|---|---|
@@ -24,7 +24,8 @@ depends_on: [storage-zones, contracts-adapter]
 
 ### MG-REQ-0521 · Profiles are complete defaults
 
-Each profile MUST configure catalog, data location and concurrency without further keys.
+Each profile except `server`, which comes after the MVP, MUST configure catalog, data
+location and concurrency without further keys.
 Advanced users MAY override individual keys.
 
 - Kind: behavior
