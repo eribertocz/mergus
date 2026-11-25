@@ -75,9 +75,20 @@ identity (OIDC) and the cloud's standard credential chain, never from a project 
 
 `mergus secret set <name>` MUST read the value from standard input, without echo when it is a
 terminal, and store it in the keychain under the service `mergus` and the account `<name>`.
-The value MUST NOT be accepted as an argument. It prints no value and exits 0 once stored.
+The value MUST NOT be accepted as an argument. It prints no value and exits 0 once stored:
+
+1. MG-REQ-1007.1: the value is all of standard input with one trailing line ending (`\n` or
+   `\r\n`) removed, so a value of several lines, such as a PEM key, is kept whole;
+2. MG-REQ-1007.2: when standard input is a terminal, the prompt `Value of secret <name>: ` is
+   written once to standard error, and the value ends at the first line ending;
+3. MG-REQ-1007.3: an empty value is refused with `MG-1001` (exit code 1) and nothing is
+   stored;
+4. MG-REQ-1007.4: a keychain that cannot be written fails with `MG-1002` (exit code 1), whose
+   fix names the platform keychain service; nothing else is stored instead;
+5. MG-REQ-1007.5: a name that is not a lowercase identifier fails with `MG-1305`, and a
+   second argument fails with `MG-1301`; no diagnostic ever contains the value.
 
 - Kind: behavior
 - Verify: test `mg_req_1007_secret_set_stores_in_keychain`
 - Depends: MG-REQ-1001
-- Decision: 0031
+- Decision: 0031, 0039
