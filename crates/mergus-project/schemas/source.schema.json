@@ -18,10 +18,26 @@
   ],
   "$defs": {
     "database": {
-      "description": "A database source, read through ADBC: connection is required (MG-REQ-0376.3).",
+      "description": "A database source, read through ADBC: connection is required, unless engine is duckdb and location is set (MG-REQ-0376.3).",
       "type": "object",
       "additionalProperties": false,
-      "required": ["kind", "connection"],
+      "required": ["kind"],
+      "oneOf": [
+        {
+          "description": "Exactly one of a connection and a DuckDB file.",
+          "oneOf": [
+            { "description": "A connection.", "required": ["connection"] },
+            { "description": "A DuckDB file.", "$ref": "#/$defs/duckdb_file" }
+          ]
+        },
+        {
+          "description": "Both a connection and a DuckDB file, which the oneOf above rejects.",
+          "required": ["connection", "engine", "location"],
+          "properties": {
+            "engine": { "description": "The engine of a DuckDB file.", "const": "duckdb" }
+          }
+        }
+      ],
       "properties": {
         "kind": { "description": "The kind of this source.", "const": "database" },
         "mode": { "description": "How the source is read.", "$ref": "#/$defs/mode" },
@@ -30,7 +46,7 @@
         "retention": { "description": "How long raw data is kept.", "$ref": "#/$defs/duration" },
         "connection": { "description": "The connection.", "$ref": "#/$defs/secret" },
         "replica": { "description": "The connection of a replica.", "$ref": "#/$defs/secret" },
-        "location": { "description": "A local directory or an object-store URL prefix.", "$ref": "#/$defs/text" },
+        "location": { "description": "With engine duckdb, the path of a .duckdb file relative to the project root (MG-REQ-0376.4).", "$ref": "#/$defs/text" },
         "load": { "description": "The load put on the source.", "$ref": "#/$defs/load" },
         "max_connections": { "description": "The most connections opened at once.", "$ref": "#/$defs/max_connections" },
         "window": { "description": "When the source may be read.", "$ref": "#/$defs/window" },
@@ -59,6 +75,13 @@
         "query_timeout": { "description": "The longest a query may run.", "$ref": "#/$defs/duration" },
         "overlap": { "description": "How far before the last mark a read starts.", "$ref": "#/$defs/duration" },
         "tables": { "description": "The declared tables, each with a path and a format.", "$ref": "#/$defs/file_tables" }
+      }
+    },
+    "duckdb_file": {
+      "description": "A DuckDB file: engine is duckdb and location is set (MG-REQ-0376.3, MG-REQ-0421).",
+      "required": ["engine", "location"],
+      "properties": {
+        "engine": { "description": "The engine of a DuckDB file.", "const": "duckdb" }
       }
     },
     "rest": {

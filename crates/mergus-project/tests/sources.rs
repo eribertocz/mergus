@@ -62,6 +62,7 @@ fn mg_req_0376_source_keys() {
     kinds();
     source_options();
     secret_references();
+    duckdb_file();
     table_options();
     file_tables();
     rest_is_open();
@@ -143,6 +144,29 @@ fn secret_references() {
         let source = format!("{DATABASE}replica = \"{reference}\"\n");
         assert_eq!(one(&source), invalid("replica"), "{reference}");
     }
+}
+
+/// MG-REQ-0376.3 and MG-REQ-0376.4: a DuckDB file source has a `location` instead of a
+/// `connection`.
+fn duckdb_file() {
+    const DUCKDB: &str =
+        "kind = \"database\"\nengine = \"duckdb\"\nlocation = \"data/sales.duckdb\"\n";
+    assert_eq!(found(DUCKDB), []);
+    assert_eq!(found(&format!("{DUCKDB}mode = \"live\"\n")), []);
+    assert_eq!(found(&format!("{DUCKDB}connection = \"secret:crm\"\n")), []);
+    let tables = format!("{DUCKDB}[tables.orders]\nkey = \"id\"\n");
+    assert_eq!(found(&tables), []);
+    for source in [
+        "kind = \"database\"\nengine = \"duckdb\"\n",
+        "kind = \"database\"\nlocation = \"data/sales.duckdb\"\n",
+        "kind = \"database\"\nengine = \"postgresql\"\nlocation = \"data/sales.duckdb\"\n",
+    ] {
+        assert_eq!(one(source), invalid("connection"), "{source}");
+    }
+    let empty = found("kind = \"database\"\nengine = \"duckdb\"\nlocation = \"\"\n");
+    assert!(empty.contains(&invalid("location")), "{empty:?}");
+    let wrong = format!("{DUCKDB}replica = \"crm\"\n");
+    assert_eq!(one(&wrong), invalid("replica"));
 }
 
 /// MG-REQ-0376.6: the tables and their options.
