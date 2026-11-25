@@ -57,6 +57,22 @@ leave the list.
 - Verify: test `mg_req_0213_period_tokens_track_row_changes`
 - Depends: MG-REQ-0142
 
+### MG-REQ-0218 · Relation versions are the data tokens
+
+Versions in `catalog_state` MUST come from the manifest's data tokens (MG-REQ-0251), never
+from the snapshot of the whole catalog:
+
+1. MG-REQ-0218.1: a relation that is not partitioned carries `version`, and its
+   `version.snapshot` MUST equal the table's `data_token`;
+2. MG-REQ-0218.2: a partitioned relation carries `partitions`, not `version`, with the period
+   tokens of MG-REQ-0213, and the table's `data_token` MUST change if and only if the token of
+   some period changes.
+
+- Kind: behavior
+- Verify: test `mg_req_0218_relation_versions_are_data_tokens`
+- Depends: MG-REQ-0213, MG-REQ-0251
+- Decision: 0034
+
 ### MG-REQ-0214 · Hashes are copied, never computed
 
 Hashes that Menura defines (`definition_hash`, `model_hash`) MUST be copied verbatim from

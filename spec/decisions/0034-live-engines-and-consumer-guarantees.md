@@ -36,6 +36,20 @@ Consumers that cache results had no stated way to know that a table's data had c
   - detection by reading the pointer (MG-REQ-0247, MG-REQ-0248). A remote event may come
     after the MVP.
 
+- Alignment with Menura (CAT-5, CAT-6, PLN-3.3): the versions Menura keys its cache on are
+  the same values as the data tokens. A relation that is not partitioned carries `version`,
+  whose `snapshot` is the `data_token`. A partitioned relation carries `partitions`, and its
+  `data_token` changes if and only if a period token changes (MG-REQ-0218). The snapshot of
+  the whole catalog is never used.
+
+## Open
+
+- `live` relations (level F) in `catalog_state`. CAT-5 requires exactly one of `version`,
+  `partitions` or `aggregate_build`, so a relation cannot be listed without a version. The
+  proposal is to omit live relations from `catalog_state`. This waits for Menura to confirm it
+  accepts the omission. Until then no rule is written, and no version is ever invented for a
+  live relation.
+
 ## Consequences
 
 The source checks of phase 0.3 gain MG-REQ-0409. The schema of MG-REQ-0376 gains `engine`.
