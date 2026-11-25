@@ -93,10 +93,11 @@ impl Report<'_> {
     }
 
     /// Reports an object that matches no branch of a `oneOf`, such as a source of one kind
-    /// (MG-REQ-0376). The branches tell themselves apart by the `const` of a key: the one
-    /// branch whose `const` keys match is reported, error by error. When no branch, or more
-    /// than one, matches, the key itself is missing or wrong, and the keywords beside the
-    /// `oneOf` report it.
+    /// (MG-REQ-0376). The branches tell themselves apart by the `const` of a key: a branch
+    /// whose `const` key is wrong, or missing, is not the one meant. When every branch is
+    /// ruled out, the key itself is missing or wrong, and the keywords beside the `oneOf`
+    /// report it. Of the branches left, the one with the fewest errors, the first on a tie,
+    /// is reported, error by error.
     fn push_branch(
         &self,
         at: &[Segment],
@@ -104,16 +105,29 @@ impl Report<'_> {
         problems: &mut Vec<ProjectError>,
     ) {
         let depth = at.len() + 1;
-        let mut matching = branches.iter().filter(|errors| {
-            !errors.iter().any(|error| {
-                matches!(error.kind(), ValidationErrorKind::Constant { .. })
-                    && error.instance_path().iter().count() == depth
-            })
-        });
-        if let (Some(errors), None) = (matching.next(), matching.next()) {
-            for error in errors {
-                self.push(error, problems);
+        let meant = branches
+            .iter()
+            .filter(|errors| !errors.iter().any(|error| self.rules_out(error, depth)))
+            .min_by_key(|errors| errors.len());
+        for error in meant.into_iter().flatten() {
+            self.push(error, problems);
+        }
+    }
+
+    /// Whether `error`, found in a branch, says the branch is not the one meant: the key at
+    /// `depth` has the wrong `const`, or is missing where the branch gives it a `const`.
+    fn rules_out(&self, error: &ValidationError<'_>, depth: usize) -> bool {
+        match error.kind() {
+            ValidationErrorKind::Constant { .. } => error.instance_path().iter().count() == depth,
+            ValidationErrorKind::Required { property } => {
+                let keyword = error.schema_path().as_str();
+                let parent = keyword.strip_suffix("/required").unwrap_or_default();
+                self.node_at(parent)
+                    .and_then(|node| node.get("properties"))
+                    .and_then(|properties| properties.get(property.as_str().unwrap_or_default()))
+                    .is_some_and(|key| self.follow(key).get("const").is_some())
             }
+            _ => false,
         }
     }
 
@@ -155,8 +169,18 @@ impl Report<'_> {
         let parent = keyword
             .strip_suffix("/additionalProperties")
             .unwrap_or_default();
+        self.node_at(parent)
+            .and_then(|value| value.get("properties"))
+            .and_then(Value::as_object)
+            .map(|properties| properties.keys().cloned().collect())
+            .unwrap_or_default()
+    }
+
+    /// The schema node at `location`, a schema path that does not show the `$ref` it went
+    /// through, with its own `$ref` followed.
+    fn node_at(&self, location: &str) -> Option<&Value> {
         let mut node = Some(self.schema);
-        for step in parent.split('/').filter(|step| !step.is_empty()) {
+        for step in location.split('/').filter(|step| !step.is_empty()) {
             node = node.and_then(|value| {
                 let value = self.follow(value);
                 match step.parse::<usize>() {
@@ -165,10 +189,7 @@ impl Report<'_> {
                 }
             });
         }
-        node.and_then(|value| self.follow(value).get("properties"))
-            .and_then(Value::as_object)
-            .map(|properties| properties.keys().cloned().collect())
-            .unwrap_or_default()
+        node.map(|value| self.follow(value))
     }
 
     /// Follows the `$ref` of a schema node to a `#/$defs/<name>` of the schema, if it has one.
