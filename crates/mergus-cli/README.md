@@ -34,6 +34,14 @@ The `mergus` binary; translates arguments and output only.
 - Runs `mergus explain <argument>`: the catalog file of an `MG-####` code, otherwise the
   model's name, identifier, file, inputs, readers and every effective option with its value
   and origin; an unknown code or model names the closest one (MG-REQ-1310, MG-REQ-1352).
+- Runs `mergus secret set <name>`: reads the value from standard input and stores it in the
+  keychain under the service `mergus` and the account `<name>`. On a terminal it writes the
+  prompt `Value of secret <name>: ` on standard error once and reads one line without echo;
+  otherwise it reads all of standard input and removes one trailing line ending. An empty
+  value (`MG-1001`) or a keychain that cannot be written (`MG-1002`) stores nothing. The
+  value is never an argument, and no output shows it (MG-REQ-1007). `--dry-run` makes the
+  same checks and stores nothing (MG-REQ-0192). `--dry-run` makes the
+  same checks and stores nothing (MG-REQ-0192).
 - With `--json`, prints only `mergus_events` events on standard output, one per line, ending
   with `run_finished` (MG-REQ-0260, MG-REQ-0261). Otherwise it prints every error on
   standard error, grouped by file, in the layout of MG-REQ-1322: code, message, location,

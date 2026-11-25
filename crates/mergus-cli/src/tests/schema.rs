@@ -7,7 +7,7 @@ use serde_json::Value;
 use super::{PROJECT, mergus, project};
 
 /// Every command of the binary, sorted by name.
-const COMMANDS: [&str; 8] = [
+const COMMANDS: [&str; 9] = [
     "add source",
     "explain",
     "init",
@@ -15,6 +15,7 @@ const COMMANDS: [&str; 8] = [
     "new model",
     "plan",
     "schema",
+    "secret set",
     "validate",
 ];
 
@@ -125,7 +126,7 @@ fn mg_req_1348_cli_schema_document() {
     for command in &typed.commands {
         assert_eq!(
             command.dry_run,
-            ["add source", "init", "new model"].contains(&command.name.as_str())
+            ["add source", "init", "new model", "secret set"].contains(&command.name.as_str())
         );
         assert_eq!(command.json, command.name != "schema");
         for argument in &command.arguments {

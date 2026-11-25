@@ -42,12 +42,14 @@ pub(crate) enum Command {
     Plan,
     /// `mergus schema` (MG-REQ-0263).
     Schema,
+    /// `mergus secret set` (MG-REQ-1007).
+    SecretSet,
     /// `mergus validate` (MG-REQ-1345).
     Validate,
 }
 
 /// Every command, sorted by name (MG-REQ-1348).
-pub(crate) const ALL: [Command; 8] = [
+pub(crate) const ALL: [Command; 9] = [
     Command::AddSource,
     Command::Explain,
     Command::Init,
@@ -55,11 +57,12 @@ pub(crate) const ALL: [Command; 8] = [
     Command::NewModel,
     Command::Plan,
     Command::Schema,
+    Command::SecretSet,
     Command::Validate,
 ];
 
 /// The names of every command, sorted.
-pub(crate) const NAMES: [&str; 8] = [
+pub(crate) const NAMES: [&str; 9] = [
     "add source",
     "explain",
     "init",
@@ -67,6 +70,7 @@ pub(crate) const NAMES: [&str; 8] = [
     "new model",
     "plan",
     "schema",
+    "secret set",
     "validate",
 ];
 
@@ -219,6 +223,15 @@ const NEW_MODEL: [Argument; 8] = [
     GLOBAL[2],
 ];
 
+/// The value is read from standard input, never taken as an argument (MG-REQ-1007).
+const SECRET_SET: [Argument; 5] = [
+    positional("name", true),
+    flag(DRY_RUN),
+    GLOBAL[0],
+    GLOBAL[1],
+    GLOBAL[2],
+];
+
 const SCHEMA: [Argument; 5] = [
     Argument {
         values: &NAMES,
@@ -241,7 +254,8 @@ impl Command {
             Self::NewModel => NAMES[4],
             Self::Plan => NAMES[5],
             Self::Schema => NAMES[6],
-            Self::Validate => NAMES[7],
+            Self::SecretSet => NAMES[7],
+            Self::Validate => NAMES[8],
         }
     }
 
@@ -255,6 +269,7 @@ impl Command {
             Self::NewModel => "Create a model file with a minimal example.",
             Self::Plan => "Write the plan of the selected models; execute nothing.",
             Self::Schema => "Print the description of a command, or of every command, in JSON.",
+            Self::SecretSet => "Store a secret read from standard input in the keychain.",
             Self::Validate => "Check the layout and the configuration of the project.",
         }
     }
@@ -269,6 +284,7 @@ impl Command {
             Self::NewModel => &NEW_MODEL,
             Self::Plan => &PLAN,
             Self::Schema => &SCHEMA,
+            Self::SecretSet => &SECRET_SET,
             Self::Validate => &GLOBAL,
         }
     }

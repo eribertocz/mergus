@@ -3,7 +3,7 @@
 use std::cell::RefCell;
 use std::io::{BufRead, Write};
 
-use mergus_ports::{Clock, Environment, FileSystem, Random, SqlParser};
+use mergus_ports::{Clock, Environment, FileSystem, Keychain, Random, SqlParser};
 
 use crate::args::{self, Invocation};
 use crate::cli_schema;
@@ -18,6 +18,7 @@ use crate::models;
 use crate::output::Output;
 use crate::planning::plan;
 use crate::scaffold::{add_source, new_model};
+use crate::secret::secret_set;
 use crate::selection::{listing, select};
 use crate::validate::validate;
 
@@ -38,6 +39,19 @@ impl<R: BufRead> Answers for RefCell<R> {
     }
 }
 
+/// Standard input as `secret set` reads it (MG-REQ-1007).
+pub(crate) trait SecretInput {
+    /// Whether standard input is a terminal.
+    fn is_terminal(&self) -> bool;
+
+    /// The next line typed on the terminal, not echoed, without its line ending; `None` when
+    /// it cannot be read.
+    fn hidden_line(&self) -> Option<String>;
+
+    /// All of standard input; `None` when it cannot be read or is not UTF-8.
+    fn all(&self) -> Option<String>;
+}
+
 /// The ports a run uses, created by `main` or by a test.
 pub(crate) struct Ports<'a> {
     pub(crate) environment: &'a dyn Environment,
@@ -51,6 +65,10 @@ pub(crate) struct Ports<'a> {
     /// Standard input when it is a terminal, which `init` asks its questions on
     /// (MG-REQ-1349.1).
     pub(crate) input: Option<&'a dyn Answers>,
+    /// Standard input, which `secret set` reads the value from (MG-REQ-1007).
+    pub(crate) secret_input: &'a dyn SecretInput,
+    /// The keychain `secret set` writes into (MG-REQ-1007).
+    pub(crate) keychain: &'a dyn Keychain,
 }
 
 /// Runs the command of the arguments of `ports.environment` and returns its exit code
@@ -114,6 +132,7 @@ fn execute(
             return Ok(diagnostics);
         }
         Command::Ls => return ls(ports, invocation, output),
+        Command::SecretSet => return secret_set(ports, invocation, output),
         Command::Plan => return plan(ports, invocation, output),
         Command::Explain => {
             let argument = invocation.value("argument").unwrap_or_default();

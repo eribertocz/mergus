@@ -2,6 +2,7 @@
 //! (MG-REQ-1324, MG-REQ-1334).
 
 use mergus_project::ProjectError;
+use mergus_security::StoreError;
 use mergus_source::{Severity, SourceProblem};
 
 use crate::catalog::{self, Entry};
@@ -30,6 +31,15 @@ pub(crate) struct Diagnostic {
     /// The text of the line of the location, when the file could be read (MG-REQ-1346.1).
     pub(crate) source: Option<String>,
 }
+
+/// What to do when the keychain of this platform cannot be written (MG-REQ-1007.4).
+const KEYCHAIN_HINT: &str = if cfg!(target_os = "macos") {
+    "Unlock the macOS Keychain, then run the command again."
+} else if cfg!(windows) {
+    "Make sure the Windows Credential Manager service is running, then run the command again."
+} else {
+    "Start a Secret Service, such as GNOME Keyring or KWallet, then run the command again."
+};
 
 /// A diagnostic with what the catalog says about its code.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -73,6 +83,24 @@ impl Diagnostic {
                 column: None,
             }),
             hint: None,
+            next: Vec::new(),
+            source: None,
+        }
+    }
+
+    /// The diagnostic of a secret value `secret set` did not store. A keychain that cannot be
+    /// written gets the hint of the keychain service of the platform (MG-REQ-1007.4).
+    pub(crate) fn of_store(error: &StoreError) -> Self {
+        let hint = match error {
+            StoreError::Unwritable { .. } => Some(KEYCHAIN_HINT.to_owned()),
+            StoreError::Empty { .. } => None,
+        };
+        Self {
+            code: error.code(),
+            warning: false,
+            message: error.to_string(),
+            location: None,
+            hint,
             next: Vec::new(),
             source: None,
         }
