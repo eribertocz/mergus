@@ -283,7 +283,7 @@ fn mg_req_0362_only_due_keys_are_known() {
         .map(String::as_str)
         .collect();
     source_keys.sort_unstable();
-    let due = "connection kind load location max_connections mode overlap query_timeout raw \
+    let due = "connection engine kind load location max_connections mode overlap query_timeout raw \
                replica retention tables window";
     assert_eq!(source_keys, due.split_whitespace().collect::<Vec<_>>());
     let rest = read(&[

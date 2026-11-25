@@ -25,6 +25,7 @@
       "properties": {
         "kind": { "description": "The kind of this source.", "const": "database" },
         "mode": { "description": "How the source is read.", "$ref": "#/$defs/mode" },
+        "engine": { "description": "The engine of a connect or live source, which MG-REQ-0409 checks (MG-REQ-0376.2).", "$ref": "#/$defs/name" },
         "raw": { "description": "Whether the source is kept in the raw zone.", "type": "boolean" },
         "retention": { "description": "How long raw data is kept.", "$ref": "#/$defs/duration" },
         "connection": { "description": "The connection.", "$ref": "#/$defs/secret" },
@@ -46,6 +47,7 @@
       "properties": {
         "kind": { "description": "The kind of this source.", "const": "files" },
         "mode": { "description": "How the source is read.", "$ref": "#/$defs/mode" },
+        "engine": { "description": "The engine of a connect or live source, which MG-REQ-0409 checks (MG-REQ-0376.2).", "$ref": "#/$defs/name" },
         "raw": { "description": "Whether the source is kept in the raw zone.", "type": "boolean" },
         "retention": { "description": "How long raw data is kept.", "$ref": "#/$defs/duration" },
         "connection": { "description": "The connection.", "$ref": "#/$defs/secret" },
