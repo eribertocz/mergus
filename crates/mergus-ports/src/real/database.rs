@@ -1,4 +1,4 @@
-//! In-process DuckDB with the `ducklake` and `postgres` extensions pinned and cached
+//! In-process DuckDB with the `ducklake`, `postgres` and `httpfs` extensions pinned and cached
 //! (MG-REQ-0194), which attaches database sources read-only (MG-REQ-0196).
 
 use std::path::{Path, PathBuf};
@@ -191,7 +191,34 @@ impl DatabaseConnection for RealConnection {
             .map(|_| ())
             .map_err(failed)
     }
+
+    fn attach_ducklake_encrypted(&mut self, catalog: &DuckLakeCatalog) -> Result<(), PortError> {
+        self.load_extension(Extension::Httpfs)?;
+        self.load_extension(Extension::DuckLake)?;
+        let metadata = format!("ducklake:{}", catalog.metadata);
+        let alias = quote_identifier(&catalog.alias);
+        // Data inlining stays off, so that no row is kept in the catalog instead of in an
+        // encrypted data file.
+        let options = "DATA_PATH ?, ENCRYPTED, DATA_INLINING_ROW_LIMIT 0";
+        // sql: identifiers quoted by quote_identifier
+        let attach = format!("ATTACH ? AS {alias} ({options})");
+        self.connection
+            .execute(&attach, [metadata.as_str(), catalog.data_path.as_str()])
+            .map(|_| ())
+            .map_err(|error| {
+                if error.to_string().contains(NOT_ENCRYPTED) {
+                    PortError::UnencryptedCatalog {
+                        catalog: catalog.metadata.clone(),
+                    }
+                } else {
+                    failed(error)
+                }
+            })
+    }
 }
+
+/// The words of DuckLake's refusal to attach an unencrypted catalog with `ENCRYPTED`.
+const NOT_ENCRYPTED: &str = "the database is not encrypted but we requested an encrypted database";
 
 /// Converts a bound value into DuckDB's.
 fn value(value: &SqlValue) -> duckdb::types::Value {

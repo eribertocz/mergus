@@ -105,6 +105,11 @@ impl DatabaseConnection for LoggedConnection {
         self.inner.attach_ducklake(catalog)
     }
 
+    fn attach_ducklake_encrypted(&mut self, catalog: &DuckLakeCatalog) -> Result<(), PortError> {
+        self.push(format!("catalog {} attached encrypted", catalog.alias));
+        self.inner.attach_ducklake_encrypted(catalog)
+    }
+
     fn load_extension(&mut self, extension: Extension) -> Result<(), PortError> {
         self.push(format!("extension {extension:?} loaded"));
         self.inner.load_extension(extension)
@@ -336,4 +341,52 @@ fn mg_req_0298_pin_recipe_is_structured() {
     // An unknown snapshot has no recipe.
     let unknown = adapter.pin_recipe("orders", &VersionRef::new("7"));
     assert!(unknown.is_err());
+}
+
+#[test]
+fn mg_req_0511_timestamps_and_decimals_are_stored_natively() {
+    use arrow::array::{Decimal128Array, TimestampMicrosecondArray};
+    use arrow::datatypes::TimeUnit;
+
+    let database = Logged::new();
+    let mut adapter = DuckLakeAdapter::open(&database, &catalog(), clock(0)).unwrap();
+    let utc = DataType::Timestamp(TimeUnit::Microsecond, Some("UTC".into()));
+    let local = DataType::Timestamp(TimeUnit::Microsecond, None);
+    let capabilities = adapter.capabilities();
+    for data_type in [
+        utc.clone(),
+        local.clone(),
+        DataType::Decimal128(1, 0),
+        DataType::Decimal128(18, 2),
+        DataType::Decimal128(38, 38),
+    ] {
+        assert!(capabilities.exact_types.contains(&data_type), "{data_type}");
+    }
+    assert!(
+        !capabilities
+            .exact_types
+            .contains(&DataType::Decimal128(39, 0))
+    );
+
+    let create = "CREATE TABLE \"mergus_stage_0\" (\"at\" TIMESTAMPTZ, \"local\" TIMESTAMP, \
+                  \"amount\" DECIMAL(18, 2))";
+    database.inner.record_execute(create, Vec::new(), 0);
+    let at: ArrayRef =
+        Arc::new(TimestampMicrosecondArray::from(vec![1_000_000]).with_timezone("UTC"));
+    let local_at: ArrayRef = Arc::new(TimestampMicrosecondArray::from(vec![2_000_000]));
+    let amount: ArrayRef = Arc::new(
+        Decimal128Array::from(vec![12_345])
+            .with_precision_and_scale(18, 2)
+            .unwrap(),
+    );
+    let batch =
+        RecordBatch::try_from_iter([("at", at), ("local", local_at), ("amount", amount)]).unwrap();
+    let schema = batch.schema();
+    let stream = Box::new(RecordBatchIterator::new([Ok(batch.clone())], schema));
+    adapter.write("orders", WriteMode::Append, stream).unwrap();
+    assert_eq!(database.inner.appended("mergus_stage_0"), [batch]);
+    assert_eq!(
+        database.take_log(),
+        ["catalog lake attached", create, "append to mergus_stage_0"]
+    );
 }

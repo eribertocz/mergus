@@ -8,13 +8,20 @@ publish.workspace = true
 description = "Run cycle and scheduling; wires ports to crates."
 
 [dependencies]
+# Raw rows cross the adapter contract as Arrow record batches; the version of `mergus-adapter`.
+arrow = { version = "60.2.0", default-features = false }
+mergus-adapter = { path = "../mergus-adapter" }
+mergus-adapter-ducklake = { path = "../mergus-adapter-ducklake" }
 mergus-ports = { path = "../mergus-ports" }
 mergus-project = { path = "../mergus-project" }
+mergus-source = { path = "../mergus-source" }
 serde_json = { version = "1.0.154", features = ["float_roundtrip"] }
 thiserror = "2.0.21"
 
 [lints]
 workspace = true
 
+# The real `Database` runs the encryption test when its extensions are in the user cache.
 [dev-dependencies]
+mergus-ports = { path = "../mergus-ports", features = ["real"] }
 mergus-sim = { path = "../mergus-sim" }

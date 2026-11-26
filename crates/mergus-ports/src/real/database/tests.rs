@@ -55,6 +55,7 @@ fn file_name(extension: Extension) -> &'static str {
     match extension {
         Extension::DuckLake => "ducklake.duckdb_extension",
         Extension::Postgres => "postgres_scanner.duckdb_extension",
+        Extension::Httpfs => "httpfs.duckdb_extension",
     }
 }
 
