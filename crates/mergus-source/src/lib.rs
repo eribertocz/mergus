@@ -22,17 +22,27 @@
 //! incremental mark pushed down (MG-REQ-0404), completely when it has no `incremental`
 //! (MG-REQ-0411), and by keyset pagination when chunks are asked (MG-REQ-0417);
 //! [`extract_source`] reads every declared table of a source.
+//!
+//! [`copied_tables`] are the tables extracted into raw: none of a `connect` or `live` source,
+//! whose extraction reads nothing (MG-REQ-0405). [`source_columns`] and [`breaking_changes`]
+//! find a dropped or renamed column or a type change since the last load, a [`SchemaChange`]
+//! that stops the table (MG-REQ-0407). [`extract_source_timed`] reads a source with both, and
+//! records the start and the end of each table's read and their spread (MG-REQ-0419).
 
 #![forbid(unsafe_code)]
 
 mod check;
+mod copied;
 mod engine;
 mod kind;
 mod problem;
 mod read;
+mod schema_change;
+mod snapshot;
 mod table;
 
 pub use check::check_sources;
+pub use copied::copied_tables;
 pub use engine::{
     AttachedSource, ConnectError, DatabaseEngine, EngineIdentity, attach_duckdb_file,
     attach_postgres,
@@ -40,4 +50,8 @@ pub use engine::{
 pub use kind::{Mode, SourceKind};
 pub use problem::{Severity, SourceProblem};
 pub use read::{Projection, ReadOptions, TableExtraction, TableReader, extract_source, read_table};
+pub use schema_change::{
+    ColumnChange, SchemaChange, SourceColumn, breaking_changes, source_columns,
+};
+pub use snapshot::{SourceExtraction, TableRead, extract_source_timed};
 pub use table::{DeclaredTable, RawTables, declared_tables};

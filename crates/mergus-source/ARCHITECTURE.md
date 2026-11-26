@@ -18,6 +18,11 @@
 | `ReadOptions`, `Projection` | The caller's columns, incremental mark and chunk size |
 | `extract_source`, `TableExtraction` | Every declared table of a source, with its raw tables |
 | `ConnectError` | `EngineMismatch` (`MG-0404`) or a `PortError` |
+| `copied_tables` | The tables copied into raw: none of a `connect` or `live` source (MG-REQ-0405) |
+| `source_columns`, `SourceColumn` | The columns of a source table and their DuckDB types, from `DESCRIBE` |
+| `breaking_changes`, `ColumnChange` | The dropped, renamed or retyped columns since the last load (MG-REQ-0407) |
+| `SchemaChange` | A table stopped by breaking changes (`MG-0405`) |
+| `extract_source_timed`, `SourceExtraction`, `TableRead` | A source read with its changes checked and each table's read times and spread (MG-REQ-0419) |
 
 ## Data flow
 
@@ -61,9 +66,27 @@
    the last. Each chunk is one statement, so no transaction outlives it.
 5. A key value is bound with its Arrow type when `SqlValue` has one, and as text otherwise.
 
+## Source changes and read times
+
+1. `copied_tables` is `declared_tables` for a `copy` source, the default, and empty for a
+   `connect` or `live` source; `extract_source` and `extract_source_timed` read only these,
+   so such a source returns no table and sends no statement (MG-REQ-0405).
+2. For each copied table, `extract_source_timed` first runs
+   `SELECT column_name, column_type FROM (DESCRIBE "<alias>"."<table>")`, which resolves the
+   table as the read does, and compares the columns with those of the last load the caller
+   gives. Each column of the last load that is missing, or whose type text differs, is a
+   `ColumnChange`; an added column is not one, nor is anything at a first load (empty last
+   columns). A table with changes becomes a `SchemaChange` and is not read; the other
+   tables go on (MG-REQ-0407).
+3. The wall clock of the `Clock` port is read just before the first data statement of a
+   table and just after its last one (MG-REQ-0419.1). `spread` is the latest end minus the
+   earliest start, zero if the wall clock went backwards (MG-REQ-0419.2). No official DuckDB
+   page documents a snapshot shared by several attached PostgreSQL tables, so every source
+   records times (MG-REQ-0419.3).
+
 ## Dependencies
 
-- `mergus-ports`: the `FileSystem` and `Database` ports and `PortError`.
+- `mergus-ports`: the `FileSystem`, `Database` and `Clock` ports and `PortError`.
 - `arrow`: reads the text answer of a version query, and the key of the last row of a chunk.
 - `mergus-project`: `Configuration` and `Source`, the validated source files, and
   `key_line`, the line of a key, so that this crate parses no TOML (MG-REQ-0186).
