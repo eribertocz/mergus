@@ -24,10 +24,20 @@ Extract from databases (ADBC) and files.
   `SELECT version()` through `postgres_query`, and returns the version to record; a mismatch,
   or an engine that cannot be identified, is `MG-0404` (MG-REQ-0410).
 
+- Reads the tables a source declares under `[tables.<name>]`, and no other (MG-REQ-0402),
+  from an attached source, and names the raw tables each lands in:
+  `raw.<source>__<table>` and `raw.<source>__<table>__changes` (MG-REQ-0403). The select
+  list is the caller's column list, with the key and incremental columns added; the
+  incremental filter `"<incremental>" >= ?` is sent to the source with the caller's mark
+  (MG-REQ-0404). A table without `incremental`, or read without a mark, is read completely
+  (MG-REQ-0411). With a chunk size from the caller, a table with a `key` is read by keyset
+  pagination, `WHERE "key" > ? ORDER BY "key" LIMIT ?`, one statement per chunk, never
+  `OFFSET` (MG-REQ-0417). Every value is a bound parameter (MG-REQ-0007).
+
 ## What it does not
 
 - It does not check `kind` itself: the schema of `mergus-project` already rejects a missing
   or unknown kind with `MG-0305`.
-- It does not extract anything yet, nor resolve the secret of a PostgreSQL source: the caller
+- It does not write raw tables: `mergus-runtime` and the storage adapter do. It does not resolve the secret of a PostgreSQL source: the caller
   passes the resolved connection value. Remote DuckDB over Quack (`whoami()`) is phase 0.7.
 - It writes nothing and prints nothing: `mergus validate` reports its problems.
