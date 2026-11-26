@@ -53,6 +53,30 @@ fn mg_req_0194_simulated_database_replays_recorded_results() {
 }
 
 #[test]
+fn mg_req_0515_simulated_database_attaches_encrypted() {
+    let database = SimDatabase::new(1, DatabaseFaults::default());
+    let mut connection = database.connect(&DatabaseLocation::InMemory).unwrap();
+    let catalog = DuckLakeCatalog {
+        alias: "raw".to_owned(),
+        metadata: "raw.ducklake".to_owned(),
+        data_path: "data/".to_owned(),
+    };
+    connection.attach_ducklake_encrypted(&catalog).unwrap();
+    assert_eq!(database.attached_encrypted(), vec![catalog.clone()]);
+    assert!(database.attached().is_empty());
+
+    // A catalog recorded as unencrypted is refused, as DuckLake refuses it.
+    database.record_unencrypted("raw.ducklake");
+    assert_eq!(
+        connection.attach_ducklake_encrypted(&catalog),
+        Err(PortError::UnencryptedCatalog {
+            catalog: "raw.ducklake".to_owned()
+        })
+    );
+    assert_eq!(database.attached_encrypted().len(), 1);
+}
+
+#[test]
 fn mg_req_0194_simulated_database_injects_errors_for_a_seed() {
     let outcomes = |seed| {
         let faults = DatabaseFaults {
