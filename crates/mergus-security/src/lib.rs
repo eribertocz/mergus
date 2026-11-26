@@ -6,6 +6,9 @@
 //! (MG-REQ-1001). The value comes back as a [`SecretString`], which cannot be printed,
 //! formatted, serialized or logged (MG-REQ-1002). No `.env` file is ever read (MG-REQ-1005).
 //!
+//! [`origin`] follows the same chain and returns which link answered, a [`SecretOrigin`],
+//! without the value, for `mergus doctor` (MG-REQ-1004).
+//!
 //! [`store`] writes a value into the keychain entry of a reference, for `mergus secret set`
 //! (MG-REQ-1007); [`check`] makes the same checks without writing, for `--dry-run`.
 
@@ -18,6 +21,6 @@ mod store;
 
 pub use error::SecretError;
 pub use reference::SecretRef;
-pub use resolve::{KEYCHAIN_SERVICE, resolve};
+pub use resolve::{KEYCHAIN_SERVICE, SecretOrigin, origin, resolve};
 pub use secrecy::{ExposeSecret, SecretString};
 pub use store::{StoreError, check, store};

@@ -2,6 +2,7 @@
 
 mod contract;
 mod diagnostics;
+mod doctor;
 mod explain;
 mod formats;
 mod human;
@@ -152,7 +153,7 @@ impl Setup<'_> {
 }
 
 /// Standard input that is not a terminal and holds nothing.
-struct NoInput;
+pub(crate) struct NoInput;
 
 impl SecretInput for NoInput {
     fn is_terminal(&self) -> bool {

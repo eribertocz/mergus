@@ -40,8 +40,12 @@ The `mergus` binary; translates arguments and output only.
   otherwise it reads all of standard input and removes one trailing line ending. An empty
   value (`MG-1001`) or a keychain that cannot be written (`MG-1002`) stores nothing. The
   value is never an argument, and no output shows it (MG-REQ-1007). `--dry-run` makes the
-  same checks and stores nothing (MG-REQ-0192). `--dry-run` makes the
   same checks and stores nothing (MG-REQ-0192).
+- Runs `mergus doctor`: one line `<name>: <origin>` per secret reference the sources use in
+  `connection` or `replica`, once each, sorted by name; the origin is `environment
+  MERGUS_SECRET_<NAME>`, `keychain mergus/<name>` or `missing`. No output shows a value. Each
+  missing reference is an `MG-1003` error whose fix is `mergus secret set <name>`, all in one
+  pass; it writes nothing and takes no `--dry-run` (MG-REQ-1004).
 - With `--json`, prints only `mergus_events` events on standard output, one per line, ending
   with `run_finished` (MG-REQ-0260, MG-REQ-0261). Otherwise it prints every error on
   standard error, grouped by file, in the layout of MG-REQ-1322: code, message, location,
@@ -59,7 +63,8 @@ The `mergus` binary; translates arguments and output only.
 
 ## What it does not
 
-- It has no live tree or summary of the interactive mode, and no `mergus doctor` yet.
+- It has no live tree or summary of the interactive mode, and `mergus doctor` has no
+  `--source`, `--security` or `--network` yet.
 - It never sets `actor` and ignores any actor given in an argument, a variable or a project
   file (MG-REQ-0264).
 - It holds no business logic: it parses input, calls other crates and renders their results.

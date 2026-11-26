@@ -3,7 +3,7 @@
 
 use mergus_project::ProjectError;
 use mergus_runtime::StorageProblem;
-use mergus_security::StoreError;
+use mergus_security::{SecretError, StoreError};
 use mergus_source::{Severity, SourceProblem};
 
 use crate::catalog::{self, Entry};
@@ -121,6 +121,27 @@ impl Diagnostic {
             location: None,
             hint,
             next: Vec::new(),
+            source: None,
+        }
+    }
+
+    /// The diagnostic of a secret reference that does not resolve, for `doctor`: its fix is
+    /// `mergus secret set <name>` (MG-REQ-1004.3).
+    pub(crate) fn of_secret(error: &SecretError) -> Self {
+        let name = error.reference().name();
+        let command = vec![
+            crate::name::PRODUCT.to_owned(),
+            "secret".to_owned(),
+            "set".to_owned(),
+            name.to_owned(),
+        ];
+        Self {
+            code: error.code(),
+            warning: false,
+            message: error.to_string(),
+            location: None,
+            hint: Some(format!("Run `{}`.", command.join(" "))),
+            next: vec![command],
             source: None,
         }
     }

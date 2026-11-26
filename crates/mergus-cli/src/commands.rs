@@ -30,6 +30,8 @@ const EXIT_CODES: [u8; 3] = [0, 1, 10];
 pub(crate) enum Command {
     /// `mergus add source` (MG-REQ-1304).
     AddSource,
+    /// `mergus doctor` (MG-REQ-1004).
+    Doctor,
     /// `mergus explain` (MG-REQ-1310).
     Explain,
     /// `mergus init` (MG-REQ-1301).
@@ -49,8 +51,9 @@ pub(crate) enum Command {
 }
 
 /// Every command, sorted by name (MG-REQ-1348).
-pub(crate) const ALL: [Command; 9] = [
+pub(crate) const ALL: [Command; 10] = [
     Command::AddSource,
+    Command::Doctor,
     Command::Explain,
     Command::Init,
     Command::Ls,
@@ -62,8 +65,9 @@ pub(crate) const ALL: [Command; 9] = [
 ];
 
 /// The names of every command, sorted.
-pub(crate) const NAMES: [&str; 9] = [
+pub(crate) const NAMES: [&str; 10] = [
     "add source",
+    "doctor",
     "explain",
     "init",
     "ls",
@@ -248,14 +252,15 @@ impl Command {
     pub(crate) fn name(self) -> &'static str {
         match self {
             Self::AddSource => NAMES[0],
-            Self::Explain => NAMES[1],
-            Self::Init => NAMES[2],
-            Self::Ls => NAMES[3],
-            Self::NewModel => NAMES[4],
-            Self::Plan => NAMES[5],
-            Self::Schema => NAMES[6],
-            Self::SecretSet => NAMES[7],
-            Self::Validate => NAMES[8],
+            Self::Doctor => NAMES[1],
+            Self::Explain => NAMES[2],
+            Self::Init => NAMES[3],
+            Self::Ls => NAMES[4],
+            Self::NewModel => NAMES[5],
+            Self::Plan => NAMES[6],
+            Self::Schema => NAMES[7],
+            Self::SecretSet => NAMES[8],
+            Self::Validate => NAMES[9],
         }
     }
 
@@ -263,6 +268,7 @@ impl Command {
     pub(crate) fn summary(self) -> &'static str {
         match self {
             Self::AddSource => "Create a source file that references its connection as a secret.",
+            Self::Doctor => "Show where each secret reference resolves, never its value.",
             Self::Explain => "Explain an error code, or a model and its effective options.",
             Self::Init => "Create a project in the current folder.",
             Self::Ls => "List the selected models and why each one is selected.",
@@ -278,6 +284,7 @@ impl Command {
     pub(crate) fn arguments(self) -> &'static [Argument] {
         match self {
             Self::AddSource => &ADD_SOURCE,
+            Self::Doctor => &GLOBAL,
             Self::Explain => &EXPLAIN,
             Self::Init => &INIT,
             Self::Ls => &LS,
