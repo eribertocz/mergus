@@ -9,7 +9,8 @@ use arrow::datatypes::{DataType, Field, Int64Type, Schema};
 use mergus_adapter::{AdapterError, BatchStream, Retention, StorageAdapter, VersionRef, WriteMode};
 use mergus_adapter_ducklake::DuckLakeAdapter;
 use mergus_ports::{
-    Database, DatabaseConnection, DatabaseLocation, DuckLakeCatalog, PortError, SqlValue, Timestamp,
+    Database, DatabaseConnection, DatabaseLocation, DuckLakeCatalog, Extension, LoadedExtension,
+    PortError, SqlValue, Timestamp,
 };
 use mergus_sim::{ClockFaults, DatabaseFaults, SimClock, SimDatabase};
 
@@ -102,6 +103,15 @@ impl DatabaseConnection for LoggedConnection {
     fn attach_ducklake(&mut self, catalog: &DuckLakeCatalog) -> Result<(), PortError> {
         self.push(format!("catalog {} attached", catalog.alias));
         self.inner.attach_ducklake(catalog)
+    }
+
+    fn load_extension(&mut self, extension: Extension) -> Result<(), PortError> {
+        self.push(format!("extension {extension:?} loaded"));
+        self.inner.load_extension(extension)
+    }
+
+    fn loaded_extensions(&self) -> Vec<LoadedExtension> {
+        self.inner.loaded_extensions()
     }
 }
 
