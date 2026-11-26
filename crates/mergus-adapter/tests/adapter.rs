@@ -174,3 +174,21 @@ fn mg_req_0287_undeclared_capability_refused_early() {
         Ok(())
     );
 }
+
+#[test]
+fn version_unavailable_names_table_and_version() {
+    // MG-REQ-0252: an expired or unknown version is a typed error naming the table and the
+    // version.
+    let error = AdapterError::VersionUnavailable {
+        table: "orders".to_owned(),
+        version: VersionRef::new("42"),
+    };
+    assert_eq!(
+        error.to_string(),
+        "table `orders` has no readable version `42`"
+    );
+    let AdapterError::VersionUnavailable { table, version } = error else {
+        panic!("not a `VersionUnavailable` error");
+    };
+    assert_eq!((table.as_str(), version.as_str()), ("orders", "42"));
+}
