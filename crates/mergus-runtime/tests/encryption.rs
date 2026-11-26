@@ -72,10 +72,18 @@ fn mg_req_0515_raw_encrypted_at_rest() {
     assert_eq!(database.attached_encrypted(), [expected]);
     assert!(database.attached().is_empty());
 
-    // MG-REQ-0515.3: an existing catalog that is not encrypted is refused, by name.
+    unencrypted_is_refused(root, &storage);
+    inside_the_project_is_refused(root);
+    real_catalog_is_encrypted();
+}
+
+/// MG-REQ-0515.3: an existing catalog that is not encrypted is refused, by name; a
+/// PostgreSQL catalog by its secret reference, never by its connection value.
+#[cfg(test)]
+fn unencrypted_is_refused(root: &Path, storage: &ZoneStorage) {
     let database = SimDatabase::new(1, DatabaseFaults::default());
     database.record_unencrypted("/srv/raw/catalog.ducklake");
-    let error = open_raw(&database, &storage, root, None, sim_clock())
+    let error = open_raw(&database, storage, root, None, sim_clock())
         .err()
         .unwrap();
     assert_eq!(error.code(), Some("MG-0503"));
@@ -88,7 +96,6 @@ fn mg_req_0515_raw_encrypted_at_rest() {
         "{error}"
     );
 
-    // A PostgreSQL catalog is named by its secret reference, never by its connection value.
     let database = SimDatabase::new(1, DatabaseFaults::default());
     database.record_unencrypted("postgres:password=hunter2");
     let cloud = raw(
@@ -109,9 +116,6 @@ fn mg_req_0515_raw_encrypted_at_rest() {
     .unwrap();
     assert!(error.to_string().contains("secret:raw_catalog"), "{error}");
     assert!(!error.to_string().contains("hunter2"), "{error}");
-
-    inside_the_project_is_refused(root);
-    real_catalog_is_encrypted();
 }
 
 #[cfg(test)]
@@ -259,8 +263,15 @@ fn real_catalog_is_encrypted() {
         .sum();
     assert_eq!(current, 2);
     drop(adapter);
+    no_plaintext_and_a_key_per_file(&database, &file, &data);
+    plain_catalog_is_refused(&database, &dir, &root);
+}
 
-    let written = files(Path::new(&data));
+/// The data files under `data` hold no plaintext, and the catalog `file` keeps a key for
+/// each of them.
+#[cfg(test)]
+fn no_plaintext_and_a_key_per_file(database: &RealDatabase, file: &str, data: &str) {
+    let written = files(Path::new(data));
     assert!(!written.is_empty());
     for path in &written {
         let bytes = RealFileSystem.read(path).unwrap();
@@ -270,7 +281,7 @@ fn real_catalog_is_encrypted() {
         assert!(!plain, "{} holds plaintext", path.display());
     }
     let mut connection = database.connect(&DatabaseLocation::InMemory).unwrap();
-    connection.attach_duckdb_file(Path::new(&file)).unwrap();
+    connection.attach_duckdb_file(Path::new(file)).unwrap();
     let keys = "SELECT count(*) AS files FROM catalog.ducklake_data_file \
                 WHERE encryption_key IS NOT NULL AND encryption_key <> ''";
     let unkeyed = "SELECT count(*) AS files FROM catalog.ducklake_data_file \
@@ -278,9 +289,11 @@ fn real_catalog_is_encrypted() {
     // Every write of each table is a file of its own, and none is inlined in the catalog.
     assert!(count(connection.as_mut(), keys) >= 4);
     assert_eq!(count(connection.as_mut(), unkeyed), 0);
-    drop(connection);
+}
 
-    // A catalog created without encryption is refused, and nothing is written to it.
+/// A catalog created without encryption is refused.
+#[cfg(test)]
+fn plain_catalog_is_refused(database: &RealDatabase, dir: &Path, root: &Path) {
     let plain = dir.join("plain.ducklake").display().to_string();
     let catalog = DuckLakeCatalog {
         alias: "plain".to_owned(),
@@ -291,7 +304,7 @@ fn real_catalog_is_encrypted() {
     connection.attach_ducklake(&catalog).unwrap();
     drop(connection);
     let storage = raw(Profile::Local, duckdb_file(&plain), &catalog.data_path);
-    let error = open_raw(&database, &storage, &root, None, Arc::new(RealClock::new()))
+    let error = open_raw(database, &storage, root, None, Arc::new(RealClock::new()))
         .err()
         .unwrap();
     let RawError::UnencryptedCatalog { catalog } = &error else {
