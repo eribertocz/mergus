@@ -1398,6 +1398,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "mergus-certify"
+version = "0.2.0"
+dependencies = [
+ "arrow",
+ "mergus-adapter",
+ "mergus-adapter-ducklake",
+ "mergus-ports",
+ "mergus-sim",
+]
+
+[[package]]
 name = "mergus-cli"
 version = "0.2.0"
 dependencies = [
