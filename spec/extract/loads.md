@@ -94,8 +94,17 @@ Tables of one database source MUST be read from the same point in time when the 
 supports shared snapshots (PostgreSQL exported snapshots). Otherwise the time of each
 table's read MUST be recorded and the run report MUST show the spread.
 
+1. MG-REQ-0419.1: the read of a table runs from the start of its first statement to the end
+   of its last one; both times are recorded, in UTC;
+2. MG-REQ-0419.2: the spread of a source is the latest end minus the earliest start of its
+   tables' reads;
+3. MG-REQ-0419.3: through the DuckDB `postgres` extension of phase 0.3, no official page
+   documents a snapshot shared by several attached tables, so PostgreSQL sources record times
+   and spread.
+
 - Kind: behavior
 - Verify: test `mg_req_0419_tables_share_one_snapshot`
+- Decision: 0045
 
 ### MG-REQ-0420 · Very late rows are reported
 
