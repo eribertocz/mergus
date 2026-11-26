@@ -49,10 +49,22 @@ has been removed. Python steps receive only Arrow batches.
 ### MG-REQ-1004 · Doctor shows origins, never values
 
 `mergus doctor` MUST show, for each secret reference, which link of the chain resolved it, and
-never its value.
+never its value:
+
+1. MG-REQ-1004.1: it lists every secret reference that the project's sources use
+   (`connection`, `replica`), once each, sorted by name, with its origin: `environment
+   MERGUS_SECRET_<NAME>`, `keychain mergus/<name>`, or `missing`;
+2. MG-REQ-1004.2: no output, human or `--json`, contains a value or any part of one;
+3. MG-REQ-1004.3: each missing reference is an error diagnostic `MG-1003` (exit code 1) whose
+   fix is `mergus secret set <name>`. Every reference is reported in one pass. With no
+   missing reference the command exits 0;
+4. MG-REQ-1004.4: with `--json` it emits the events of the other read commands (`explain`,
+   `ls`), and each missing reference as a `diagnostic` event. It reads the project and the
+   keychain and changes nothing, so it takes no `--dry-run`.
 
 - Kind: behavior
 - Verify: test `mg_req_1004_doctor_shows_secret_origin`
+- Decision: 0041
 
 ### MG-REQ-1005 · No .env files
 

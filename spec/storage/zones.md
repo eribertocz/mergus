@@ -19,10 +19,18 @@ depends_on: [architecture-boundaries]
 ### MG-REQ-0501 · Separate stores
 
 raw and gold MUST be separate stores, each with its own credentials and retention. A profile
-that would place both behind the same credentials MUST be a validation error.
+that would place both behind the same credentials MUST be a validation error:
+
+1. MG-REQ-0501.1: with `local` or `shared`, the `location` of raw and of gold MUST differ, and
+   neither may lie inside the other;
+2. MG-REQ-0501.2: with `cloud`, the `catalog` secret references of raw and of gold MUST
+   differ, and so MUST their `location` prefixes;
+3. MG-REQ-0501.3: the error names both zones and the shared value, with the next free
+   `MG-05xx` code.
 
 - Kind: behavior
 - Verify: test `mg_req_0501_raw_and_gold_separate_credentials`
+- Decision: 0042
 
 ### MG-REQ-0502 · One direction
 
@@ -41,6 +49,8 @@ start of the next run if a crash left it behind.
 
 - Kind: behavior
 - Verify: test `mg_req_0503_work_zone_cleaned`
+- Phase: 0.4
+- Decision: 0042
 
 ### MG-REQ-0504 · Spill stays local
 
@@ -49,3 +59,5 @@ network storage, and MUST respect `temp_max`.
 
 - Kind: behavior
 - Verify: test `mg_req_0504_spill_local_and_bounded`
+- Phase: 0.9
+- Decision: 0042
