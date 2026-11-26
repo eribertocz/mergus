@@ -123,6 +123,8 @@ bundles, with results in Arrow:
    `ATTACH '' AS <alias> (TYPE postgres, SECRET <secret>, READ_ONLY)`. The connection value of
    MG-REQ-1001 goes into a temporary DuckDB secret of `TYPE postgres`, never into the attach
    string, never a persistent secret, and the secret is dropped when the source is detached;
+   the secret also carries `APPLICATION_NAME 'mergus'` and `OPTIONS '-c lock_timeout=5000'`
+   (MG-REQ-0429);
 3. MG-REQ-0196.3: for each attached PostgreSQL source, `pg_pool_max_connections` is set to the
    source's `max_connections` and `pg_pool_acquire_mode` to `'wait'` before the attach, so
    that the extension never opens more connections than MG-REQ-0427 allows, and
@@ -141,7 +143,7 @@ faults of `architecture/testing.md`.
 - Verify: test `mg_req_0196_database_sources_read_by_duckdb`
 - Phase: 0.3
 - Depends: MG-REQ-0194, MG-REQ-1001
-- Decision: 0040
+- Decision: 0040, 0045
 
 ### MG-REQ-0197 · ADBC drivers for databases DuckDB does not read
 

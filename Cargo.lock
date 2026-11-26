@@ -1475,9 +1475,13 @@ dependencies = [
 name = "mergus-runtime"
 version = "0.2.0"
 dependencies = [
+ "arrow",
+ "mergus-adapter",
+ "mergus-adapter-ducklake",
  "mergus-ports",
  "mergus-project",
  "mergus-sim",
+ "mergus-source",
  "serde_json",
  "thiserror",
 ]

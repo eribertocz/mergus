@@ -44,6 +44,9 @@ pub enum Extension {
     DuckLake,
     /// `postgres`, for PostgreSQL sources (MG-REQ-0196.2).
     Postgres,
+    /// `httpfs`, whose crypto module DuckDB needs to write the files of an encrypted DuckLake
+    /// catalog (MG-REQ-0515).
+    Httpfs,
 }
 
 impl Extension {
@@ -53,6 +56,7 @@ impl Extension {
         match self {
             Self::DuckLake => "ducklake",
             Self::Postgres => "postgres",
+            Self::Httpfs => "httpfs",
         }
     }
 }
@@ -153,6 +157,26 @@ pub trait DatabaseConnection: Send {
     /// cannot be downloaded, and with [`PortError::Failed`] when the catalog cannot be
     /// attached.
     fn attach_ducklake(&mut self, catalog: &DuckLakeCatalog) -> Result<(), PortError>;
+
+    /// Attaches the DuckLake catalog `catalog` with the `ENCRYPTED` option, so that DuckLake
+    /// encrypts every data and delete file it writes with a key of its own, kept in the
+    /// catalog (MG-REQ-0515.1). It loads `httpfs`, whose crypto module DuckDB needs to write
+    /// encrypted files, and `ducklake` first. A new catalog is created encrypted.
+    ///
+    /// The default fails: a connection that does not implement it never writes encrypted.
+    ///
+    /// # Errors
+    ///
+    /// Fails with [`PortError::UnencryptedCatalog`] when `catalog` exists and is not
+    /// encrypted (MG-REQ-0515.3), with [`PortError::ExtensionUnavailable`] when an extension
+    /// is not cached and cannot be downloaded, and with [`PortError::Failed`] when the
+    /// catalog cannot be attached.
+    fn attach_ducklake_encrypted(&mut self, catalog: &DuckLakeCatalog) -> Result<(), PortError> {
+        Err(PortError::Failed(format!(
+            "this connection cannot attach the DuckLake catalog `{}` encrypted",
+            catalog.metadata
+        )))
+    }
 
     /// Loads `extension`, installing it first when it is not cached, and records the version
     /// DuckDB reports for it in [`DatabaseConnection::loaded_extensions`].

@@ -35,6 +35,8 @@ struct Shared {
     answers: Mutex<Vec<(String, Vec<SqlValue>, Answer)>>,
     appended: Mutex<BTreeMap<String, Vec<RecordBatch>>>,
     attached: Mutex<Vec<DuckLakeCatalog>>,
+    encrypted: Mutex<Vec<DuckLakeCatalog>>,
+    unencrypted: Mutex<Vec<String>>,
     extensions: Mutex<BTreeMap<Extension, String>>,
     executed: Mutex<Vec<(String, Vec<SqlValue>)>>,
 }
@@ -82,6 +84,8 @@ impl SimDatabase {
                 answers: Mutex::new(Vec::new()),
                 appended: Mutex::new(BTreeMap::new()),
                 attached: Mutex::new(Vec::new()),
+                encrypted: Mutex::new(Vec::new()),
+                unencrypted: Mutex::new(Vec::new()),
                 extensions: Mutex::new(BTreeMap::new()),
                 executed: Mutex::new(Vec::new()),
             }),
@@ -128,6 +132,19 @@ impl SimDatabase {
     #[must_use]
     pub fn attached(&self) -> Vec<DuckLakeCatalog> {
         lock(&self.shared.attached).clone()
+    }
+
+    /// Returns the DuckLake catalogs attached with the `ENCRYPTED` option, in order.
+    #[must_use]
+    pub fn attached_encrypted(&self) -> Vec<DuckLakeCatalog> {
+        lock(&self.shared.encrypted).clone()
+    }
+
+    /// Records that the DuckLake catalog whose metadata database is `metadata` exists and is
+    /// not encrypted: attaching it with the `ENCRYPTED` option fails with
+    /// [`PortError::UnencryptedCatalog`], as DuckLake refuses it (MG-REQ-0515.3).
+    pub fn record_unencrypted(&self, metadata: impl Into<String>) {
+        lock(&self.shared.unencrypted).push(metadata.into());
     }
 
     /// Records `answer` for `sql` with `params`, replacing an earlier one.
@@ -190,6 +207,19 @@ impl DatabaseConnection for SimConnection {
     fn attach_ducklake(&mut self, catalog: &DuckLakeCatalog) -> Result<(), PortError> {
         self.shared.enter(&catalog.alias)?;
         lock(&self.shared.attached).push(catalog.clone());
+        Ok(())
+    }
+
+    /// Fails with [`PortError::UnencryptedCatalog`] for a catalog recorded with
+    /// [`SimDatabase::record_unencrypted`].
+    fn attach_ducklake_encrypted(&mut self, catalog: &DuckLakeCatalog) -> Result<(), PortError> {
+        self.shared.enter(&catalog.alias)?;
+        if lock(&self.shared.unencrypted).contains(&catalog.metadata) {
+            return Err(PortError::UnencryptedCatalog {
+                catalog: catalog.metadata.clone(),
+            });
+        }
+        lock(&self.shared.encrypted).push(catalog.clone());
         Ok(())
     }
 

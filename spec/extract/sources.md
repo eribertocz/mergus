@@ -68,10 +68,11 @@ incremental filter, so that unused columns and old rows are not transferred.
 
 Sources in `connect` or `live` mode MUST NOT be copied into raw. `connect` tables are pinned
 by version in the manifest; `live` tables are marked live in the manifest and never get
-summaries.
+summaries. Extraction of such a source returns no table and reads nothing; it is not an error.
 
 - Kind: behavior
 - Verify: test `mg_req_0405_connect_and_live_not_copied`
+- Decision: 0045
 
 ### MG-REQ-0406 · New source columns that look personal wait for a decision
 
@@ -90,8 +91,15 @@ command to classify it. If it does not look personal, it passes with a notice in
 A dropped column, a renamed column or an incompatible type change in a source table MUST stop
 the extraction of that table with a typed error naming the column, the old and the new type.
 
+1. MG-REQ-0407.1: in phase 0.3 every change of a column's type is incompatible; widenings
+   that raw can follow come with schema evolution in a later phase;
+2. MG-REQ-0407.2: a column of the last load that is missing from the source is reported as
+   "dropped or renamed", with no new type; Mergus does not guess renames;
+3. MG-REQ-0407.3: an added column is not a breaking change.
+
 - Kind: behavior
 - Verify: test `mg_req_0407_breaking_source_change_stops_table`
+- Decision: 0045
 
 ### MG-REQ-0409 · Connect and live only on analytical engines
 
