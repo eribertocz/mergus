@@ -99,7 +99,7 @@ following holds. Workspace members are the crates of the crate table in
    engine, source or adapter crate or on `mergus-runtime` (MG-REQ-0121).
 7. MG-REQ-0126.7: a member other than `mergus-ports` depends on the `keyring` crate, the
    `duckdb` crate or a crate named `adbc_*`, or `mergus-ports` depends on one of them
-   outside its feature `real` (MG-REQ-0123, MG-REQ-0133, MG-REQ-0194, MG-REQ-0195).
+   outside its feature `real` (MG-REQ-0123, MG-REQ-0133, MG-REQ-0194, MG-REQ-0197).
 8. MG-REQ-0126.8: a member depends on `mergus-sim` or `mergus-testkit` outside
    `[dev-dependencies]` (MG-REQ-0124).
 

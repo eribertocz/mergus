@@ -7,7 +7,7 @@ use crate::error::CliError;
 use crate::mode::Verbosity;
 
 /// The commands in the order they are suggested when nothing is closer.
-const SUGGESTED: [&str; 8] = [
+const SUGGESTED: [&str; 9] = [
     "validate",
     "init",
     "new model",
@@ -16,6 +16,7 @@ const SUGGESTED: [&str; 8] = [
     "plan",
     "ls",
     "explain",
+    "secret set",
 ];
 
 /// The options every command accepts.
@@ -70,6 +71,24 @@ pub(crate) fn wants_json(args: &[String]) -> bool {
 /// missing required argument, and for options that exclude each other (MG-REQ-1347.4).
 pub(crate) fn parse(args: &[String]) -> Result<Invocation, CliError> {
     let (command, words) = find_command(args)?;
+    arguments(command, args, &words).map_err(|error| hide_value(command, error))
+}
+
+/// Replaces an error that would show a word `secret set` does not take, which may be the
+/// value, by one that shows no word (MG-REQ-1007.5).
+fn hide_value(command: Command, error: CliError) -> CliError {
+    match error {
+        CliError::UnknownOption { .. } | CliError::UnexpectedArgument { .. }
+            if command == Command::SecretSet =>
+        {
+            CliError::SecretArgument
+        }
+        error => error,
+    }
+}
+
+/// Reads the arguments of `command`: every word of `args` but the `words` of its name.
+fn arguments(command: Command, args: &[String], words: &[usize]) -> Result<Invocation, CliError> {
     let mut given: Vec<(&'static str, String)> = Vec::new();
     let mut rest = args
         .iter()

@@ -18,8 +18,10 @@ real = ["dep:duckdb", "dep:keyring"]
 arrow = { version = "60.2.0", default-features = false }
 # MG-REQ-0193 and MG-REQ-0194: the real `SqlParser` and `Database`. Only under the feature
 # `real` (MG-REQ-0133); only this crate may depend on `duckdb` (MG-REQ-0194). DuckDB v2.0.1,
-# which supports DuckLake. `appender-arrow` appends Arrow record batches.
-duckdb = { version = "=1.20001.0", default-features = false, features = ["bundled", "json", "appender-arrow"], optional = true }
+# which supports DuckLake. `appender-arrow` appends Arrow record batches. `parquet` links
+# DuckDB's Parquet support statically, so DuckLake can write its data files; a statically
+# linked extension is neither installed nor loaded.
+duckdb = { version = "=1.20001.0", default-features = false, features = ["bundled", "json", "appender-arrow", "parquet"], optional = true }
 # MG-REQ-1001.2: the real `Keychain`. Only under the feature `real` (MG-REQ-0133); only this
 # crate may depend on `keyring` (MG-REQ-0126.7). Keychain Services on macOS, Credential Manager
 # on Windows, and the Secret Service elsewhere through `dbus`, with libdbus built from source

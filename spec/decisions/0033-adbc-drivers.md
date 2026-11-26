@@ -1,6 +1,6 @@
 # 0033 · ADBC drivers pinned, verified and cached
 
-- Status: accepted
+- Status: accepted; narrowed by 0040 to databases DuckDB does not read
 - Date: 2026-11-24
 - Answers: needs-owner #160 (the owner chose option A)
 

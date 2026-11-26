@@ -2,6 +2,7 @@
 
 mod contract;
 mod diagnostics;
+mod doctor;
 mod explain;
 mod formats;
 mod human;
@@ -11,20 +12,23 @@ mod plan;
 mod project;
 mod scaffold;
 mod schema;
+mod secret;
 mod selection;
 mod settings;
 mod sources;
+mod storage;
 
 use std::cell::RefCell;
 use std::path::Path;
 use std::sync::LazyLock;
 
+use mergus_ports::Keychain;
 use mergus_ports::real::RealSqlParser;
 use mergus_ports::{FileSystem, Random, Timestamp};
-use mergus_sim::{ClockFaults, SimClock, SimEnvironment, SimFileSystem, SimRandom};
+use mergus_sim::{ClockFaults, SimClock, SimEnvironment, SimFileSystem, SimKeychain, SimRandom};
 use serde_json::Value;
 
-use crate::run::{Answers, Ports, run};
+use crate::run::{Answers, Ports, SecretInput, run};
 
 /// The root of the simulated project.
 pub(crate) const ROOT: &str = "/work/sales";
@@ -101,6 +105,21 @@ impl Setup<'_> {
     /// Runs the binary on simulated ports whose user configuration directory is
     /// `config_dir`.
     pub(crate) fn run_with_config_dir(&self, config_dir: Option<&str>) -> Outcome {
+        self.run_all(config_dir, &SimKeychain::new(), &NoInput)
+    }
+
+    /// Runs the binary on simulated ports, `secret set` reading `stdin` and writing into
+    /// `keychain`.
+    pub(crate) fn run_on(&self, keychain: &dyn Keychain, stdin: &dyn SecretInput) -> Outcome {
+        self.run_all(None, keychain, stdin)
+    }
+
+    fn run_all(
+        &self,
+        config_dir: Option<&str>,
+        keychain: &dyn Keychain,
+        stdin: &dyn SecretInput,
+    ) -> Outcome {
         let environment =
             SimEnvironment::new(self.vars.iter().copied(), config_dir.map(Into::into))
                 .with_args(self.args.iter().copied())
@@ -119,6 +138,8 @@ impl Setup<'_> {
             sql_parser: &*SQL_PARSER,
             terminal: self.terminal,
             input: input.as_ref().map(|typed| typed as &dyn Answers),
+            secret_input: stdin,
+            keychain,
         };
         let mut stdout = Vec::new();
         let mut stderr = Vec::new();
@@ -128,6 +149,23 @@ impl Setup<'_> {
             stderr: String::from_utf8(stderr).unwrap(),
             exit,
         }
+    }
+}
+
+/// Standard input that is not a terminal and holds nothing.
+pub(crate) struct NoInput;
+
+impl SecretInput for NoInput {
+    fn is_terminal(&self) -> bool {
+        false
+    }
+
+    fn hidden_line(&self) -> Option<String> {
+        None
+    }
+
+    fn all(&self) -> Option<String> {
+        Some(String::new())
     }
 }
 

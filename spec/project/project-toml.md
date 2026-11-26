@@ -123,7 +123,9 @@ phase 0.2 the schemas hold exactly:
 
 1. MG-REQ-0362.1: `project.toml`: `name` (required, a name of MG-REQ-0305), `mergus` (a
    version requirement such as `">=1.4, <2"`), and the tables `[gold]`, `[raw]` and `[ops]`,
-   each with `profile` and `location`, both strings;
+   each with `profile` and `location`, both strings, and from phase 0.3 the optional
+   `catalog` (a path, or a secret reference of MG-REQ-1001 for `cloud`) and `data_path`
+   (a string) of MG-REQ-0521;
 2. MG-REQ-0362.2: folder `mergus.toml`: the table `[all]` and one table per model, each with
    the options of MG-REQ-0366;
 3. MG-REQ-0362.3: `sources/*.toml`: no key in phase 0.2, when the source schema is the one
@@ -135,7 +137,7 @@ Each later phase adds its keys as a minor version of the schema (MG-REQ-0204).
 - Kind: behavior
 - Verify: test `mg_req_0362_only_due_keys_are_known`
 - Depends: MG-REQ-0366
-- Decision: 0018, 0019, 0020
+- Decision: 0018, 0019, 0020, 0042
 
 ### MG-REQ-0363 · What a literal secret is
 

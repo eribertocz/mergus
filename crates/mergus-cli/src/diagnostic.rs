@@ -2,6 +2,8 @@
 //! (MG-REQ-1324, MG-REQ-1334).
 
 use mergus_project::ProjectError;
+use mergus_runtime::StorageProblem;
+use mergus_security::{SecretError, StoreError};
 use mergus_source::{Severity, SourceProblem};
 
 use crate::catalog::{self, Entry};
@@ -30,6 +32,15 @@ pub(crate) struct Diagnostic {
     /// The text of the line of the location, when the file could be read (MG-REQ-1346.1).
     pub(crate) source: Option<String>,
 }
+
+/// What to do when the keychain of this platform cannot be written (MG-REQ-1007.4).
+const KEYCHAIN_HINT: &str = if cfg!(target_os = "macos") {
+    "Unlock the macOS Keychain, then run the command again."
+} else if cfg!(windows) {
+    "Make sure the Windows Credential Manager service is running, then run the command again."
+} else {
+    "Start a Secret Service, such as GNOME Keyring or KWallet, then run the command again."
+};
 
 /// A diagnostic with what the catalog says about its code.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -74,6 +85,63 @@ impl Diagnostic {
             }),
             hint: None,
             next: Vec::new(),
+            source: None,
+        }
+    }
+
+    /// The diagnostic of a problem of the storage of the zones of `mergus-runtime`, located
+    /// at its file and line (MG-REQ-0501).
+    pub(crate) fn of_storage(problem: &StorageProblem) -> Self {
+        Self {
+            code: problem.code(),
+            warning: false,
+            message: problem.to_string(),
+            location: Some(Location {
+                file: problem.path().to_owned(),
+                line: Some(problem.line()),
+                column: None,
+            }),
+            hint: None,
+            next: Vec::new(),
+            source: None,
+        }
+    }
+
+    /// The diagnostic of a secret value `secret set` did not store. A keychain that cannot be
+    /// written gets the hint of the keychain service of the platform (MG-REQ-1007.4).
+    pub(crate) fn of_store(error: &StoreError) -> Self {
+        let hint = match error {
+            StoreError::Unwritable { .. } => Some(KEYCHAIN_HINT.to_owned()),
+            StoreError::Empty { .. } => None,
+        };
+        Self {
+            code: error.code(),
+            warning: false,
+            message: error.to_string(),
+            location: None,
+            hint,
+            next: Vec::new(),
+            source: None,
+        }
+    }
+
+    /// The diagnostic of a secret reference that does not resolve, for `doctor`: its fix is
+    /// `mergus secret set <name>` (MG-REQ-1004.3).
+    pub(crate) fn of_secret(error: &SecretError) -> Self {
+        let name = error.reference().name();
+        let command = vec![
+            crate::name::PRODUCT.to_owned(),
+            "secret".to_owned(),
+            "set".to_owned(),
+            name.to_owned(),
+        ];
+        Self {
+            code: error.code(),
+            warning: false,
+            message: error.to_string(),
+            location: None,
+            hint: Some(format!("Run `{}`.", command.join(" "))),
+            next: vec![command],
             source: None,
         }
     }

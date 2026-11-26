@@ -18,7 +18,7 @@ wires the real implementation; tests and the simulator wire simulated ones.
 | `FileSystem` | Local files and directories |
 | `ObjectStore` | S3-compatible and local object storage |
 | `Network` | HTTP and TCP connections |
-| `SourceConnector` | ADBC connections and file readers of sources, returning Arrow |
+| `SourceConnector` | ADBC connections (MG-REQ-0197) and file readers of sources, returning Arrow |
 | `Random` | Random numbers and identifiers |
 | `Process` | Child processes |
 | `Environment` | Command-line arguments, current directory, environment variables and the user configuration directory |
@@ -80,10 +80,13 @@ returns trees recorded from the real one.
 Crates other than `mergus-ports` MUST NOT depend on the `duckdb` crate; they reach DuckDB
 through the `Database` port (MG-REQ-0186). Its real implementation MUST disable the automatic
 installing and loading of extensions, MUST NOT allow unsigned extensions, and MAY install and
-load only the `ducklake` extension:
+load only the `ducklake` extension, `httpfs` when DuckLake's encrypted mode needs it to write
+(MG-REQ-0515), `sqlite` and `postgres` for DuckLake catalogs (MG-REQ-0521.3), and the scanner extensions of MG-REQ-0196 (`postgres` in phase 0.3; `mysql`
+and `sqlite` in phase 0.8):
 
-1. MG-REQ-0194.1: at the version that matches the DuckDB of the release's `duckdb` crate, from
-   `extensions.duckdb.org`, with DuckDB's signature check;
+1. MG-REQ-0194.1: at the build that matches the DuckDB of the release's `duckdb` crate and the
+   platform, from `extensions.duckdb.org`, with DuckDB's signature check; the version DuckDB
+   reports for each loaded extension is recorded in the load registry;
 2. MG-REQ-0194.2: into `mergus/duckdb/extensions/` under the user cache directory, the first
    time it is needed, and from there with no network on later uses;
 3. MG-REQ-0194.3: when it is missing and cannot be downloaded, with a typed error that names
@@ -96,38 +99,62 @@ simulated `SqlParser` does, and injects the faults of `architecture/testing.md`.
 - Verify: test `mg_req_0194_ducklake_extension_pinned_and_cached`
 - Phase: 0.3
 - Depends: MG-REQ-0186
-- Decision: 0032
+- Decision: 0032, 0040, 0041, 0042
 
 ### MG-REQ-0195 · ADBC drivers are pinned, verified and cached
 
-Database sources MUST be read through ADBC by the real `SourceConnector`, which alone
-depends on the ADBC crates (MG-REQ-0186). It loads only the drivers that the Mergus release
-pins, starting with PostgreSQL in phase 0.3:
-
-1. MG-REQ-0195.1: each driver library is fetched from the release artifacts of Apache Arrow
-   ADBC on GitHub, at a URL and a SHA-256 sum pinned per operating system and architecture in
-   the Mergus release, and is refused when its sum differs. Apache publishes each driver as a
-   Python wheel, a zip archive: Mergus verifies the sum of the wheel, then takes from it the
-   one member whose file name is `libadbc_driver_<driver>.so` on Linux, `.dylib` on macOS or
-   `.dll` on Windows, and refuses a wheel that holds none or several. The PostgreSQL pins of
-   phase 0.3 are those of ADBC 25 listed in decision 0038;
-2. MG-REQ-0195.2: it is stored in `mergus/adbc/drivers/` under the user cache directory the
-   first time a source needs it, and loaded from there with no network on later uses;
-3. MG-REQ-0195.3: a driver that is missing and cannot be fetched, or a database with no
-   pinned driver, fails with a typed error that names the database, the host and the cache
-   directory.
-
-4. MG-REQ-0195.4: the DuckDB driver is not fetched: it is the ADBC driver compiled into the
-   DuckDB that `mergus-ports` already bundles (MG-REQ-0194), loaded statically through its
-   entry point `duckdb_adbc_init`. Its version is therefore the bundled DuckDB's, fixed by
-   the `duckdb` crate pin, and the driver MUST report `ADBC_INFO_VENDOR_VERSION` equal to it.
-
-Its simulated implementation serves Arrow batches from in-memory tables and injects the
-faults of `architecture/testing.md`.
-
+- Status: retired
+- Reason: database sources are read by DuckDB (MG-REQ-0196); ADBC serves only databases DuckDB
+  does not read (MG-REQ-0197). Decision 0040.
 - Kind: behavior
 - Verify: test `mg_req_0195_adbc_driver_pinned_and_cached`
 - Phase: 0.3
-- Depends: MG-REQ-0186, MG-REQ-0401
-- Decision: 0033, 0036, 0038
+- Decision: 0033, 0036, 0038, 0040
 
+### MG-REQ-0196 · Database sources are read by DuckDB
+
+The real `Database` port MUST read every database source that DuckDB can attach with an
+extension of the DuckDB team, and every DuckDB file, inside the DuckDB that `mergus-ports`
+bundles, with results in Arrow:
+
+1. MG-REQ-0196.1: a DuckDB file is attached with `ATTACH '<location>' (READ_ONLY)`, with no
+   extension;
+2. MG-REQ-0196.2: PostgreSQL is attached with the `postgres` extension of MG-REQ-0194 as
+   `ATTACH '' AS <alias> (TYPE postgres, SECRET <secret>, READ_ONLY)`. The connection value of
+   MG-REQ-1001 goes into a temporary DuckDB secret of `TYPE postgres`, never into the attach
+   string, never a persistent secret, and the secret is dropped when the source is detached;
+3. MG-REQ-0196.3: for each attached PostgreSQL source, `pg_pool_max_connections` is set to the
+   source's `max_connections` and `pg_pool_acquire_mode` to `'wait'` before the attach, so
+   that the extension never opens more connections than MG-REQ-0427 allows, and
+   `pg_statement_timeout_millis` is set from `query_timeout` (MG-REQ-0429). DuckDB documents
+   that the pool "can be temporary exceeded when parallel scans are used", so the end-to-end
+   test of MG-REQ-0427 counts the connections on a real PostgreSQL server during a parallel
+   scan; if the count ever exceeds `max_connections`, parallel `ctid` scans are turned off
+   (`pg_use_ctid_scan = false`) for every source;
+4. MG-REQ-0196.4: MySQL (`mysql` extension) and SQLite (`sqlite` extension) follow the same
+   pattern in phase 0.8, once their read-only session and timeouts are specified.
+
+Its simulated implementation answers from results recorded with the real one and injects the
+faults of `architecture/testing.md`.
+
+- Kind: behavior
+- Verify: test `mg_req_0196_database_sources_read_by_duckdb`
+- Phase: 0.3
+- Depends: MG-REQ-0194, MG-REQ-1001
+- Decision: 0040
+
+### MG-REQ-0197 · ADBC drivers for databases DuckDB does not read
+
+A database that no DuckDB team extension reads, such as Snowflake, BigQuery or SQL Server,
+MUST be read through an ADBC driver loaded by the real `SourceConnector`, which alone depends
+on the ADBC crates (MG-REQ-0186). Each driver is pinned by URL and SHA-256 per operating system
+and architecture in the Mergus release, refused when its sum differs, cached in
+`mergus/adbc/drivers/` under the user cache directory and loaded from there with no network;
+a driver that is missing and cannot be fetched fails with a typed error that names the
+database, the host and the cache directory.
+
+- Kind: behavior
+- Verify: test `mg_req_0197_adbc_driver_pinned_and_cached`
+- Phase: 0.8
+- Depends: MG-REQ-0186
+- Decision: 0033, 0040

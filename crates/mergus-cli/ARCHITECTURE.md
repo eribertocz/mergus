@@ -4,9 +4,11 @@
 
 | Item | Role |
 |---|---|
-| `run::Ports` | The ports one run uses: `Environment`, `FileSystem`, `Clock`, `Random` |
+| `run::Ports` | The ports one run uses: `Environment`, `FileSystem`, `Clock`, `Random`, `Keychain` |
 | `run::run` | Parses the arguments, runs the command, reports, returns the exit code |
 | `run::Answers` | Standard input when it is a terminal, which `init` asks its questions on |
+| `run::SecretInput` | Standard input as `secret set` reads it: one hidden line on a terminal, all of it otherwise |
+| `secret::secret_set` | `mergus secret set`: reads the value and stores it with `mergus-security` |
 | `commands` | Every command and the arguments it accepts, defined once for the parser and `schema` |
 | `args::parse` | The command line, read against `commands`; the closest valid word on error |
 | `cli_schema::document` | The `mergus_cli` document of one command or of every command |
@@ -19,6 +21,7 @@
 | `selection::select` | The models a selection selects, each with its reasons (MG-REQ-1305) |
 | `settings::max_parallel` | `max_parallel` from the flag, the variable, the user file or the default |
 | `planning::plan` | `mergus plan`: the plan of `mergus-plan`, written under `.mergus/plans/` |
+| `doctor::doctor` | `mergus doctor`: the origin of each secret reference, from `mergus-security` |
 | `explain::explain` | `mergus explain`: a code's catalog file, or a model and its options |
 | `validate::validate` | Stage 1: layout, configuration and folder options of `mergus-project`, source checks of `mergus-source` |
 | `project::find` | The nearest directory upwards that holds `project.toml` |
@@ -33,9 +36,9 @@
 
 ## Data flow
 
-1. `main` creates `RealEnvironment`, `RealFileSystem`, `RealClock` and `RealRandom` and calls
-   `run::run` with standard output and standard error. Tests call it with the ports of
-   `mergus-sim` and buffers.
+1. `main` creates `RealEnvironment`, `RealFileSystem`, `RealClock`, `RealRandom` and
+   `RealKeychain` and calls `run::run` with standard output and standard error. Tests call
+   it with the ports of `mergus-sim` and buffers.
 2. `run` reads the arguments from the `Environment` port and chooses the mode from them, from
    whether standard output is a terminal (`main` asks `std::io::IsTerminal`) and from `TERM`
    and `NO_COLOR`. `Output` draws the `run_id` from `Random` once.
@@ -53,7 +56,17 @@
    `validate` would reject gives its diagnostics and nothing else. What `ls` and `explain`
    print, and the steps `plan` lists, go where `init` prints its next steps. `plan` writes
    only `.mergus/plans/<plan_id>.json` and emits `plan_ready` with `--json`.
-7. Every event goes through `mergus_contracts::validate_event` before it is printed. An event
+7. `secret set` checks the name, reads the value from `run::SecretInput`, wraps it in a
+   `SecretString` and calls `mergus_security::store` with the `Keychain` port. `main` gives
+   `RealKeychain` and reads a terminal through `rpassword`, which turns echo off. A word
+   other than the name gives an `MG-1301` that does not show the word, which may be the
+   value.
+8. `doctor` reads the configuration with `mergus_project::read_configuration`, collects the
+   `secret:<name>` strings of `connection` and `replica` of every source into a sorted set,
+   and asks `mergus_security::origin` for each. `origin` drops the value inside
+   `mergus-security`; the binary only ever holds the `SecretOrigin`. A reference that does not
+   resolve prints `missing` and becomes an `MG-1003` diagnostic with `secret set` as `next`.
+9. Every event goes through `mergus_contracts::validate_event` before it is printed. An event
    that fails is an internal error, `MG-1304`, printed on standard error, exit code 10.
 
 The `[[bin]] name` in `Cargo.toml` is the only other place that spells the product name:
@@ -67,5 +80,7 @@ Cargo cannot read a Rust constant. A unit test checks that it equals `name::PROD
   the configuration schemas, the effective options, identifiers and references of models,
   and `toml_to_json`, which reads the user configuration file.
 - `mergus-source`: the checks of the source files (MG-REQ-0409, MG-REQ-0414, MG-REQ-0416).
+- `mergus-security`: `SecretRef` and `store`, which writes a value into the keychain.
+- `rpassword`: reads the line typed on a terminal without echo, in `main` only.
 - `mergus-plan`: the fingerprints and the `mergus_plan` document of `mergus plan`.
 - `thiserror`: derives `CliError`.

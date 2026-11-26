@@ -45,3 +45,9 @@ If the context is not enough to work without guessing about observable behavior,
 Run `just check`. It runs formatting, lints, tests, `cargo deny`, the boundary check and the
 specification check. Every commit carries the trailers `Co-Authored-By` and `Claude-Session`
 (MG-REQ-1708).
+
+## 5. No chat output
+
+Nobody reads a session's chat, and every word costs tokens. Write no narration, summary or
+explanation there. Talk only through comments on your issue or pull request. If a turn must
+end with text, write one line of at most ten words.

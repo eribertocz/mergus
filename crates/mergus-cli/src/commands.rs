@@ -30,6 +30,8 @@ const EXIT_CODES: [u8; 3] = [0, 1, 10];
 pub(crate) enum Command {
     /// `mergus add source` (MG-REQ-1304).
     AddSource,
+    /// `mergus doctor` (MG-REQ-1004).
+    Doctor,
     /// `mergus explain` (MG-REQ-1310).
     Explain,
     /// `mergus init` (MG-REQ-1301).
@@ -42,31 +44,37 @@ pub(crate) enum Command {
     Plan,
     /// `mergus schema` (MG-REQ-0263).
     Schema,
+    /// `mergus secret set` (MG-REQ-1007).
+    SecretSet,
     /// `mergus validate` (MG-REQ-1345).
     Validate,
 }
 
 /// Every command, sorted by name (MG-REQ-1348).
-pub(crate) const ALL: [Command; 8] = [
+pub(crate) const ALL: [Command; 10] = [
     Command::AddSource,
+    Command::Doctor,
     Command::Explain,
     Command::Init,
     Command::Ls,
     Command::NewModel,
     Command::Plan,
     Command::Schema,
+    Command::SecretSet,
     Command::Validate,
 ];
 
 /// The names of every command, sorted.
-pub(crate) const NAMES: [&str; 8] = [
+pub(crate) const NAMES: [&str; 10] = [
     "add source",
+    "doctor",
     "explain",
     "init",
     "ls",
     "new model",
     "plan",
     "schema",
+    "secret set",
     "validate",
 ];
 
@@ -219,6 +227,15 @@ const NEW_MODEL: [Argument; 8] = [
     GLOBAL[2],
 ];
 
+/// The value is read from standard input, never taken as an argument (MG-REQ-1007).
+const SECRET_SET: [Argument; 5] = [
+    positional("name", true),
+    flag(DRY_RUN),
+    GLOBAL[0],
+    GLOBAL[1],
+    GLOBAL[2],
+];
+
 const SCHEMA: [Argument; 5] = [
     Argument {
         values: &NAMES,
@@ -235,13 +252,15 @@ impl Command {
     pub(crate) fn name(self) -> &'static str {
         match self {
             Self::AddSource => NAMES[0],
-            Self::Explain => NAMES[1],
-            Self::Init => NAMES[2],
-            Self::Ls => NAMES[3],
-            Self::NewModel => NAMES[4],
-            Self::Plan => NAMES[5],
-            Self::Schema => NAMES[6],
-            Self::Validate => NAMES[7],
+            Self::Doctor => NAMES[1],
+            Self::Explain => NAMES[2],
+            Self::Init => NAMES[3],
+            Self::Ls => NAMES[4],
+            Self::NewModel => NAMES[5],
+            Self::Plan => NAMES[6],
+            Self::Schema => NAMES[7],
+            Self::SecretSet => NAMES[8],
+            Self::Validate => NAMES[9],
         }
     }
 
@@ -249,12 +268,14 @@ impl Command {
     pub(crate) fn summary(self) -> &'static str {
         match self {
             Self::AddSource => "Create a source file that references its connection as a secret.",
+            Self::Doctor => "Show where each secret reference resolves, never its value.",
             Self::Explain => "Explain an error code, or a model and its effective options.",
             Self::Init => "Create a project in the current folder.",
             Self::Ls => "List the selected models and why each one is selected.",
             Self::NewModel => "Create a model file with a minimal example.",
             Self::Plan => "Write the plan of the selected models; execute nothing.",
             Self::Schema => "Print the description of a command, or of every command, in JSON.",
+            Self::SecretSet => "Store a secret read from standard input in the keychain.",
             Self::Validate => "Check the layout and the configuration of the project.",
         }
     }
@@ -263,12 +284,14 @@ impl Command {
     pub(crate) fn arguments(self) -> &'static [Argument] {
         match self {
             Self::AddSource => &ADD_SOURCE,
+            Self::Doctor => &GLOBAL,
             Self::Explain => &EXPLAIN,
             Self::Init => &INIT,
             Self::Ls => &LS,
             Self::NewModel => &NEW_MODEL,
             Self::Plan => &PLAN,
             Self::Schema => &SCHEMA,
+            Self::SecretSet => &SECRET_SET,
             Self::Validate => &GLOBAL,
         }
     }

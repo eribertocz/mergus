@@ -38,3 +38,11 @@ missing_panics_doc = "deny"
 disallowed_types = "deny"
 disallowed_macros = "deny"
 
+# MG-REQ-0194: `libduckdb-sys` defines `DEBUG` for the bundled DuckDB whenever debuginfo is on,
+# and `NDEBUG` otherwise. The signed extensions from `extensions.duckdb.org` are release
+# (`NDEBUG`) builds, and once attached, a `DEBUG` DuckDB aborts on its own allocator check
+# (`allocation_count == 0`) when the database closes. Without debuginfo for this one package,
+# the bundled DuckDB is built as the extensions are. Every other crate keeps its debuginfo
+# and its `debug_assertions`.
+[profile.dev.package.libduckdb-sys]
+debug = false

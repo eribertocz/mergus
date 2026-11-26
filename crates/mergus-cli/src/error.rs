@@ -63,6 +63,12 @@ pub(crate) enum CliError {
         /// The closest allowed value (MG-REQ-0359).
         closest: &'static str,
     },
+    /// `secret set` is given a word it does not take, which may be the value; the word is
+    /// never shown (MG-REQ-1007.5).
+    #[error(
+        "`secret set` takes only the name of the secret; the value is read from standard input"
+    )]
+    SecretArgument,
     /// A required argument is missing.
     #[error("`{command}` needs the argument `{argument}`")]
     MissingArgument {
@@ -173,6 +179,7 @@ impl CliError {
             | Self::MissingValue { .. }
             | Self::RepeatedOption { .. }
             | Self::InvalidValue { .. }
+            | Self::SecretArgument
             | Self::MissingArgument { .. } => "MG-1301",
             Self::ProjectNotFound { .. } => "MG-1302",
             Self::Unreadable(_) => "MG-1303",
@@ -213,6 +220,9 @@ impl CliError {
             } => Some("Name a command, or give `--all`.".to_owned()),
             Self::MissingArgument { argument, .. } => Some(format!("Give `{argument}`.")),
             Self::UnexpectedArgument { given, .. } => Some(format!("Remove `{given}`.")),
+            Self::SecretArgument => {
+                Some("Give only the name, and write the value on standard input.".to_owned())
+            }
             Self::ConflictingOptions { first, second } => {
                 Some(format!("Remove `{first}` or `{second}`."))
             }

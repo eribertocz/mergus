@@ -283,6 +283,8 @@ def issue(docs, ids):
     out = ["## Rules", *[f"- {i} · {by_id[i][0]['title']}" for i in ids], "",
            "## Crate", crates.pop(), "", "## Read",
            "Run `just spec-context <this issue number>` and read only its output.", "",
+           "Write no chat text: nobody reads the session chat. Talk only through comments on this "
+           "issue and its pull request (AGENTS.md, section 5).", "",
            "## Acceptance criteria", *[f"- {t}" for t in tests], "",
            "## Out of scope", "Everything not required by the rules above.", "",
            "## Files", "<!-- one path per line; a path ending in / covers everything under it -->", "",

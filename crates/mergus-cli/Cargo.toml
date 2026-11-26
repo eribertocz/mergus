@@ -18,7 +18,11 @@ mergus-contracts = { path = "../mergus-contracts" }
 mergus-plan = { path = "../mergus-plan" }
 mergus-ports = { path = "../mergus-ports", features = ["real"] }
 mergus-project = { path = "../mergus-project" }
+mergus-runtime = { path = "../mergus-runtime" }
+mergus-security = { path = "../mergus-security" }
 mergus-source = { path = "../mergus-source" }
+# MG-REQ-1007: `secret set` reads the value typed on a terminal with echo turned off.
+rpassword = "7.5.5"
 thiserror = "2.0.21"
 
 [lints]
