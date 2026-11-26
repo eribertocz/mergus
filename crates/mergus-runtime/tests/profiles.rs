@@ -2,7 +2,7 @@
 
 use std::path::Path;
 
-use mergus_ports::FileSystem;
+use mergus_ports::{FileSystem, PortError};
 use mergus_project::{LayoutError, read_configuration};
 use mergus_runtime::{
     Catalog, Clients, Profile, StorageProblem, Zone, check_storage, zone_storage,
@@ -12,34 +12,34 @@ use mergus_sim::SimFileSystem;
 const ROOT: &str = "/project";
 
 /// Writes `project` as the `project.toml` of a project at `ROOT`.
-fn project(project: &str) -> SimFileSystem {
+fn project(project: &str) -> Result<SimFileSystem, PortError> {
     let fs = SimFileSystem::new();
     let root = Path::new(ROOT);
-    fs.create_dir_all(root).unwrap();
-    fs.write(&root.join("project.toml"), project.as_bytes())
-        .unwrap();
-    fs
+    fs.create_dir_all(root)?;
+    fs.write(&root.join("project.toml"), project.as_bytes())?;
+    Ok(fs)
 }
 
 /// The codes of the `mergus-project` problems of `text`, or the zones it configures.
 fn zones(text: &str) -> Result<Vec<mergus_runtime::ZoneStorage>, Vec<String>> {
-    let fs = project(text);
+    let fs = project(text).map_err(|error| vec![error.to_string()])?;
     match read_configuration(&fs, Path::new(ROOT)) {
         Ok(configuration) => Ok(zone_storage(&configuration)),
         Err(LayoutError::Invalid(problems)) => Err(problems
             .iter()
             .map(|problem| format!("{} {}", problem.code(), problem.key().unwrap_or_default()))
             .collect()),
-        Err(other) => panic!("{other}"),
+        Err(other) => Err(vec![other.to_string()]),
     }
 }
 
-/// The problems `check_storage` finds in `text`, a valid `project.toml`.
-fn problems(text: &str) -> Vec<StorageProblem> {
-    let fs = project(text);
+/// The problems `check_storage` finds in `text`, a valid `project.toml`; any other failure
+/// as its message.
+fn try_problems(text: &str) -> Result<Vec<StorageProblem>, String> {
+    let fs = project(text).map_err(|error| error.to_string())?;
     let root = Path::new(ROOT);
-    let configuration = read_configuration(&fs, root).unwrap();
-    check_storage(&fs, root, &configuration).unwrap()
+    let configuration = read_configuration(&fs, root).map_err(|error| error.to_string())?;
+    check_storage(&fs, root, &configuration).map_err(|error| error.to_string())
 }
 
 #[test]
@@ -133,6 +133,7 @@ fn mg_req_0521_profile_needs_no_more_keys() {
 
 #[test]
 fn mg_req_0501_raw_and_gold_separate_credentials() {
+    let problems = |text: &str| try_problems(text).unwrap();
     let both = |raw: &str, gold: &str| format!("name = \"sales\"\n[raw]\n{raw}\n[gold]\n{gold}\n");
     // MG-REQ-0501.1: `local` and `shared` locations differ and do not nest.
     let same = problems(&both(
