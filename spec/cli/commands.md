@@ -258,7 +258,8 @@ alone on standard output, with or without `--json`.
    with `--gold`, containing `SELECT 1 AS id`; with `--py` the file is `.py` and holds one
    function named `<name>` returning a one-column Polars data frame. `--sql` is the default.
 2. MG-REQ-1350.2: `add source` writes `sources/<name>.toml` with its `#:schema` line,
-   `kind = "database"` and `connection = "secret:<name>"`.
+   `kind = "database"`, `engine = "postgresql"` (MG-REQ-0409.4) and
+   `connection = "secret:<name>"`, in that order, so `mergus validate` accepts it.
 3. MG-REQ-1350.3: An invalid (MG-REQ-0305) or taken (MG-REQ-0303) name, or an existing file,
    is an error with exit code 1. `init`, `new model` and `add source` accept `--dry-run`, which
    lists the files they would write and writes none.
@@ -266,7 +267,7 @@ alone on standard output, with or without `--json`.
 - Kind: behavior
 - Verify: test `mg_req_1350_scaffolding_files`
 - Phase: 0.2
-- Decision: 0027
+- Decision: 0027, 0040
 
 ### MG-REQ-1351 · Settings in phase 0.2
 
