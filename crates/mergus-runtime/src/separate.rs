@@ -37,17 +37,16 @@ pub fn check_storage(
     };
     let mut problems = Vec::new();
     let cloud = |storage: &ZoneStorage| storage.profile == Profile::Cloud;
-    if cloud(raw) == cloud(gold) {
-        if let Some(value) = overlap(&raw.location, &gold.location) {
-            problems.push(problem("location", value));
-        }
+    if cloud(raw) == cloud(gold)
+        && let Some(value) = overlap(&raw.location, &gold.location)
+    {
+        problems.push(problem("location", value));
     }
     if let (Catalog::Postgres { secret: first }, Catalog::Postgres { secret: second }) =
         (&raw.catalog, &gold.catalog)
+        && first == second
     {
-        if first == second {
-            problems.push(problem("catalog", first));
-        }
+        problems.push(problem("catalog", first));
     }
     problems.sort_by_key(StorageProblem::line);
     Ok(problems)
