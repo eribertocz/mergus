@@ -149,9 +149,11 @@ fn described(columns: &[(&str, &str)]) -> Vec<RecordBatch> {
         .collect()
 }
 
-fn describe(table: &str) -> String {
-    format!("SELECT column_name, column_type FROM (DESCRIBE \"erp\".\"{table}\")")
-}
+const DESCRIBE_SALES: &str = "SELECT column_name, column_type FROM (DESCRIBE \"erp\".\"sales\")";
+const DESCRIBE_CUSTOMERS: &str =
+    "SELECT column_name, column_type FROM (DESCRIBE \"erp\".\"customers\")";
+const READ_SALES: &str = "SELECT * FROM \"erp\".\"sales\"";
+const READ_CUSTOMERS: &str = "SELECT * FROM \"erp\".\"customers\"";
 
 #[test]
 fn mg_req_0405_connect_and_live_not_copied() {
@@ -163,8 +165,8 @@ fn mg_req_0405_connect_and_live_not_copied() {
 
         // The database answers every read, yet nothing is read and nothing is an error.
         let database = sim();
-        database.record_query("SELECT * FROM \"erp\".\"sales\"", Vec::new(), ids(&[1]));
-        database.record_query(describe("sales"), Vec::new(), described(&[]));
+        database.record_query(READ_SALES, Vec::new(), ids(&[1]));
+        database.record_query(DESCRIBE_SALES, Vec::new(), described(&[]));
         let clock = clock();
         let (mut attached, queries) = attach(&database, &clock).unwrap();
         assert!(
@@ -184,7 +186,7 @@ fn mg_req_0405_connect_and_live_not_copied() {
 }
 
 #[test]
-fn mg_req_0407_breaking_source_change_stops_table() {
+fn mg_req_0407_changes_since_last_load() {
     let last = [
         column("sale_id", "BIGINT"),
         column("amount", "DECIMAL(10,2)"),
@@ -220,31 +222,50 @@ fn mg_req_0407_breaking_source_change_stops_table() {
     assert!(breaking_changes(&last[..2], &added).is_empty());
     assert!(breaking_changes(&[], &current).is_empty());
 
-    let source = source(None, &json!({ "customers": {}, "sales": {} }));
+    let dropped = mergus_source::SchemaChange {
+        source_name: "erp".to_owned(),
+        table: "sales".to_owned(),
+        changes: breaking_changes(&last, &current)[1..].to_vec(),
+    };
+    assert!(
+        dropped.to_string().contains("dropped or renamed"),
+        "{dropped}"
+    );
+}
+
+/// A database whose `customers` is unchanged and whose `amount` of `sales` became `VARCHAR`.
+fn changed_sales() -> SimDatabase {
     let database = sim();
-    database.record_query(
-        describe("customers"),
-        Vec::new(),
-        described(&[("customer_id", "BIGINT")]),
-    );
-    database.record_query("SELECT * FROM \"erp\".\"customers\"", Vec::new(), ids(&[1]));
-    database.record_query(
-        describe("sales"),
-        Vec::new(),
-        described(&[("sale_id", "BIGINT"), ("amount", "VARCHAR")]),
-    );
-    database.record_query("SELECT * FROM \"erp\".\"sales\"", Vec::new(), ids(&[1]));
-    let clock = clock();
-    let (mut attached, queries) = attach(&database, &clock).unwrap();
-    let sales = &declared_tables(&source)[1];
+    let customers = described(&[("customer_id", "BIGINT")]);
+    database.record_query(DESCRIBE_CUSTOMERS, Vec::new(), customers);
+    database.record_query(READ_CUSTOMERS, Vec::new(), ids(&[1]));
+    let sales = described(&[("sale_id", "BIGINT"), ("amount", "VARCHAR")]);
+    database.record_query(DESCRIBE_SALES, Vec::new(), sales);
+    database.record_query(READ_SALES, Vec::new(), ids(&[1]));
+    database
+}
+
+#[test]
+fn mg_req_0407_source_columns_from_describe() {
+    let source = source(None, &json!({ "sales": {} }));
+    let (mut attached, _) = attach(&changed_sales(), &clock()).unwrap();
     assert_eq!(
-        source_columns(&mut attached, sales).unwrap(),
+        source_columns(&mut attached, &declared_tables(&source)[0]).unwrap(),
         [column("sale_id", "BIGINT"), column("amount", "VARCHAR")]
     );
-    queries.lock().unwrap().clear();
+}
 
+#[test]
+fn mg_req_0407_breaking_source_change_stops_table() {
+    let last = [
+        column("sale_id", "BIGINT"),
+        column("amount", "DECIMAL(10,2)"),
+    ];
+    let source = source(None, &json!({ "customers": {}, "sales": {} }));
+    let clock = clock();
+    let (mut attached, queries) = attach(&changed_sales(), &clock).unwrap();
     let last_columns = |table: &DeclaredTable| match table.name.as_str() {
-        "sales" => last[..2].to_vec(),
+        "sales" => last.to_vec(),
         _ => vec![column("customer_id", "BIGINT")],
     };
     let extraction =
@@ -271,31 +292,15 @@ fn mg_req_0407_breaking_source_change_stops_table() {
         }]
     );
     let message = stopped.to_string();
-    for part in [
+    let parts = [
         "`erp`",
         "`sales`",
         "`amount`",
         "`DECIMAL(10,2)`",
         "`VARCHAR`",
-    ] {
-        assert!(message.contains(part), "{message}");
-    }
-    let dropped = mergus_source::SchemaChange {
-        source_name: "erp".to_owned(),
-        table: "sales".to_owned(),
-        changes: breaking_changes(&last, &current)[1..].to_vec(),
-    };
-    assert!(
-        dropped.to_string().contains("dropped or renamed"),
-        "{dropped}"
-    );
-    assert!(
-        !queries
-            .lock()
-            .unwrap()
-            .iter()
-            .any(|sql| sql == "SELECT * FROM \"erp\".\"sales\"")
-    );
+    ];
+    assert!(parts.iter().all(|part| message.contains(part)), "{message}");
+    assert!(!queries.lock().unwrap().iter().any(|sql| sql == READ_SALES));
 }
 
 #[test]
@@ -304,17 +309,12 @@ fn mg_req_0419_tables_share_one_snapshot() {
     // each read records its start and end, and the source its spread (MG-REQ-0419.3).
     let source = source(None, &json!({ "customers": {}, "sales": {} }));
     let database = sim();
-    for table in ["customers", "sales"] {
-        database.record_query(
-            describe(table),
-            Vec::new(),
-            described(&[("sale_id", "BIGINT")]),
-        );
-        database.record_query(
-            format!("SELECT * FROM \"erp\".\"{table}\""),
-            Vec::new(),
-            ids(&[1]),
-        );
+    for (describe, read) in [
+        (DESCRIBE_CUSTOMERS, READ_CUSTOMERS),
+        (DESCRIBE_SALES, READ_SALES),
+    ] {
+        database.record_query(describe, Vec::new(), described(&[("sale_id", "BIGINT")]));
+        database.record_query(read, Vec::new(), ids(&[1]));
     }
     let clock = clock();
     let (mut attached, _) = attach(&database, &clock).unwrap();

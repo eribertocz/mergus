@@ -113,8 +113,8 @@ pub fn source_columns(
     attached: &mut AttachedSource,
     table: &DeclaredTable,
 ) -> Result<Vec<SourceColumn>, PortError> {
-    // sql: identifiers quoted by quote_identifier
     let sql = format!(
+        // sql: identifiers quoted by quote_identifier
         "SELECT column_name, column_type FROM (DESCRIBE {}.{})",
         quote_identifier(&attached.alias),
         quote_identifier(&table.name)
