@@ -237,11 +237,11 @@ pub(crate) fn shop() -> SimFileSystem {
         ("project.toml", PROJECT),
         (
             "sources/erp.toml",
-            "kind = \"database\"\nconnection = \"secret:erp\"\n[tables.orders]\n",
+            "kind = \"database\"\nengine = \"postgresql\"\nconnection = \"secret:erp\"\n[tables.orders]\n",
         ),
         (
             "sources/crm.toml",
-            "kind = \"database\"\nconnection = \"secret:crm\"\n[tables.customers]\n",
+            "kind = \"database\"\nengine = \"postgresql\"\nconnection = \"secret:crm\"\n[tables.customers]\n",
         ),
         (
             "models/staging/mergus.toml",

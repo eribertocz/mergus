@@ -2,7 +2,7 @@
 
 use std::fmt;
 
-use crate::Mode;
+use crate::{Mode, SourceKind};
 
 /// Whether a problem fails validation.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -31,16 +31,23 @@ pub enum SourceProblem {
         /// The table name.
         table: String,
     },
-    /// A `connect` or `live` source declares no `engine` or one its mode does not allow, or a
-    /// `copy` source declares one (MG-REQ-0409).
-    #[error("`{path}` line {line}: source `{source_name}` {}", engine_problem(*mode, engine.as_deref()))]
+    /// A `connect` or `live` source, or a `copy` source of `kind = "database"`, declares no
+    /// `engine` or one its kind and mode do not allow, or another `copy` source declares one
+    /// (MG-REQ-0409).
+    #[error(
+        "`{path}` line {line}: source `{source_name}` {}",
+        engine_problem(*kind, *mode, engine.as_deref())
+    )]
     EngineNotAllowed {
         /// The path of the source file.
         path: String,
-        /// The line of `engine`, or of `mode` when there is no `engine`, from 1.
+        /// The line of `engine`; when there is no `engine`, of `kind` for a `copy` source and
+        /// of `mode` otherwise; from 1.
         line: usize,
         /// The source name.
         source_name: String,
+        /// The kind of the source.
+        kind: SourceKind,
         /// The mode of the source.
         mode: Mode,
         /// The declared engine, if any.
@@ -64,28 +71,31 @@ pub enum SourceProblem {
     },
 }
 
-/// What is wrong with the engine of a source of `mode`.
-fn engine_problem(mode: Mode, engine: Option<&str>) -> String {
+/// What is wrong with the engine of a source of `kind` read in `mode`.
+fn engine_problem(kind: SourceKind, mode: Mode, engine: Option<&str>) -> String {
+    let engines = allowed(kind, mode);
     match (mode, engine) {
-        (Mode::Copy, _) => {
-            "declares `engine`, which only `connect` and `live` sources may declare".to_owned()
+        (Mode::Copy, _) if engines.is_empty() => {
+            format!("declares `engine`, which a `{kind}` source in `copy` mode must not declare")
         }
-        (_, None) => format!(
-            "is read in `{mode}` mode but declares no `engine`; `{mode}` allows {}",
-            allowed(mode)
+        (Mode::Copy, None) => format!(
+            "is a `{kind}` source but declares no `engine`; a `{kind}` source in `copy` mode \
+             allows {engines}"
         ),
+        (_, None) => {
+            format!("is read in `{mode}` mode but declares no `engine`; `{mode}` allows {engines}")
+        }
         (_, Some(engine)) => format!(
             "is read in `{mode}` mode on engine `{engine}`, which it does not allow; `{mode}` \
-             allows {}",
-            allowed(mode)
+             allows {engines}"
         ),
     }
 }
 
-/// The engines of `mode`, quoted and joined.
-fn allowed(mode: Mode) -> String {
+/// The engines of a source of `kind` read in `mode`, quoted and joined.
+fn allowed(kind: SourceKind, mode: Mode) -> String {
     let names: Vec<String> = mode
-        .engines()
+        .engines_for(kind)
         .iter()
         .map(|name| format!("`{name}`"))
         .collect();
@@ -143,6 +153,11 @@ impl SourceProblem {
             Self::IncrementalWithoutKey { table, .. } | Self::NoDeletePolicy { table, .. } => {
                 format!("tables.{table}.incremental")
             }
+            Self::EngineNotAllowed {
+                engine: None,
+                mode: Mode::Copy,
+                ..
+            } => "kind".to_owned(),
             Self::EngineNotAllowed { engine: None, .. } => "mode".to_owned(),
             Self::EngineNotAllowed { .. } => "engine".to_owned(),
         }

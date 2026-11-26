@@ -9,7 +9,11 @@ use mergus_source::{Mode, Severity, SourceKind, SourceProblem, check_sources};
 
 const ROOT: &str = "/project";
 
-const DATABASE: &str = "kind = \"database\"\nconnection = \"secret:erp\"\n";
+const DATABASE: &str =
+    "kind = \"database\"\nengine = \"postgresql\"\nconnection = \"secret:erp\"\n";
+
+/// A database source without `engine`, for the checks of the engine.
+const NO_ENGINE: &str = "kind = \"database\"\nconnection = \"secret:erp\"\n";
 
 /// Reads a project whose one source `sources/erp.toml` holds `source`, then checks it. A
 /// problem of `mergus-project` is returned as its code, any other failure as its message.
@@ -89,7 +93,7 @@ fn mg_req_0414_incremental_requires_key() {
     assert_eq!(problems[0].severity(), Severity::Error);
     assert_eq!(
         (problems[0].path(), problems[0].line()),
-        ("sources/erp.toml", 4)
+        ("sources/erp.toml", 5)
     );
     assert_eq!(problems[0].key(), "tables.sales.incremental");
     assert!(
@@ -112,7 +116,7 @@ fn mg_req_0414_incremental_requires_key() {
         [(
             "MG-0401",
             Severity::Error,
-            3,
+            4,
             "tables.sales.incremental".to_owned()
         )]
     );
@@ -135,19 +139,19 @@ fn mg_req_0416_missing_delete_policy_warns() {
             (
                 "MG-0403",
                 Severity::Warning,
-                5,
+                6,
                 "tables.sales.incremental".to_owned()
             ),
             (
                 "MG-0401",
                 Severity::Error,
-                7,
+                8,
                 "tables.lines.incremental".to_owned()
             ),
             (
                 "MG-0403",
                 Severity::Warning,
-                7,
+                8,
                 "tables.lines.incremental".to_owned()
             ),
         ]
@@ -174,11 +178,12 @@ fn mg_req_0409_live_and_connect_only_on_analytical_engines() {
     live_on_analytical_engines();
     connect_on_versioned_formats();
     anything_else_is_an_error();
+    copy_reads_postgresql_or_duckdb();
 }
 
 /// The single problem of a database source with `lines` after its required keys.
 fn engine_problem(lines: &str) -> Vec<Found> {
-    found(&format!("{DATABASE}{lines}"))
+    found(&format!("{NO_ENGINE}{lines}"))
 }
 
 fn rejected(line: usize, key: &str) -> Vec<Found> {
@@ -233,31 +238,69 @@ fn anything_else_is_an_error() {
         let lines = format!("mode = \"{mode}\"\n");
         assert_eq!(engine_problem(&lines), rejected(3, "mode"), "{mode}");
     }
-    assert_eq!(
-        engine_problem("engine = \"duckdb\"\n"),
-        rejected(3, "engine")
-    );
-    let copy = "mode = \"copy\"\nengine = \"postgres\"\n";
-    assert_eq!(engine_problem(copy), rejected(4, "engine"));
-    assert_eq!(engine_problem("mode = \"copy\"\n"), []);
+    assert_eq!(engine_problem("mode = \"copy\"\n"), rejected(1, "kind"));
 
     let messages = [
         (
-            "mode = \"live\"\nengine = \"postgres\"\n",
+            format!("{NO_ENGINE}mode = \"live\"\nengine = \"postgres\"\n"),
             "engine `postgres`, which it does not allow",
         ),
         (
-            "mode = \"connect\"\n",
+            format!("{NO_ENGINE}mode = \"connect\"\n"),
             "declares no `engine`; `connect` allows `ducklake`, `iceberg` or `delta`",
         ),
         (
-            "engine = \"duckdb\"\n",
-            "only `connect` and `live` sources may declare",
+            NO_ENGINE.to_owned(),
+            "is a `database` source but declares no `engine`; a `database` source in `copy` \
+             mode allows `postgresql` or `duckdb`",
+        ),
+        (
+            format!("{NO_ENGINE}engine = \"postgres\"\n"),
+            "is read in `copy` mode on engine `postgres`, which it does not allow; `copy` \
+             allows `postgresql` or `duckdb`",
+        ),
+        (
+            "kind = \"files\"\nlocation = \"data\"\nengine = \"parquet\"\n".to_owned(),
+            "declares `engine`, which a `files` source in `copy` mode must not declare",
         ),
     ];
-    for (lines, expected) in messages {
-        let message = first_message(&format!("{DATABASE}{lines}")).unwrap_or_default();
+    for (source, expected) in messages {
+        let message = first_message(&source).unwrap_or_default();
         assert!(message.contains(expected), "{message}");
         assert!(message.starts_with("`sources/erp.toml` line "), "{message}");
     }
+}
+
+/// MG-REQ-0409.4: a `copy` source of `kind = "database"` names its database, `postgresql` or
+/// `duckdb`, and a `copy` source of another kind sets no `engine`.
+fn copy_reads_postgresql_or_duckdb() {
+    let engines = ["postgresql", "duckdb"];
+    assert_eq!(Mode::Copy.engines_for(SourceKind::Database), engines);
+    assert_eq!(Mode::Copy.engines_for(SourceKind::Files), [] as [&str; 0]);
+    assert_eq!(Mode::Copy.engines_for(SourceKind::Rest), [] as [&str; 0]);
+    assert_eq!(
+        Mode::Live.engines_for(SourceKind::Database),
+        Mode::Live.engines()
+    );
+    for engine in engines {
+        for mode in ["", "mode = \"copy\"\n"] {
+            let lines = format!("{mode}engine = \"{engine}\"\n");
+            assert_eq!(engine_problem(&lines), [], "{engine}");
+        }
+    }
+    let file = "kind = \"database\"\nengine = \"duckdb\"\nlocation = \"data/erp.duckdb\"\n";
+    assert_eq!(found(file), []);
+    for engine in ["postgres", "mysql", "ducklake", "parquet", "made_up"] {
+        let lines = format!("engine = \"{engine}\"\n");
+        assert_eq!(engine_problem(&lines), rejected(3, "engine"), "{engine}");
+    }
+    assert_eq!(engine_problem(""), rejected(1, "kind"));
+    let files = "kind = \"files\"\nlocation = \"data\"\nengine = \"parquet\"\n";
+    assert_eq!(found(files), rejected(3, "engine"));
+    let copied = "kind = \"files\"\nlocation = \"data\"\nmode = \"copy\"\n";
+    assert_eq!(found(copied), []);
+    assert_eq!(
+        found("kind = \"rest\"\nengine = \"duckdb\"\n"),
+        rejected(2, "engine")
+    );
 }

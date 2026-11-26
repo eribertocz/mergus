@@ -27,6 +27,16 @@ impl SourceKind {
     }
 }
 
+impl fmt::Display for SourceKind {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str(match self {
+            Self::Database => "database",
+            Self::Files => "files",
+            Self::Rest => "rest",
+        })
+    }
+}
+
 /// How a source is read.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum Mode {
@@ -50,8 +60,8 @@ impl Mode {
         }
     }
 
-    /// The engines a source of this mode may declare (MG-REQ-0409.1, MG-REQ-0409.2): none
-    /// for `copy` (MG-REQ-0409.3).
+    /// The engines a `connect` or `live` source may declare (MG-REQ-0409.1, MG-REQ-0409.2);
+    /// none for `copy`, whose engines depend on the kind ([`Mode::engines_for`]).
     #[must_use]
     pub fn engines(self) -> &'static [&'static str] {
         match self {
@@ -65,6 +75,18 @@ impl Mode {
                 "delta",
                 "parquet",
             ],
+        }
+    }
+
+    /// The engines a source of `kind` read in this mode must declare one of; empty when it
+    /// must not declare `engine`. A `copy` source of `kind = "database"` names the database
+    /// Mergus reads, `postgresql` or `duckdb`, and a `copy` source of another kind declares no
+    /// engine (MG-REQ-0409.4).
+    #[must_use]
+    pub fn engines_for(self, kind: SourceKind) -> &'static [&'static str] {
+        match (self, kind) {
+            (Self::Copy, SourceKind::Database) => &["postgresql", "duckdb"],
+            (mode, _) => mode.engines(),
         }
     }
 }
