@@ -21,6 +21,7 @@
 | `selection::select` | The models a selection selects, each with its reasons (MG-REQ-1305) |
 | `settings::max_parallel` | `max_parallel` from the flag, the variable, the user file or the default |
 | `planning::plan` | `mergus plan`: the plan of `mergus-plan`, written under `.mergus/plans/` |
+| `doctor::doctor` | `mergus doctor`: the origin of each secret reference, from `mergus-security` |
 | `explain::explain` | `mergus explain`: a code's catalog file, or a model and its options |
 | `validate::validate` | Stage 1: layout, configuration and folder options of `mergus-project`, source checks of `mergus-source` |
 | `project::find` | The nearest directory upwards that holds `project.toml` |
@@ -60,7 +61,12 @@
    `RealKeychain` and reads a terminal through `rpassword`, which turns echo off. A word
    other than the name gives an `MG-1301` that does not show the word, which may be the
    value.
-8. Every event goes through `mergus_contracts::validate_event` before it is printed. An event
+8. `doctor` reads the configuration with `mergus_project::read_configuration`, collects the
+   `secret:<name>` strings of `connection` and `replica` of every source into a sorted set,
+   and asks `mergus_security::origin` for each. `origin` drops the value inside
+   `mergus-security`; the binary only ever holds the `SecretOrigin`. A reference that does not
+   resolve prints `missing` and becomes an `MG-1003` diagnostic with `secret set` as `next`.
+9. Every event goes through `mergus_contracts::validate_event` before it is printed. An event
    that fails is an internal error, `MG-1304`, printed on standard error, exit code 10.
 
 The `[[bin]] name` in `Cargo.toml` is the only other place that spells the product name:

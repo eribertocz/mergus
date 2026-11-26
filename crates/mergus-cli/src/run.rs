@@ -9,6 +9,7 @@ use crate::args::{self, Invocation};
 use crate::cli_schema;
 use crate::commands::{Command, DRY_RUN, EXCLUDE, SELECTION};
 use crate::diagnostic::{Diagnostic, group};
+use crate::doctor::doctor;
 use crate::error::CliError;
 use crate::exit;
 use crate::explain::explain;
@@ -67,7 +68,7 @@ pub(crate) struct Ports<'a> {
     pub(crate) input: Option<&'a dyn Answers>,
     /// Standard input, which `secret set` reads the value from (MG-REQ-1007).
     pub(crate) secret_input: &'a dyn SecretInput,
-    /// The keychain `secret set` writes into (MG-REQ-1007).
+    /// The keychain `secret set` writes into (MG-REQ-1007) and `doctor` reads (MG-REQ-1004).
     pub(crate) keychain: &'a dyn Keychain,
 }
 
@@ -132,6 +133,7 @@ fn execute(
             return Ok(diagnostics);
         }
         Command::Ls => return ls(ports, invocation, output),
+        Command::Doctor => return doctor(ports, output),
         Command::SecretSet => return secret_set(ports, invocation, output),
         Command::Plan => return plan(ports, invocation, output),
         Command::Explain => {

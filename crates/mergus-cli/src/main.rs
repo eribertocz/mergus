@@ -18,6 +18,8 @@
 //! `ls` and `plan` read the project ([`models`]) and select models ([`selection`]); `plan`
 //! resolves its settings ([`settings`]) and writes the plan of `mergus-plan` ([`planning`]).
 //! `explain` prints an error code's catalog file or a model's options ([`explain`]).
+//! `doctor` shows which link of the resolution chain answers for each secret reference of the
+//! sources, never its value ([`doctor`]).
 
 #![forbid(unsafe_code)]
 
@@ -26,6 +28,7 @@ mod catalog;
 mod cli_schema;
 mod commands;
 mod diagnostic;
+mod doctor;
 mod error;
 mod exit;
 mod explain;

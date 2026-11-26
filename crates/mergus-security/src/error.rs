@@ -25,6 +25,15 @@ pub enum SecretError {
 }
 
 impl SecretError {
+    /// Returns the `MG-####` code of the error: `MG-1003`, a reference that does not
+    /// resolve (MG-REQ-1004.3).
+    #[must_use]
+    pub fn code(&self) -> &'static str {
+        match self {
+            Self::NotFound { .. } => "MG-1003",
+        }
+    }
+
     /// Returns the reference that could not be resolved.
     #[must_use]
     pub fn reference(&self) -> &SecretRef {
