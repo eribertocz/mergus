@@ -69,7 +69,7 @@ fn mg_req_0306_source_name_is_file_stem() {
 fn mg_req_0316_unknown_key_rejected_with_suggestion() {
     let found = problems!(&[(
         "project.toml",
-        "name = \"sales\"\nmergos = \">=1.4\"\n\n[gold]\nprofil = \"cloud\"\n",
+        "name = \"sales\"\nmergos = \">=1.4\"\n\n[gold]\nprofil = \"cloud\"\nprofile = \"local\"\nlocation = \"g\"\n",
     )]);
     assert_eq!(
         found,
@@ -91,7 +91,10 @@ fn mg_req_0316_unknown_key_rejected_with_suggestion() {
     assert!(found.iter().all(|problem| problem.code() == "MG-0304"));
     assert!(found[0].to_string().contains("did you mean `mergus`"));
 
-    let wrong_type = problems!(&[("project.toml", "name = \"sales\"\n[raw]\nlocation = 3\n")]);
+    let wrong_type = problems!(&[(
+        "project.toml",
+        "name = \"sales\"\n[raw]\nlocation = 3\nprofile = \"local\"\n"
+    )]);
     assert_eq!(wrong_type.len(), 1);
     assert_eq!(wrong_type[0].code(), "MG-0305");
     assert_eq!(wrong_type[0].line(), Some(3));
@@ -109,7 +112,8 @@ fn mg_req_0316_unknown_key_rejected_with_suggestion() {
 
 #[test]
 fn mg_req_0317_configuration_has_no_expressions() {
-    let project = "name = \"sales\"\n[gold]\nlocation = \"s3://bucket/$run_date/$HOME\"\n";
+    let project = "name = \"sales\"\n[gold]\nprofile = \"cloud\"\ncatalog = \"secret:gold\"\n\
+                   location = \"s3://bucket/$run_date/$HOME\"\n";
     let configuration = read(&[("project.toml", project)]).unwrap();
     assert_eq!(
         configuration.project.value["gold"]["location"],
@@ -125,10 +129,9 @@ fn mg_req_0317_configuration_has_no_expressions() {
 
 #[test]
 fn mg_req_0318_formatting_does_not_change_fingerprint() {
-    let compact =
-        "name=\"sales\"\nmergus=\">=1.4, <2\"\ngold={profile=\"cloud\",location=\"s3://g\"}\n";
+    let compact = "name=\"sales\"\nmergus=\">=1.4, <2\"\ngold={profile=\"local\",location=\"g\"}\n";
     let spread =
-        "# The sales project.\n\n[gold]   # gold zone\nlocation = 's3://g'\nprofile  = \"cloud\"\n";
+        "# The sales project.\n\n[gold]   # gold zone\nlocation = 'g'\nprofile  = \"local\"\n";
     let spread = format!("mergus = \"\"\">=1.4, <2\"\"\"\nname = \"sales\"\n{spread}");
     let (compact, spread, other) = (
         canonical(compact).unwrap(),
@@ -258,12 +261,15 @@ fn mg_req_0362_only_due_keys_are_known() {
     assert_eq!(project["required"], serde_json::json!(["name"]));
     let zone = &project["$defs"]["zone"]["properties"];
     let zone_keys: Vec<&String> = zone.as_object().unwrap().keys().collect();
-    assert_eq!(zone_keys, ["location", "profile"]);
+    // MG-REQ-0521.2: from phase 0.3 each zone also holds `catalog` and `data_path`.
+    assert_eq!(zone_keys, ["catalog", "data_path", "location", "profile"]);
 
     let full = "name = \"sales\"\nmergus = \">=1.4, <2\"\n\
                 [gold]\nprofile = \"cloud\"\nlocation = \"s3://g\"\n\
+                catalog = \"secret:gold_catalog\"\ndata_path = \"s3://g/data\"\n\
                 [raw]\nprofile = \"local\"\nlocation = \"/data/raw\"\n\
-                [ops]\nprofile = \"local\"\nlocation = \"/data/ops\"\n";
+                catalog = \"/meta/raw.ducklake\"\ndata_path = \"/disk/raw\"\n\
+                [ops]\nprofile = \"shared\"\nlocation = \"/data/ops\"\n";
     assert!(read(&[("project.toml", full)]).is_ok());
 
     let later = problems!(&[(
@@ -299,7 +305,9 @@ fn mg_req_0362_only_due_keys_are_known() {
 #[test]
 fn mg_req_0364_expressions_rejected() {
     for marker in ["${zone}", "{{ zone }}", "{% if x %}"] {
-        let project = format!("name = \"sales\"\n\n[gold]\nlocation = \"s3://{marker}\"\n");
+        let project = format!(
+            "name = \"sales\"\n\n[gold]\nlocation = \"s3://{marker}\"\nprofile = \"local\"\n"
+        );
         let found = problems!(&[("project.toml", &project)]);
         assert_eq!(
             found,

@@ -1447,6 +1447,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "mergus-runtime"
+version = "0.2.0"
+dependencies = [
+ "mergus-ports",
+ "mergus-project",
+ "mergus-sim",
+ "serde_json",
+ "thiserror",
+]
+
+[[package]]
 name = "mergus-security"
 version = "0.2.0"
 dependencies = [
