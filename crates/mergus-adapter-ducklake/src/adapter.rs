@@ -8,9 +8,11 @@ use mergus_adapter::{
     AdapterError, BatchStream, Capabilities, PinRecipe, Retention, StorageAdapter, VersionRef,
     Versioning, WriteMode,
 };
+use mergus_contracts::canonical_json;
 use mergus_ports::{
     Clock, Database, DatabaseConnection, DatabaseLocation, DuckLakeCatalog, SqlValue,
 };
+use serde_json::json;
 
 use crate::error::port;
 use crate::snapshots::{self, snapshot_id};
@@ -190,14 +192,19 @@ impl StorageAdapter for DuckLakeAdapter {
         self.latest()
     }
 
-    fn pin_recipe(&self, version: &VersionRef) -> Result<PinRecipe, AdapterError> {
+    fn pin_recipe(&self, table: &str, version: &VersionRef) -> Result<PinRecipe, AdapterError> {
+        let unknown = || DuckLakeError::UnknownVersion(version.clone());
+        let id = snapshot_id(version).ok_or_else(unknown)?;
         if !self.exists(version)? {
-            return Err(DuckLakeError::UnknownVersion(version.clone()).into());
+            return Err(unknown().into());
         }
-        Ok(PinRecipe::new(format!(
-            "ducklake snapshot {}",
-            version.as_str()
-        )))
+        // Exactly these three keys, and never the catalog location (MG-REQ-0298).
+        let recipe = json!({
+            "format": "ducklake",
+            "table": table,
+            "version": id.to_string(),
+        });
+        Ok(PinRecipe::new(canonical_json(&recipe)))
     }
 
     fn read_at(&self, table: &str, version: &VersionRef) -> Result<BatchStream, AdapterError> {
