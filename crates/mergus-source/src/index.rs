@@ -93,12 +93,9 @@ impl IndexWarning {
             .map(|column| quote(column))
             .collect::<Vec<_>>()
             .join(", ");
+        let (schema, table) = (quote(SCHEMA), quote(&self.table));
         // sql: identifiers quoted by quote
-        format!(
-            "CREATE INDEX ON {}.{} ({columns});",
-            quote(SCHEMA),
-            quote(&self.table)
-        )
+        format!("CREATE INDEX ON {schema}.{table} ({columns});")
     }
 }
 

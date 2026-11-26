@@ -1,159 +1,34 @@
-//! MG-REQ-0426, MG-REQ-0427, MG-REQ-0428 and MG-REQ-0430: source care, checked on the
-//! statements sent to a scripted `Database` port and on a simulated clock.
+//! MG-REQ-0426, MG-REQ-0427 and MG-REQ-0430: the replica, the load budget and the time
+//! window, checked on the statements sent to a scripted `Database` port and on a simulated
+//! clock.
+
+mod scripted;
 
 use std::collections::BTreeMap;
+use std::error::Error;
 use std::num::NonZeroU32;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 use std::time::Duration;
 
-use arrow::array::{ArrayRef, Int64Array};
+use arrow::array::{ArrayRef, StringArray};
 use arrow::record_batch::RecordBatch;
-use mergus_ports::{
-    Clock, Database, DatabaseConnection, DatabaseLocation, DuckLakeCatalog, Extension,
-    LoadedExtension, MonotonicTime, PortError, SqlValue, Timestamp,
-};
+use mergus_ports::{Clock, SqlValue};
 use mergus_project::{ConfigFile, Source};
-use mergus_sim::{ClockFaults, SimClock};
 use mergus_source::{
-    Brake, Budget, DeclaredTable, Load, LoadKind, Projection, ReadOptions, SourceCare, Window,
-    attach_postgres, read_with_brake, wait_for_window,
+    Brake, Budget, Load, LoadKind, SourceCare, Window, attach_postgres, read_with_brake,
+    wait_for_window,
 };
+use scripted::{Recorded, START, Scripted, chunks_of, clock_at, ids, orders};
 use serde_json::{Value, json};
 
-type Log = Arc<Mutex<Vec<(String, Vec<SqlValue>)>>>;
-type Answer = dyn Fn(&str, &[SqlValue]) -> Result<Vec<RecordBatch>, PortError> + Send + Sync;
-
-/// 2026-11-22T23:15:14Z.
-const START: i128 = 1_795_389_314_000_000_000;
-
-/// A database whose connections log every statement and answer queries with a script.
-#[derive(Clone)]
-struct Scripted {
-    log: Log,
-    answer: Arc<Answer>,
-}
-
-struct ScriptedConnection(Scripted);
-
-impl Scripted {
-    fn new(
-        answer: impl Fn(&str, &[SqlValue]) -> Result<Vec<RecordBatch>, PortError>
-        + Send
-        + Sync
-        + 'static,
-    ) -> Self {
-        Self {
-            log: Log::default(),
-            answer: Arc::new(answer),
-        }
-    }
-
-    fn statements(&self) -> Vec<(String, Vec<SqlValue>)> {
-        self.log.lock().map(|log| log.clone()).unwrap_or_default()
-    }
-
-    fn push(&self, sql: &str, params: &[SqlValue]) {
-        if let Ok(mut log) = self.log.lock() {
-            log.push((sql.to_owned(), params.to_vec()));
-        }
-    }
-
-    /// The parameters of every statement whose text starts with `prefix`.
-    fn params_of(&self, prefix: &str) -> Vec<Vec<SqlValue>> {
-        self.statements()
-            .into_iter()
-            .filter(|(sql, _)| sql.starts_with(prefix))
-            .map(|(_, params)| params)
-            .collect()
-    }
-}
-
-impl Database for Scripted {
-    fn connect(
-        &self,
-        _location: &DatabaseLocation,
-    ) -> Result<Box<dyn DatabaseConnection>, PortError> {
-        Ok(Box::new(ScriptedConnection(self.clone())))
-    }
-}
-
-impl DatabaseConnection for ScriptedConnection {
-    fn execute(&mut self, sql: &str, params: &[SqlValue]) -> Result<usize, PortError> {
-        self.0.push(sql, params);
-        Ok(0)
-    }
-
-    fn query_arrow(
-        &mut self,
-        sql: &str,
-        params: &[SqlValue],
-    ) -> Result<Vec<RecordBatch>, PortError> {
-        self.0.push(sql, params);
-        (self.0.answer)(sql, params)
-    }
-
-    fn append_arrow(&mut self, _table: &str, _batch: &RecordBatch) -> Result<(), PortError> {
-        Ok(())
-    }
-
-    fn attach_ducklake(&mut self, _catalog: &DuckLakeCatalog) -> Result<(), PortError> {
-        Ok(())
-    }
-
-    fn load_extension(&mut self, _extension: Extension) -> Result<(), PortError> {
-        Ok(())
-    }
-
-    fn loaded_extensions(&self) -> Vec<LoadedExtension> {
-        Vec::new()
-    }
-}
-
-/// A simulated clock that also records every sleep.
-struct Recorded {
-    inner: Arc<SimClock>,
-    sleeps: Mutex<Vec<Duration>>,
-}
-
-impl Recorded {
-    fn new(clock: Arc<SimClock>) -> Self {
-        Self {
-            inner: clock,
-            sleeps: Mutex::new(Vec::new()),
-        }
-    }
-
-    fn sleeps(&self) -> Vec<Duration> {
-        self.sleeps
-            .lock()
-            .map(|sleeps| sleeps.clone())
-            .unwrap_or_default()
-    }
-}
-
-impl Clock for Recorded {
-    fn now(&self) -> Timestamp {
-        self.inner.now()
-    }
-
-    fn monotonic(&self) -> MonotonicTime {
-        self.inner.monotonic()
-    }
-
-    fn sleep(&self, duration: Duration) {
-        if let Ok(mut sleeps) = self.sleeps.lock() {
-            sleeps.push(duration);
-        }
-        self.inner.sleep(duration);
-    }
-}
-
-fn clock_at(start: i128) -> Arc<SimClock> {
-    Arc::new(SimClock::new(
-        1,
-        Timestamp::from_unix_nanos(start),
-        ClockFaults::default(),
-    ))
+/// The parameters of every statement of `database` whose text starts with `prefix`.
+fn params_of(database: &Scripted, prefix: &str) -> Vec<Vec<SqlValue>> {
+    database
+        .statements()
+        .into_iter()
+        .filter(|(sql, _)| sql.starts_with(prefix))
+        .map(|(_, params)| params)
+        .collect()
 }
 
 fn source(options: &Value) -> Source {
@@ -176,36 +51,11 @@ fn source(options: &Value) -> Source {
     }
 }
 
-fn orders() -> DeclaredTable {
-    DeclaredTable {
-        name: "orders".to_owned(),
-        key: vec!["id".to_owned()],
-        incremental: None,
-    }
-}
-
-fn ids(from: i64, count: i64) -> Vec<RecordBatch> {
-    let column: ArrayRef = Arc::new(Int64Array::from((from..from + count).collect::<Vec<_>>()));
-    // An error leaves no batch, which every test that reads the rows would see.
-    RecordBatch::try_from_iter([("id", column)])
-        .into_iter()
-        .collect()
-}
-
-fn chunks_of(rows: u32) -> ReadOptions {
-    ReadOptions {
-        projection: Projection::All,
-        since: None,
-        chunk_rows: NonZeroU32::new(rows),
-    }
-}
-
 /// A PostgreSQL server that answers `version()` and serves `orders` in chunks.
 fn server(total: i64) -> Scripted {
     Scripted::new(move |sql, params| {
         if sql.starts_with("SELECT * FROM postgres_query") {
-            let column: ArrayRef =
-                Arc::new(arrow::array::StringArray::from(vec!["PostgreSQL 17.2"]));
+            let column: ArrayRef = Arc::new(StringArray::from(vec!["PostgreSQL 17.2"]));
             return Ok(RecordBatch::try_from_iter([("version", column)])
                 .into_iter()
                 .collect());
@@ -252,12 +102,12 @@ fn mg_req_0426_queries_go_to_replica() {
             &clock,
         )
         .unwrap();
-        let secrets_created = database.params_of("CREATE TEMPORARY SECRET");
+        let secrets_created = params_of(&database, "CREATE TEMPORARY SECRET");
         assert_eq!(
             secrets_created,
             vec![vec![SqlValue::Text(expected.to_owned())]]
         );
-        let reads = database.params_of("SELECT * FROM \"erp\".\"orders\"");
+        let reads = params_of(&database, "SELECT * FROM \"erp\".\"orders\"");
         assert_eq!(reads.len(), 2, "{:?}", database.statements());
     }
 }
@@ -271,205 +121,65 @@ fn mg_req_0427_connections_never_exceed_budget() {
     ];
     for (load, connections, chunk_rows, pause) in table {
         for max_connections in 1..=5_u32 {
-            let options = json!({ "load": load.to_string(), "max_connections": max_connections });
-            let care = SourceCare::of(&source(&options), "dev");
-            let budget = care.budget();
-            assert_eq!(
-                budget,
-                Budget {
-                    connections: connections.min(max_connections),
-                    chunk_rows: NonZeroU32::new(chunk_rows).unwrap(),
-                    pause,
-                }
-            );
-            let database = server(i64::from(chunk_rows) * 2 + 1);
-            let pg = care.postgres_source("erp", "postgresql://primary/erp".to_owned());
-            let mut attached = attach_postgres(&database, "erp", &pg).unwrap();
-            let pool = database.params_of("SET pg_pool_max_connections");
-            assert_eq!(
-                pool,
-                vec![vec![SqlValue::Integer(i64::from(budget.connections))]]
-            );
-            assert!(budget.connections <= max_connections);
-            let clock = Recorded::new(clock_at(START));
-            let mut brake = Brake::new(&budget);
-            let options = chunks_of(budget.chunk_rows.get());
-            read_with_brake(
-                &mut attached,
-                "erp",
-                &orders(),
-                &options,
-                &mut brake,
-                &clock,
-            )
-            .unwrap();
-            let limits: Vec<_> = database
-                .params_of("SELECT * FROM \"erp\".\"orders\"")
-                .into_iter()
-                .map(|params| params.last().cloned())
-                .collect();
-            let limit = Some(SqlValue::Integer(i64::from(chunk_rows)));
-            assert_eq!(limits, vec![limit.clone(), limit.clone(), limit]);
-            let expected: Vec<Duration> = if pause.is_zero() {
-                vec![]
-            } else {
-                vec![pause; 2]
+            let expected = Budget {
+                connections: connections.min(max_connections),
+                chunk_rows: NonZeroU32::new(chunk_rows).unwrap(),
+                pause,
             };
-            assert_eq!(clock.sleeps(), expected);
+            budget_is_kept(load, max_connections, expected).unwrap();
         }
     }
     let defaults = SourceCare::of(&source(&json!({})), "prod");
     assert_eq!((defaults.load, defaults.max_connections), (Load::Low, 2));
-    assert_eq!(
-        SourceCare::of(&source(&json!({})), "dev").load,
-        Load::Normal
-    );
+    let elsewhere = SourceCare::of(&source(&json!({})), "dev");
+    assert_eq!(elsewhere.load, Load::Normal);
     assert_eq!(defaults.query_timeout, Duration::from_secs(600));
 }
 
-/// A server whose `n`-th chunk statement takes `latencies[n]`, and fails when it is `None`.
-fn timed(clock: Arc<SimClock>, latencies: Vec<Option<u64>>) -> Scripted {
-    let sent = Arc::new(Mutex::new(0_usize));
-    Scripted::new(move |_sql, params| {
-        let Ok(mut count) = sent.lock() else {
-            return Err(PortError::Failed("the script is poisoned".to_owned()));
-        };
-        let latency = latencies.get(*count).copied().flatten();
-        *count += 1;
-        let Some(millis) = latency else {
-            return Err(PortError::Failed(
-                "canceling statement due to statement timeout".to_owned(),
-            ));
-        };
-        clock.advance(Duration::from_millis(millis));
-        let after = match params.first() {
-            Some(SqlValue::Integer(after)) if params.len() == 2 => *after,
-            _ => 0,
-        };
-        Ok(ids(after + 1, 1))
-    })
-}
-
-fn attached_to(database: &Scripted) -> Result<mergus_source::AttachedSource, PortError> {
-    Ok(mergus_source::AttachedSource {
-        connection: database.connect(&DatabaseLocation::InMemory)?,
-        alias: "erp".to_owned(),
-        identity: mergus_source::EngineIdentity {
-            engine: mergus_source::DatabaseEngine::PostgreSql,
-            version: "PostgreSQL 17.2".to_owned(),
-        },
-    })
-}
-
-#[test]
-fn mg_req_0428_brake_slows_and_stops() {
-    // Chunks of one row; a chunk that returns no row is the last, so the script ends with
-    // a chunk past its latencies, which fails: the brake is read before that.
-    let high = Load::High.table();
-    let mut brake = Brake::new(&high);
-    for latency in [10, 10, 10] {
-        brake.chunk_read(Duration::from_millis(latency));
-    }
-    assert_eq!(brake.pause(), Duration::ZERO);
-    brake.chunk_read(Duration::from_millis(30));
-    assert_eq!(
-        brake.pause(),
-        Duration::from_millis(30),
-        "slow chunk, pause from its latency"
-    );
-    brake.chunk_read(Duration::from_millis(40));
-    assert_eq!(
-        brake.pause(),
-        Duration::from_millis(60),
-        "slow again, pause doubled"
-    );
-    brake.chunk_read(Duration::from_millis(15));
-    assert_eq!(
-        brake.pause(),
-        Duration::from_millis(60),
-        "between median and twice: unchanged"
-    );
-    brake.chunk_read(Duration::from_millis(10));
-    assert_eq!(
-        brake.pause(),
-        Duration::from_millis(30),
-        "recovered: extra halved"
-    );
-    for _ in 0..10 {
-        brake.chunk_read(Duration::from_millis(10));
-    }
-    assert_eq!(brake.pause(), Duration::ZERO, "back to the budget's pause");
-
-    let low = Load::Low.table();
-    let mut brake = Brake::new(&low);
-    for latency in [10, 10, 10, 50] {
-        brake.chunk_read(Duration::from_millis(latency));
-    }
-    assert_eq!(
-        brake.pause(),
-        Duration::from_secs(2),
-        "the budget's pause doubled"
-    );
-
-    // Two failures then a success: the chunk is sent again and the read goes on.
-    let clock = clock_at(START);
-    let database = timed(Arc::clone(&clock), vec![Some(10), None, None, Some(10)]);
-    let mut attached = attached_to(&database).unwrap();
-    let recorded = Recorded::new(Arc::clone(&clock));
-    let mut brake = Brake::new(&high);
-    let incident = read_with_brake(
+/// Checks that a source of `load` and `max_connections` gets the budget `expected`, that
+/// its pool is no larger, and that its chunks and pauses follow it.
+fn budget_is_kept(
+    load: Load,
+    max_connections: u32,
+    expected: Budget,
+) -> Result<(), Box<dyn Error>> {
+    let options = json!({ "load": load.to_string(), "max_connections": max_connections });
+    let care = SourceCare::of(&source(&options), "dev");
+    let budget = care.budget();
+    assert_eq!(budget, expected, "{load} {max_connections}");
+    assert!(budget.connections <= max_connections);
+    let rows = i64::from(budget.chunk_rows.get());
+    let database = server(rows * 2 + 1);
+    let pg = care.postgres_source("erp", "postgresql://primary/erp".to_owned());
+    let mut attached = attach_postgres(&database, "erp", &pg)?;
+    let pool = params_of(&database, "SET pg_pool_max_connections");
+    let connections = SqlValue::Integer(i64::from(budget.connections));
+    assert_eq!(pool, vec![vec![connections]]);
+    let clock = Recorded::new(clock_at(START));
+    let mut brake = Brake::new(&budget);
+    let options = chunks_of(budget.chunk_rows.get());
+    let read = read_with_brake(
         &mut attached,
         "erp",
         &orders(),
-        &chunks_of(1),
+        &options,
         &mut brake,
-        &recorded,
-    )
-    .unwrap_err();
-    // Chunks 5, 6, 7 have no script: three consecutive failures stop the source.
-    assert_eq!(incident.code(), "MG-0405");
-    assert_eq!(
-        (incident.source_name.as_str(), incident.table.as_str()),
-        ("erp", "orders")
+        &clock,
     );
-    assert_eq!(incident.failures, 3);
-    assert_eq!(
-        database.statements().len(),
-        7,
-        "4 scripted, then 3 failures and no more"
-    );
-    let message = incident.to_string();
-    assert!(message.contains("source `erp`"), "{message}");
-    assert!(message.contains("statement timeout"), "{message}");
-
-    // A slow chunk is not a failure.
-    let clock = clock_at(START);
-    let database = timed(
-        Arc::clone(&clock),
-        vec![Some(10), Some(10), Some(500), Some(10), Some(10)],
-    );
-    let mut attached = attached_to(&database).unwrap();
-    let recorded = Recorded::new(Arc::clone(&clock));
-    let mut brake = Brake::new(&high);
-    let _ = read_with_brake(
-        &mut attached,
-        "erp",
-        &orders(),
-        &chunks_of(1),
-        &mut brake,
-        &recorded,
-    );
-    let sleeps = recorded.sleeps();
-    assert_eq!(
-        sleeps.first(),
-        Some(&Duration::from_millis(500)),
-        "{sleeps:?}"
-    );
-    assert_eq!(
-        sleeps.get(1),
-        Some(&Duration::from_millis(250)),
-        "{sleeps:?}"
-    );
+    assert!(read.is_ok());
+    let limits: Vec<_> = params_of(&database, "SELECT * FROM \"erp\".\"orders\"")
+        .into_iter()
+        .map(|params| params.last().cloned())
+        .collect();
+    let limit = Some(SqlValue::Integer(rows));
+    assert_eq!(limits, vec![limit.clone(), limit.clone(), limit]);
+    let pauses = if budget.pause.is_zero() {
+        Vec::new()
+    } else {
+        vec![budget.pause; 2]
+    };
+    assert_eq!(clock.sleeps(), pauses);
+    Ok(())
 }
 
 #[test]

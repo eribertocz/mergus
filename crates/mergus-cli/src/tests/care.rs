@@ -19,14 +19,18 @@ const PRIMARY: &str = "postgresql://primary/erp";
 const REPLICA: &str = "postgresql://replica/erp";
 
 /// Records on `database` the answer to `sql` with `params`: the rows the real, in-memory
-/// DuckDB returns for `rows`.
-fn record(database: &SimDatabase, sql: &str, params: Vec<SqlValue>, rows: &str) {
+/// DuckDB returns for `rows` with `bound`. An error records no rows, which the test sees.
+fn record(
+    database: &SimDatabase,
+    sql: &str,
+    params: Vec<SqlValue>,
+    (rows, bound): (&str, &[SqlValue]),
+) {
     let real = RealDatabase::new(Path::new("/nonexistent"));
     let batches = real
         .connect(&DatabaseLocation::InMemory)
-        .unwrap()
-        .query_arrow(rows, &[])
-        .unwrap();
+        .and_then(|mut connection| connection.query_arrow(rows, bound))
+        .unwrap_or_default();
     database.record_query(sql, params, batches);
 }
 
@@ -39,7 +43,7 @@ fn text(value: &str) -> SqlValue {
 fn server(connections: i64) -> SimDatabase {
     let database = SimDatabase::new(1, DatabaseFaults::default());
     database.record_extension(Extension::Postgres, "v1.4.0");
-    let timeout = i64::try_from(Duration::from_secs(600).as_millis()).unwrap();
+    let timeout = i64::try_from(Duration::from_secs(600).as_millis()).unwrap_or(i64::MAX);
     for (sql, value) in [
         (
             "SET pg_pool_max_connections = ?",
@@ -64,41 +68,41 @@ fn server(connections: i64) -> SimDatabase {
         &database,
         "SELECT * FROM postgres_query(?, ?)",
         vec![text("erp"), text("SELECT version()")],
-        "SELECT 'PostgreSQL 17.2' AS version",
+        ("SELECT 'PostgreSQL 17.2' AS version", &[]),
     );
     database
 }
 
 /// Records the indexes of `table`, each `(name, columns)`.
 fn indexes(database: &SimDatabase, table: &str, indexes: &[(&str, &[&str])]) {
-    let rows: Vec<String> = indexes
+    let bound: Vec<SqlValue> = indexes
         .iter()
         .flat_map(|(index, columns)| {
             columns
                 .iter()
-                .map(move |column| format!("('{index}', '{column}')"))
+                .flat_map(move |column| [text(index), text(column)])
         })
         .collect();
-    let answer = if rows.is_empty() {
+    let answer = if bound.is_empty() {
         "SELECT NULL::VARCHAR AS index_name, NULL::VARCHAR AS column_name WHERE false".to_owned()
     } else {
-        format!(
-            "SELECT * FROM (VALUES {}) AS t(index_name, column_name)",
-            rows.join(", ")
-        )
+        let rows = vec!["(?::VARCHAR, ?::VARCHAR)"; bound.len() / 2].join(", ");
+        "SELECT * FROM (VALUES ".to_owned() + &rows + ") AS t(index_name, column_name)"
     };
     let params = vec![text("erp"), text(PG_INDEXES), text("public"), text(table)];
-    record(database, TABLE_INDEXES, params, &answer);
+    record(database, TABLE_INDEXES, params, (&answer, &bound));
 }
 
 /// Records the row estimate of `table`.
 fn estimate(database: &SimDatabase, table: &str, rows: Option<i64>) {
-    let answer = rows.map_or_else(
-        || "SELECT 1::BIGINT AS estimate WHERE false".to_owned(),
-        |rows| format!("SELECT {rows}::BIGINT AS estimate"),
-    );
+    let bound: Vec<SqlValue> = rows.map(SqlValue::Integer).into_iter().collect();
+    let answer = if bound.is_empty() {
+        "SELECT 1::BIGINT AS estimate WHERE false"
+    } else {
+        "SELECT ?::BIGINT AS estimate"
+    };
     let params = vec![text("erp"), text(PG_ESTIMATES), text("public"), text(table)];
-    record(database, PG_TABLE_ESTIMATE, params, &answer);
+    record(database, PG_TABLE_ESTIMATE, params, (answer, &bound));
 }
 
 /// Runs `mergus <args>` on a project whose source `erp` is `erp` and whose source `local`
@@ -144,6 +148,12 @@ const ERP: &str = "kind = \"database\"\nengine = \"postgresql\"\nconnection = \"
 
 #[test]
 fn mg_req_0431_doctor_reports_missing_index() {
+    missing_indexes_are_warned();
+    present_indexes_are_not();
+    other_sources();
+}
+
+fn missing_indexes_are_warned() {
     let database = server(1);
     indexes(&database, "orders", &[("orders_pkey", &["id"])]);
     indexes(
@@ -177,8 +187,9 @@ fn mg_req_0431_doctor_reports_missing_index() {
             .all(|(_, params)| params != &vec![text(PRIMARY)])
     );
     assert!(executed.iter().any(|(sql, _)| sql == "DETACH \"erp\""));
+}
 
-    // Every index present: no warning.
+fn present_indexes_are_not() {
     let database = server(1);
     indexes(
         &database,
@@ -197,8 +208,10 @@ fn mg_req_0431_doctor_reports_missing_index() {
     let outcome = run(ERP, &["doctor", "--source", "erp"], Some(&database));
     assert_eq!(outcome.exit, 0, "{outcome:?}");
     assert!(!outcome.stderr.contains("MG-0406"), "{outcome:?}");
+}
 
-    // A DuckDB file source is not checked (MG-REQ-0431.3); an unknown source is an error.
+/// A DuckDB file source is not checked (MG-REQ-0431.3); an unknown source is an error.
+fn other_sources() {
     let local = SimDatabase::new(1, DatabaseFaults::default());
     let attach_file = "ATTACH ? (READ_ONLY)";
     let file = format!("{ROOT}/data/local.duckdb");
@@ -207,7 +220,7 @@ fn mg_req_0431_doctor_reports_missing_index() {
         &local,
         "SELECT version()",
         Vec::new(),
-        "SELECT 'v1.4.2' AS version",
+        ("SELECT 'v1.4.2' AS version", &[]),
     );
     local.record_execute("DETACH \"local\"", Vec::new(), 0);
     local.record_execute(
