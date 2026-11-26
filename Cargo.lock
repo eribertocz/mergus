@@ -1482,6 +1482,7 @@ dependencies = [
 name = "mergus-source"
 version = "0.2.0"
 dependencies = [
+ "arrow",
  "mergus-ports",
  "mergus-project",
  "mergus-sim",

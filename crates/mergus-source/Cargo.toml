@@ -8,6 +8,7 @@ publish.workspace = true
 description = "Extract from databases (ADBC) and files."
 
 [dependencies]
+arrow = { version = "60.2.0", default-features = false }
 mergus-ports = { path = "../mergus-ports" }
 mergus-project = { path = "../mergus-project" }
 serde_json = { version = "1.0.154", features = ["float_roundtrip"] }
