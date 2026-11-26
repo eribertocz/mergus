@@ -28,11 +28,19 @@ When `replica` is set, every extraction query MUST go to the replica.
 
 ### MG-REQ-0427 · Load budget
 
-`load` MUST set the number of connections, chunk size and pause between chunks from a fixed
-table in this crate's documentation; `max_connections` MUST never be exceeded.
+`load` MUST set the number of connections, chunk size and pause between chunks from this
+table; `max_connections` MUST never be exceeded, so the connections used are the smaller of
+the table's and `max_connections`:
+
+| `load` | Connections | Chunk rows | Pause between chunks |
+|---|---|---|---|
+| `low` | 1 | 10 000 | 1 s |
+| `normal` | 2 | 50 000 | 200 ms |
+| `high` | 4 | 100 000 | none |
 
 - Kind: behavior
 - Verify: test `mg_req_0427_connections_never_exceed_budget`
+- Decision: 0045
 
 ### MG-REQ-0428 · Automatic brake
 
@@ -41,16 +49,34 @@ MUST halve the pace, and restore it gradually when latency recovers. After three
 consecutive failures it MUST stop the source's extraction, raise an incident and not retry
 until the next trigger.
 
+1. MG-REQ-0428.1: halving the pace doubles the pause before the next chunk, starting from the
+   chunk's own latency when the budget has no pause;
+2. MG-REQ-0428.2: each chunk whose latency is at most the running median halves the extra
+   pause, until the pause is back to the budget's;
+3. MG-REQ-0428.3: a failure is a chunk statement that fails or times out; a slow chunk is
+   not a failure;
+4. MG-REQ-0428.4: in phase 0.3 the incident is a typed error (`MG-04xx`) naming the source
+   and the last failure, reported by the run; the incident contract of `ops/` replaces it
+   when it arrives.
+
 - Kind: behavior
 - Verify: test `mg_req_0428_brake_slows_and_stops`
+- Decision: 0045
 
 ### MG-REQ-0429 · Protected session
 
 Every source session MUST be read-only, set a statement timeout and a lock timeout, and
 identify itself as `mergus` (for example `application_name` in PostgreSQL).
 
+1. MG-REQ-0429.1: the lock timeout is 5 seconds;
+2. MG-REQ-0429.2: for PostgreSQL, read-only is the `READ_ONLY` attach and the statement
+   timeout is `pg_statement_timeout_millis` (MG-REQ-0196.2, MG-REQ-0196.3); the
+   identification and the lock timeout are libpq connection options of the temporary secret,
+   `APPLICATION_NAME 'mergus'` and `OPTIONS '-c lock_timeout=5000'`.
+
 - Kind: behavior
 - Verify: test `mg_req_0429_session_is_read_only_and_identified`
+- Decision: 0045
 
 ### MG-REQ-0430 · Time window
 
@@ -65,8 +91,17 @@ window; incremental loads are not restricted.
 `mergus doctor --source <name>` MUST warn when the incremental column or the key of a table
 has no index in the source, with the suggested index.
 
+1. MG-REQ-0431.1: the warning has its own `MG-04xx` code and severity warning; it never
+   changes the exit code;
+2. MG-REQ-0431.2: the suggested index is the statement
+   `CREATE INDEX ON "<schema>"."<table>" ("<column>", …);`, with the key columns in key
+   order, or the incremental column alone;
+3. MG-REQ-0431.3: in phase 0.3 only PostgreSQL sources are checked, reading `pg_index`
+   through `postgres_query`; a DuckDB file source is not checked.
+
 - Kind: behavior
 - Verify: test `mg_req_0431_doctor_reports_missing_index`
+- Decision: 0045
 
 ### MG-REQ-0432 · Source impact in the plan
 

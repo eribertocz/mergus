@@ -25,4 +25,11 @@ pub enum PortError {
         /// The directory it is cached in.
         cache_dir: PathBuf,
     },
+    /// A DuckLake catalog attached with the `ENCRYPTED` option exists and is not encrypted
+    /// (MG-REQ-0515.3).
+    #[error("the DuckLake catalog `{catalog}` is not encrypted")]
+    UnencryptedCatalog {
+        /// The metadata database of the catalog, as attached.
+        catalog: String,
+    },
 }

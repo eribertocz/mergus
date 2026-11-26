@@ -21,10 +21,17 @@ stored as JSON or text blobs, except REST payload fields the user maps that way.
 
 ### MG-REQ-0512 · Metadata columns
 
-Every raw table MUST have `_load_id`, `_extracted_at`, `_deleted` and `_deleted_at`.
+Every raw table MUST have `_load_id`, `_extracted_at`, `_deleted` and `_deleted_at`:
+
+1. MG-REQ-0512.1: `_load_id` is `VARCHAR`, the load's id in the load registry (MG-REQ-0514);
+2. MG-REQ-0512.2: `_extracted_at` is `TIMESTAMPTZ`, in UTC, the time the load's extraction
+   started;
+3. MG-REQ-0512.3: `_deleted` is a `BOOLEAN` that is never NULL, and `_deleted_at` a
+   `TIMESTAMPTZ`, in UTC, NULL unless `_deleted` is true.
 
 - Kind: behavior
 - Verify: test `mg_req_0512_raw_metadata_columns`
+- Decision: 0044
 
 ### MG-REQ-0513 · Each load is immutable
 
@@ -52,12 +59,16 @@ mode for the MVP:
    keeps in the catalog;
 2. MG-REQ-0515.2: because the catalog holds the keys, it is protected as a secret: its
    credentials are those of the raw zone (MG-REQ-0501), resolved by `mergus-security`, and a
-   local catalog file is never placed inside the project folder;
+   local catalog file is never placed inside the project folder: a `local` or `shared` raw
+   catalog whose path resolves inside the project root is refused before anything is attached,
+   with a typed error (`MG-05xx`) naming the path and suggesting a directory outside the
+   project;
 3. MG-REQ-0515.3: attaching an existing raw catalog that is not encrypted fails with a typed
-   error naming the catalog; Mergus never writes raw unencrypted.
+   error (`MG-05xx`) naming the catalog; Mergus never writes raw unencrypted.
 
 - Kind: behavior
 - Verify: test `mg_req_0515_raw_encrypted_at_rest`
+- Decision: 0041, 0044
 - Decision: 0041
 
 ### MG-REQ-0516 · Raw retention
@@ -82,6 +93,16 @@ be reprocessed without the source. The choice MUST be recorded and shown by `pla
 `key`, the rows of the latest load);
 `raw.<source>__<table>__changes` MUST show every version and detected delete.
 
+1. MG-REQ-0518.1: both are tables of the raw catalog, written through the storage adapter in
+   the same commit: each load appends its rows to `__changes` and rewrites the current table
+   (`replace`), so no reader sees one without the other;
+2. MG-REQ-0518.2: a detected delete is a row of `__changes` with the last known values of the
+   deleted row, `_deleted` true, and the `_load_id` and `_extracted_at` of the load that
+   detected it, with `_deleted_at` equal to that `_extracted_at`;
+3. MG-REQ-0518.3: a load that returns the same key twice fails with a typed error
+   (`MG-05xx`) naming the source, the table and the key, and writes nothing.
+
 - Kind: behavior
 - Verify: test `mg_req_0518_current_and_changes_views`
+- Decision: 0044
 - Depends: MG-REQ-0403

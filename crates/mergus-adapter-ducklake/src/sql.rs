@@ -1,12 +1,41 @@
 //! The SQL text of the adapter. Values are always bound; identifiers are quoted by
 //! [`quote`] (MG-REQ-0007).
 
-use arrow::datatypes::{DataType, Schema};
+use std::sync::LazyLock;
+
+use arrow::datatypes::{DataType, Schema, TimeUnit};
 
 use crate::DuckLakeError;
 
-/// The Arrow types the adapter stores exactly, with their DuckDB type.
-pub(crate) const TYPES: [(DataType, &str); 14] = [
+/// The Arrow types the adapter stores exactly, with their DuckDB type: the fixed types of
+/// [`FIXED`], timestamps in microseconds without and with the UTC time zone, and every
+/// decimal DuckDB stores, of precision 1 to 38.
+pub(crate) static TYPES: LazyLock<Vec<(DataType, String)>> = LazyLock::new(|| {
+    let fixed = FIXED
+        .iter()
+        .map(|(data_type, duckdb_type)| (data_type.clone(), (*duckdb_type).to_owned()));
+    let timestamps = [
+        (
+            DataType::Timestamp(TimeUnit::Microsecond, None),
+            "TIMESTAMP",
+        ),
+        (
+            DataType::Timestamp(TimeUnit::Microsecond, Some(UTC.into())),
+            "TIMESTAMPTZ",
+        ),
+    ]
+    .map(|(data_type, duckdb_type)| (data_type, duckdb_type.to_owned()));
+    let decimals = (1..=MAX_DECIMAL_PRECISION).flat_map(|precision| {
+        (0..=precision).map(move |scale| {
+            let data_type = DataType::Decimal128(precision, scale.cast_signed());
+            (data_type, format!("DECIMAL({precision}, {scale})"))
+        })
+    });
+    fixed.chain(timestamps).chain(decimals).collect()
+});
+
+/// The Arrow types with one DuckDB type each.
+const FIXED: [(DataType, &str); 14] = [
     (DataType::Boolean, "BOOLEAN"),
     (DataType::Int8, "TINYINT"),
     (DataType::Int16, "SMALLINT"),
@@ -22,6 +51,12 @@ pub(crate) const TYPES: [(DataType, &str); 14] = [
     (DataType::Binary, "BLOB"),
     (DataType::Date32, "DATE"),
 ];
+
+/// The time zone of a `TIMESTAMPTZ` column, as Arrow names it.
+const UTC: &str = "UTC";
+
+/// The largest precision of a DuckDB `DECIMAL`.
+const MAX_DECIMAL_PRECISION: u8 = 38;
 
 /// Whether `snapshot_id` names a snapshot of the catalog bound first.
 pub(crate) const SNAPSHOT_EXISTS: &str =
@@ -55,7 +90,7 @@ pub(crate) fn create_stage(stage: &str, schema: &Schema) -> Result<String, DuckL
         let duckdb_type = TYPES
             .iter()
             .find(|(data_type, _)| data_type == field.data_type())
-            .map(|(_, duckdb_type)| *duckdb_type)
+            .map(|(_, duckdb_type)| duckdb_type)
             .ok_or_else(|| DuckLakeError::UnsupportedType {
                 column: field.name().clone(),
                 data_type: field.data_type().clone(),
