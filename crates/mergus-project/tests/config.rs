@@ -261,7 +261,6 @@ fn mg_req_0362_only_due_keys_are_known() {
     assert_eq!(project["required"], serde_json::json!(["name"]));
     let zone = &project["$defs"]["zone"]["properties"];
     let zone_keys: Vec<&String> = zone.as_object().unwrap().keys().collect();
-    // MG-REQ-0521.2: from phase 0.3 each zone also holds `catalog` and `data_path`.
     assert_eq!(zone_keys, ["catalog", "data_path", "location", "profile"]);
 
     let full = "name = \"sales\"\nmergus = \">=1.4, <2\"\n\

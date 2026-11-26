@@ -11,6 +11,12 @@ use mergus_sim::SimFileSystem;
 
 const ROOT: &str = "/project";
 
+/// One zone of each profile, with only the keys each one needs (MG-REQ-0521.1).
+const THREE_ZONES: &str = "name = \"sales\"\n\
+     [raw]\nprofile = \"local\"\nlocation = \"lake/raw\"\n\
+     [gold]\nprofile = \"shared\"\nlocation = \"/srv/gold/\"\n\
+     [ops]\nprofile = \"cloud\"\nlocation = \"s3://ops\"\ncatalog = \"secret:ops_catalog\"\n";
+
 /// Writes `project` as the `project.toml` of a project at `ROOT`.
 fn project(project: &str) -> Result<SimFileSystem, PortError> {
     let fs = SimFileSystem::new();
@@ -45,13 +51,7 @@ fn try_problems(text: &str) -> Result<Vec<StorageProblem>, String> {
 #[test]
 fn mg_req_0521_profile_needs_no_more_keys() {
     // MG-REQ-0521.1: `local` and `shared` need only `location`; `cloud` adds `catalog`.
-    let found = zones(
-        "name = \"sales\"\n\
-         [raw]\nprofile = \"local\"\nlocation = \"lake/raw\"\n\
-         [gold]\nprofile = \"shared\"\nlocation = \"/srv/gold/\"\n\
-         [ops]\nprofile = \"cloud\"\nlocation = \"s3://ops\"\ncatalog = \"secret:ops_catalog\"\n",
-    )
-    .unwrap();
+    let found = zones(THREE_ZONES).unwrap();
     let kinds: Vec<(Zone, Profile)> = found.iter().map(|zone| (zone.zone, zone.profile)).collect();
     assert_eq!(
         kinds,
@@ -61,7 +61,7 @@ fn mg_req_0521_profile_needs_no_more_keys() {
             (Zone::Ops, Profile::Cloud)
         ]
     );
-    let [raw, gold, ops] = found.as_slice() else {
+    let [raw, ..] = found.as_slice() else {
         panic!("three zones expected");
     };
     assert_eq!(
@@ -77,7 +77,14 @@ fn mg_req_0521_profile_needs_no_more_keys() {
     assert_eq!(raw.data_path, "lake/raw/data/");
     assert_eq!(raw.clients, Clients::OneProcess);
     assert_eq!(raw.catalog.extension(), None);
+}
 
+#[test]
+fn mg_req_0521_shared_and_cloud_defaults() {
+    let found = zones(THREE_ZONES).unwrap();
+    let [_, gold, ops] = found.as_slice() else {
+        panic!("three zones expected");
+    };
     assert_eq!(
         gold.catalog.attach(None).as_deref(),
         Some("ducklake:sqlite:/srv/gold/catalog.sqlite")
@@ -101,7 +108,10 @@ fn mg_req_0521_profile_needs_no_more_keys() {
     assert_eq!(ops.data_path, "s3://ops");
     assert_eq!(ops.clients, Clients::Remote);
     assert_eq!(ops.catalog.extension(), Some("postgres"));
+}
 
+#[test]
+fn mg_req_0521_overrides_and_other_keys() {
     // MG-REQ-0521.2: `catalog` and `data_path` override the defaults.
     let overridden = zones(
         "name = \"sales\"\n[gold]\nprofile = \"local\"\nlocation = \"gold\"\n\
@@ -134,7 +144,6 @@ fn mg_req_0521_profile_needs_no_more_keys() {
 #[test]
 fn mg_req_0501_raw_and_gold_separate_credentials() {
     let problems = |text: &str| try_problems(text).unwrap();
-    let both = |raw: &str, gold: &str| format!("name = \"sales\"\n[raw]\n{raw}\n[gold]\n{gold}\n");
     // MG-REQ-0501.1: `local` and `shared` locations differ and do not nest.
     let same = problems(&both(
         "profile = \"local\"\nlocation = \"lake\"",
@@ -168,7 +177,11 @@ fn mg_req_0501_raw_and_gold_separate_credentials() {
         "profile = \"local\"\nlocation = \"lake/rawgold\"",
     ));
     assert!(apart.is_empty(), "{apart:?}");
+}
 
+#[test]
+fn mg_req_0501_cloud_catalogs_and_prefixes_differ() {
+    let problems = |text: &str| try_problems(text).unwrap();
     // MG-REQ-0501.2: with `cloud`, catalogs and location prefixes differ.
     let catalog = problems(&both(
         "profile = \"cloud\"\nlocation = \"s3://raw\"\ncatalog = \"secret:lake\"",
@@ -206,4 +219,9 @@ fn mg_req_0501_raw_and_gold_separate_credentials() {
          [ops]\nprofile = \"local\"\nlocation = \"raw\"\n",
     );
     assert!(ops.is_empty(), "{ops:?}");
+}
+
+/// A `project.toml` whose `[raw]` and `[gold]` hold the keys `raw` and `gold`.
+fn both(raw: &str, gold: &str) -> String {
+    format!("name = \"sales\"\n[raw]\n{raw}\n[gold]\n{gold}\n")
 }
