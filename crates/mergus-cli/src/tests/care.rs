@@ -214,7 +214,11 @@ fn present_indexes_are_not() {
 fn other_sources() {
     let local = SimDatabase::new(1, DatabaseFaults::default());
     let attach_file = "ATTACH ? (READ_ONLY)";
-    let file = format!("{ROOT}/data/local.duckdb");
+    // The path is built as the binary builds it, with the separator of the platform.
+    let file = Path::new(ROOT)
+        .join("data/local.duckdb")
+        .display()
+        .to_string();
     local.record_execute(attach_file, vec![text(&file)], 0);
     record(
         &local,
