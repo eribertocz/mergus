@@ -44,11 +44,21 @@ watermark before and after, duration and result.
 
 ### MG-REQ-0515 · Raw is encrypted
 
-Raw MUST be stored encrypted at rest using the storage's encryption mode (DuckLake encrypted
-mode for the MVP), with keys from `security/`.
+Raw MUST be stored encrypted at rest using the storage's encryption mode, DuckLake encrypted
+mode for the MVP:
+
+1. MG-REQ-0515.1: the raw DuckLake catalog is created with the `ENCRYPTED` attach option, so
+   every Parquet data and delete file is encrypted with a key DuckLake generates per file and
+   keeps in the catalog;
+2. MG-REQ-0515.2: because the catalog holds the keys, it is protected as a secret: its
+   credentials are those of the raw zone (MG-REQ-0501), resolved by `mergus-security`, and a
+   local catalog file is never placed inside the project folder;
+3. MG-REQ-0515.3: attaching an existing raw catalog that is not encrypted fails with a typed
+   error naming the catalog; Mergus never writes raw unencrypted.
 
 - Kind: behavior
 - Verify: test `mg_req_0515_raw_encrypted_at_rest`
+- Decision: 0041
 
 ### MG-REQ-0516 · Raw retention
 

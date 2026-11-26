@@ -25,11 +25,25 @@ depends_on: [storage-zones, contracts-adapter]
 ### MG-REQ-0521 · Profiles are complete defaults
 
 Each profile except `server`, which comes in phase 0.7, MUST configure catalog, data
-location and concurrency without further keys.
-Advanced users MAY override individual keys.
+location and concurrency of a zone (`[raw]`, `[gold]`, `[ops]`) from its `location` alone, as
+DuckLake attach strings:
+
+| `profile` | Catalog | Data files | Clients |
+|---|---|---|---|
+| `local` | DuckDB file `<location>/catalog.ducklake` (`ducklake:<file>`) | `<location>/data/` | one process |
+| `shared` | SQLite file `<location>/catalog.sqlite` (`ducklake:sqlite:<file>`) | `<location>/data/` | several local processes |
+| `cloud` | PostgreSQL, from the secret reference `catalog` (`ducklake:postgres:<value>`) | `<location>`, an object-store URL | several, remote |
+
+1. MG-REQ-0521.1: `local` and `shared` need only `location`, a local directory; `cloud` needs
+   `location` and `catalog`, the one credential it cannot default;
+2. MG-REQ-0521.2: advanced users MAY override `catalog` (a path for `local` and `shared`, a
+   secret reference for `cloud`) and `data_path`; any other key is an error (MG-REQ-0361);
+3. MG-REQ-0521.3: the `sqlite` extension is installed only for a `shared` catalog, and the
+   `postgres` extension for a `cloud` catalog (MG-REQ-0194).
 
 - Kind: behavior
 - Verify: test `mg_req_0521_profile_needs_no_more_keys`
+- Decision: 0042
 
 ### MG-REQ-0522 · Guarantee per table
 
@@ -38,6 +52,8 @@ when it is not Verified.
 
 - Kind: behavior
 - Verify: test `mg_req_0522_guarantee_level_per_table`
+- Phase: 0.5
+- Decision: 0042
 
 ### MG-REQ-0523 · Format decides the level
 
@@ -47,6 +63,8 @@ rejected with the rule and the fix.
 
 - Kind: behavior
 - Verify: test `mg_req_0523_level_is_min_of_format_and_executor`
+- Phase: 0.5
+- Decision: 0042
 
 ### MG-REQ-0524 · Concurrency needs a multi-client catalog
 
@@ -56,6 +74,8 @@ MUST be a validation error.
 
 - Kind: behavior
 - Verify: test `mg_req_0524_single_client_catalog_rejected_when_concurrent`
+- Phase: 0.5
+- Decision: 0042
 
 ### MG-REQ-0525 · Never a wrong number
 
@@ -64,3 +84,5 @@ one table.
 
 - Kind: behavior
 - Verify: test `mg_req_0525_no_mixed_versions_at_any_level`
+- Phase: 0.5
+- Decision: 0042
