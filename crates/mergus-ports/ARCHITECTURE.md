@@ -14,7 +14,7 @@
 | `Environment` | Command-line arguments, current directory, environment variables and the user configuration and cache directories |
 | `PortError` | `NotFound`, `Failed` or `ExtensionUnavailable` (extension, host, cache directory), returned by every fallible call |
 | `SqlParser` | Returns the tree DuckDB's `json_serialize_sql` gives for a SQL text, without executing it |
-| `Database`, `DatabaseConnection` | Connects to a `DatabaseLocation`; runs SQL with bound `SqlValue`s, returns and appends Arrow `RecordBatch`es, attaches a `DuckLakeCatalog` |
+| `Database`, `DatabaseConnection` | Connects to a `DatabaseLocation`; runs SQL with bound `SqlValue`s, returns and appends Arrow `RecordBatch`es, attaches a `DuckLakeCatalog`, a DuckDB file or a `PostgresSource` read-only, detaches them, loads an `Extension` and lists each `LoadedExtension` with its version |
 | `Keychain` | Get, set and delete operating system keychain entries by service and account |
 | `real::*` | `RealClock`, `RealDatabase`, `RealEnvironment`, `RealFileSystem`, `RealKeychain`, `RealProcess`, `RealRandom`, `RealSqlParser` (feature `real`) |
 

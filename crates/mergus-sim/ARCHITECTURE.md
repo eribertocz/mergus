@@ -13,7 +13,7 @@
 | `SimRandom` | Seeded random numbers |
 | `SimProcess` | Programs answer with outputs set by the test |
 | `SimEnvironment` | Arguments, current directory, variables, a configuration and a cache directory set by the test |
-| `SimDatabase`, `DatabaseFaults` | Results recorded with the real `Database`, appended batches and attached catalogs; errors |
+| `SimDatabase`, `DatabaseFaults` | Results and extension versions recorded with the real `Database`; the statements run, appended batches and attached catalogs; errors |
 | `SimKeychain` | Keychain entries in memory, by service and account, set by the test |
 | `Scenario` | What a caller simulates: how a seed draws steps, the world, one step |
 | `Simulator` | Runs, replays and shrinks a scenario from a seed |
