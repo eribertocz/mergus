@@ -16,6 +16,7 @@ mod secret;
 mod selection;
 mod settings;
 mod sources;
+mod storage;
 
 use std::cell::RefCell;
 use std::path::Path;

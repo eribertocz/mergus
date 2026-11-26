@@ -1,0 +1,20 @@
+[package]
+name = "mergus-runtime"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+description = "Run cycle and scheduling; wires ports to crates."
+
+[dependencies]
+mergus-ports = { path = "../mergus-ports" }
+mergus-project = { path = "../mergus-project" }
+serde_json = { version = "1.0.154", features = ["float_roundtrip"] }
+thiserror = "2.0.21"
+
+[lints]
+workspace = true
+
+[dev-dependencies]
+mergus-sim = { path = "../mergus-sim" }

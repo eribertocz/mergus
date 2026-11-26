@@ -31,19 +31,54 @@
   },
   "$defs": {
     "zone": {
-      "description": "The storage profile and location of a zone.",
+      "description": "The storage of a zone: its profile and location, from which the catalog, the data path and the clients default (MG-REQ-0521).",
       "type": "object",
       "additionalProperties": false,
+      "required": ["profile", "location"],
       "properties": {
         "profile": {
-          "description": "The storage profile of the zone.",
-          "type": "string"
+          "description": "The storage profile of the zone: local, shared or cloud (MG-REQ-0521).",
+          "type": "string",
+          "enum": ["local", "shared", "cloud"]
         },
         "location": {
-          "description": "The location of the zone.",
+          "description": "The location of the zone: a local directory for local and shared, an object-store URL for cloud.",
+          "type": "string"
+        },
+        "catalog": {
+          "description": "Overrides the catalog: a path for local and shared, the secret reference of the PostgreSQL catalog for cloud, where it is required (MG-REQ-0521.1, MG-REQ-0521.2).",
+          "type": "string"
+        },
+        "data_path": {
+          "description": "Overrides the directory or object-store prefix of the data files (MG-REQ-0521.2).",
           "type": "string"
         }
-      }
+      },
+      "oneOf": [
+        {
+          "description": "A local zone: a DuckDB catalog in its location (MG-REQ-0521).",
+          "required": ["profile"],
+          "properties": { "profile": { "description": "The profile of this branch.", "const": "local" } }
+        },
+        {
+          "description": "A shared zone: a SQLite catalog in its location (MG-REQ-0521).",
+          "required": ["profile"],
+          "properties": { "profile": { "description": "The profile of this branch.", "const": "shared" } }
+        },
+        {
+          "description": "A cloud zone: a PostgreSQL catalog from a secret reference, which it cannot default (MG-REQ-0521.1).",
+          "required": ["profile", "catalog"],
+          "properties": {
+            "profile": { "description": "The profile of this branch.", "const": "cloud" },
+            "catalog": { "description": "The secret reference of the PostgreSQL catalog.", "$ref": "#/$defs/secret" }
+          }
+        }
+      ]
+    },
+    "secret": {
+      "description": "A secret reference secret:<name>, the name of MG-REQ-0305 (MG-REQ-1001).",
+      "type": "string",
+      "pattern": "^secret:[a-z][a-z0-9_]{0,62}$"
     }
   }
 }
