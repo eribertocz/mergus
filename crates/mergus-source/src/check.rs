@@ -46,12 +46,15 @@ fn check_source(source: &Source, lines: &Lines<'_>) -> Vec<SourceProblem> {
     let Some(object) = source.file.value.as_object() else {
         return Vec::new();
     };
-    let kind = object.get("kind").and_then(Value::as_str);
-    if kind.and_then(SourceKind::parse).is_none() {
+    let Some(kind) = object
+        .get("kind")
+        .and_then(Value::as_str)
+        .and_then(SourceKind::parse)
+    else {
         return Vec::new();
-    }
+    };
     let mut problems = Vec::new();
-    problems.extend(engine(source, object, lines));
+    problems.extend(engine(source, kind, object, lines));
     if let Some(tables) = object.get("tables").and_then(Value::as_object) {
         for (table, options) in tables {
             if let Some(options) = options.as_object() {
@@ -62,10 +65,11 @@ fn check_source(source: &Source, lines: &Lines<'_>) -> Vec<SourceProblem> {
     problems
 }
 
-/// MG-REQ-0409: the engine of a `connect` or `live` source is in the allowlist of its mode,
-/// and a `copy` source declares none.
+/// MG-REQ-0409: the engine of a `connect` or `live` source, or of a `database` source, is in
+/// the allowlist of its kind and mode, and any other `copy` source declares none.
 fn engine(
     source: &Source,
+    kind: SourceKind,
     object: &Map<String, Value>,
     lines: &Lines<'_>,
 ) -> Option<SourceProblem> {
@@ -77,19 +81,24 @@ fn engine(
         None => None,
         Some(engine) => Some(engine.as_str()?.to_owned()),
     };
-    let allowed = match (&engine, mode) {
-        (None, Mode::Copy) => true,
-        (None, _) => false,
-        (Some(engine), mode) => mode.engines().contains(&engine.as_str()),
+    let engines = mode.engines_for(kind);
+    let allowed = match &engine {
+        None => engines.is_empty(),
+        Some(engine) => engines.contains(&engine.as_str()),
     };
     if allowed {
         return None;
     }
-    let key = if engine.is_some() { "engine" } else { "mode" };
+    let key = match (&engine, mode) {
+        (Some(_), _) => "engine",
+        (None, Mode::Copy) => "kind",
+        (None, _) => "mode",
+    };
     Some(SourceProblem::EngineNotAllowed {
         path: source.file.path.clone(),
         line: lines.of(&[key]),
         source_name: source.name.clone(),
+        kind,
         mode,
         engine,
     })

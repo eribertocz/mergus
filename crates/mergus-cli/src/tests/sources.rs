@@ -3,8 +3,9 @@
 
 use super::{PROJECT, mergus, project};
 
-/// A source whose table `sales` is incremental without `deletes`, on line 4.
-const NO_DELETES: &str = "kind = \"database\"\nconnection = \"secret:erp\"\n[tables.sales]\n\
+/// A source whose table `sales` is incremental without `deletes`, on line 5.
+const NO_DELETES: &str = "kind = \"database\"\nengine = \"postgresql\"\nconnection = \"secret:erp\"\n\
+                          [tables.sales]\n\
                           incremental = \"updated_at\"\nkey = \"sale_id\"\n";
 
 #[test]
@@ -18,7 +19,7 @@ fn mg_req_0416_validate_warns_and_succeeds() {
     assert_eq!(warning["code"], "MG-0403");
     assert_eq!(warning["severity"], "warning");
     assert_eq!(warning["location"]["file"], "sources/erp.toml");
-    assert_eq!(warning["location"]["line"], 4);
+    assert_eq!(warning["location"]["line"], 5);
     let message = warning["message"].as_str().unwrap();
     assert!(message.contains("will not be seen"), "{message}");
     assert_eq!(outcome.of("run_finished")[0]["status"], "succeeded");
@@ -31,7 +32,7 @@ fn mg_req_0416_validate_warns_and_succeeds() {
         human.stderr
     );
     assert!(
-        human.stderr.contains(" 4 | incremental = \"updated_at\""),
+        human.stderr.contains(" 5 | incremental = \"updated_at\""),
         "{}",
         human.stderr
     );

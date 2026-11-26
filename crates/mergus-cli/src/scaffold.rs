@@ -58,7 +58,7 @@ pub(crate) fn add_source(ports: &Ports<'_>, invocation: &Invocation) -> Result<P
     let root = project::find(ports.environment, ports.files)?;
     let name = valid("source", invocation.value("name").unwrap_or_default())?;
     let text = format!(
-        "#:schema {}\nkind = \"database\"\nconnection = {}\n",
+        "#:schema {}\nkind = \"database\"\nengine = \"postgresql\"\nconnection = {}\n",
         ConfigKind::Source.schema_id(),
         toml_string(&format!("secret:{name}"))
     );

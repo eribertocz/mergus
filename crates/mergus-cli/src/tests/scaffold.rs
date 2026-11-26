@@ -16,6 +16,7 @@ const PYTHON: &str = "import polars as pl\n\
 /// The source `crm` of MG-REQ-1350.2.
 const SOURCE: &str = "#:schema https://mergus.dev/schemas/source.schema.json\n\
                       kind = \"database\"\n\
+                      engine = \"postgresql\"\n\
                       connection = \"secret:crm\"\n";
 
 #[test]
@@ -112,12 +113,15 @@ fn code(files: &dyn FileSystem, args: &[&str]) -> String {
     diagnostics[0]["code"].as_str().unwrap().to_owned()
 }
 
+/// An existing source `crm`.
+const CRM: &str = "kind = \"database\"\nengine = \"postgresql\"\n";
+
 /// MG-REQ-1350.3: invalid and taken names, existing files, `--dry-run`.
 fn scaffolding_files_3() {
     let files = project(&[
         ("project.toml", PROJECT),
         ("models/staging/orders.sql", "select 1"),
-        ("sources/crm.toml", "kind = \"database\"\n"),
+        ("sources/crm.toml", CRM),
     ]);
     let cases: [(&[&str], &str); 7] = [
         (&["new", "model", "Orders"], "MG-1305"),
@@ -139,10 +143,7 @@ fn scaffolding_files_3() {
         None,
     );
     assert_eq!(existing.exit, 1);
-    assert_eq!(
-        text(&files, "sources/crm.toml").unwrap(),
-        "kind = \"database\"\n"
-    );
+    assert_eq!(text(&files, "sources/crm.toml").unwrap(), CRM);
     assert!(!exists(&files, "models/Orders.sql") && !exists(&files, "sources/my-crm.toml"));
     let human = mergus(&files, &["new", "model", "Orders"]);
     assert!(

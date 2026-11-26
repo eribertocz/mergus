@@ -25,15 +25,15 @@ fn doctor(args: &[&str], replica: bool) -> Outcome {
         ("project.toml", PROJECT),
         (
             "sources/erp.toml",
-            "kind = \"database\"\nconnection = \"secret:erp\"\nreplica = \"secret:erp_replica\"\n",
+            "kind = \"database\"\nengine = \"postgresql\"\nconnection = \"secret:erp\"\nreplica = \"secret:erp_replica\"\n",
         ),
         (
             "sources/crm.toml",
-            "kind = \"database\"\nconnection = \"secret:crm\"\n",
+            "kind = \"database\"\nengine = \"postgresql\"\nconnection = \"secret:crm\"\n",
         ),
         (
             "sources/billing.toml",
-            "kind = \"database\"\nconnection = \"secret:crm\"\n",
+            "kind = \"database\"\nengine = \"postgresql\"\nconnection = \"secret:crm\"\n",
         ),
         (
             "sources/local.toml",
