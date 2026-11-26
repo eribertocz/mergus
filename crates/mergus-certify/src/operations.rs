@@ -145,12 +145,18 @@ pub(crate) fn new_versions<H: Harness>(harness: &H) -> Result<Status, String> {
 /// `pin_recipe` describes every committed version and refuses a version it does not know.
 pub(crate) fn pin_recipe<H: Harness>(harness: &H) -> Result<Status, String> {
     let (client, _, base) = based(harness)?;
-    calls::pin(&client, &base).map_err(|error| {
+    let recipe = calls::pin(&client, &base).map_err(|error| {
         format!(
             "pin_recipe of committed version `{}` failed: {error}",
             base.as_str()
         )
     })?;
+    if recipe.as_str().trim().is_empty() {
+        return Err(format!(
+            "pin_recipe of committed version `{}` is empty",
+            base.as_str()
+        ));
+    }
     if let Ok(recipe) = calls::pin(&client, &VersionRef::new(UNKNOWN)) {
         return Err(format!(
             "pin_recipe of unknown version `{UNKNOWN}` returned `{}`",

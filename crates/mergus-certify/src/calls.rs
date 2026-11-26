@@ -89,5 +89,5 @@ pub(crate) fn pin(
     client: &Client,
     version: &VersionRef,
 ) -> Result<PinRecipe, mergus_adapter::AdapterError> {
-    client.pin_recipe(version)
+    client.pin_recipe(TABLE, version)
 }

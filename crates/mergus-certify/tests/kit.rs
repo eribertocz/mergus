@@ -131,7 +131,7 @@ impl StorageAdapter for Memory {
         Ok(VersionRef::new((lake.len() - 1).to_string()))
     }
 
-    fn pin_recipe(&self, version: &VersionRef) -> Result<PinRecipe, AdapterError> {
+    fn pin_recipe(&self, _: &str, version: &VersionRef) -> Result<PinRecipe, AdapterError> {
         self.call()?;
         let known =
             Self::index(version).is_some_and(|index| index < self.lake.lock().unwrap().len());
