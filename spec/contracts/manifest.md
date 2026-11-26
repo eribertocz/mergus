@@ -71,11 +71,13 @@ and no visible effect (INV-08).
 
 ### MG-REQ-0249 · Self-describing pin recipe
 
-Each table entry MUST contain the pin recipe returned by its adapter, so that a reader can
-read the exact version from the manifest alone.
+Each table entry MUST contain the pin recipe returned by its adapter (MG-REQ-0298), so that a
+reader can read the exact version from the manifest alone.
 
 - Kind: behavior
 - Verify: test `mg_req_0249_manifest_alone_pins_every_table`
+- Depends: MG-REQ-0298
+- Decision: 0043
 
 ### MG-REQ-0251 · Data token per table
 
