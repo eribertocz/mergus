@@ -12,10 +12,14 @@ I/O traits and their real implementations.
   and `RealRandom`, and `RealSqlParser`, DuckDB's parser in an in-memory DuckDB without external
   access that never executes the text (MG-REQ-0193).
 - Holds `RealDatabase`, in-process DuckDB that runs SQL with bound parameters, reads and
-  writes Arrow and attaches DuckLake catalogs. It never installs or loads an extension on its
-  own and refuses unsigned ones; it installs only `ducklake`, from `extensions.duckdb.org`,
-  into `mergus/duckdb/extensions/` under the user cache directory the first time, and loads
-  it from there afterwards (MG-REQ-0194).
+  writes Arrow, attaches DuckLake catalogs, and attaches database sources read-only: DuckDB
+  files with no extension, and PostgreSQL with the `postgres` extension, its pool and
+  statement timeout set from the source and its connection value in a temporary secret
+  dropped on detach (MG-REQ-0196). It never installs or loads an extension on its own and
+  refuses unsigned ones; it installs only `ducklake` and `postgres`, from
+  `extensions.duckdb.org`, into `mergus/duckdb/extensions/` under the user cache directory
+  the first time, loads them from there afterwards, and records the version DuckDB reports
+  for each loaded extension (MG-REQ-0194).
 - Is the only crate allowed to depend on `duckdb` (MG-REQ-0194).
 - Is the only crate allowed to call the standard library's clock, file, environment, network
   and process functions (MG-REQ-0130); Clippy forbids them everywhere else.

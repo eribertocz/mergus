@@ -1,11 +1,13 @@
-//! A simulated DuckDB: results recorded from the real one, with errors (MG-REQ-0194).
+//! A simulated DuckDB: results recorded from the real one, with errors (MG-REQ-0194,
+//! MG-REQ-0196).
 
 use std::collections::BTreeMap;
 use std::sync::{Arc, Mutex};
 
 use arrow::record_batch::RecordBatch;
 use mergus_ports::{
-    Database, DatabaseConnection, DatabaseLocation, DuckLakeCatalog, PortError, SqlValue,
+    Database, DatabaseConnection, DatabaseLocation, DuckLakeCatalog, Extension, LoadedExtension,
+    PortError, SqlValue,
 };
 
 use crate::rng::{Rate, SimRng, lock};
@@ -33,6 +35,8 @@ struct Shared {
     answers: Mutex<Vec<(String, Vec<SqlValue>, Answer)>>,
     appended: Mutex<BTreeMap<String, Vec<RecordBatch>>>,
     attached: Mutex<Vec<DuckLakeCatalog>>,
+    extensions: Mutex<BTreeMap<Extension, String>>,
+    executed: Mutex<Vec<(String, Vec<SqlValue>)>>,
 }
 
 impl Shared {
@@ -59,7 +63,9 @@ impl Shared {
 
 /// Answers each statement with the result recorded for its SQL text and parameters, and
 /// fails with [`PortError::NotFound`] for a statement that has none. Appended batches and
-/// attached catalogs are kept for the test to inspect. Every connection shares them.
+/// attached catalogs are kept for the test to inspect, as is every statement run with
+/// [`DatabaseConnection::execute`]. An extension loads only when its version was recorded.
+/// Every connection shares them.
 #[derive(Clone, Debug)]
 pub struct SimDatabase {
     shared: Arc<Shared>,
@@ -76,6 +82,8 @@ impl SimDatabase {
                 answers: Mutex::new(Vec::new()),
                 appended: Mutex::new(BTreeMap::new()),
                 attached: Mutex::new(Vec::new()),
+                extensions: Mutex::new(BTreeMap::new()),
+                executed: Mutex::new(Vec::new()),
             }),
         }
     }
@@ -93,6 +101,18 @@ impl SimDatabase {
         rows: Vec<RecordBatch>,
     ) {
         self.record(sql.into(), params, Answer::Rows(rows));
+    }
+
+    /// Records that the real database reported `version` for `extension` once loaded.
+    pub fn record_extension(&self, extension: Extension, version: impl Into<String>) {
+        lock(&self.shared.extensions).insert(extension, version.into());
+    }
+
+    /// Returns every statement run with [`DatabaseConnection::execute`], with its
+    /// parameters, in order, whether it succeeded or not.
+    #[must_use]
+    pub fn executed(&self) -> Vec<(String, Vec<SqlValue>)> {
+        lock(&self.shared.executed).clone()
     }
 
     /// Returns the batches appended to `table`, in order.
@@ -125,6 +145,7 @@ impl Database for SimDatabase {
     ) -> Result<Box<dyn DatabaseConnection>, PortError> {
         Ok(Box::new(SimConnection {
             shared: Arc::clone(&self.shared),
+            loaded: Vec::new(),
         }))
     }
 }
@@ -132,11 +153,13 @@ impl Database for SimDatabase {
 /// A connection of [`SimDatabase`].
 struct SimConnection {
     shared: Arc<Shared>,
+    loaded: Vec<LoadedExtension>,
 }
 
 impl DatabaseConnection for SimConnection {
     /// Fails with [`PortError::NotFound`] when the recorded result is rows, not a count.
     fn execute(&mut self, sql: &str, params: &[SqlValue]) -> Result<usize, PortError> {
+        lock(&self.shared.executed).push((sql.to_owned(), params.to_vec()));
         match self.shared.answer(sql, params)? {
             Answer::Changed(changed) => Ok(changed),
             Answer::Rows(_) => Err(PortError::NotFound(format!("a recorded count for `{sql}`"))),
@@ -168,5 +191,23 @@ impl DatabaseConnection for SimConnection {
         self.shared.enter(&catalog.alias)?;
         lock(&self.shared.attached).push(catalog.clone());
         Ok(())
+    }
+
+    /// Fails with [`PortError::NotFound`] when no version was recorded for `extension`.
+    fn load_extension(&mut self, extension: Extension) -> Result<(), PortError> {
+        self.shared.enter(extension.name())?;
+        let version = lock(&self.shared.extensions)
+            .get(&extension)
+            .cloned()
+            .ok_or_else(|| {
+                PortError::NotFound(format!("a recorded version of `{}`", extension.name()))
+            })?;
+        self.loaded.retain(|loaded| loaded.extension != extension);
+        self.loaded.push(LoadedExtension { extension, version });
+        Ok(())
+    }
+
+    fn loaded_extensions(&self) -> Vec<LoadedExtension> {
+        self.loaded.clone()
     }
 }

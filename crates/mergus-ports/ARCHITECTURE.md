@@ -14,7 +14,7 @@
 | `Environment` | Command-line arguments, current directory, environment variables and the user configuration and cache directories |
 | `PortError` | `NotFound`, `Failed` or `ExtensionUnavailable` (extension, host, cache directory), returned by every fallible call |
 | `SqlParser` | Returns the tree DuckDB's `json_serialize_sql` gives for a SQL text, without executing it |
-| `Database`, `DatabaseConnection` | Connects to a `DatabaseLocation`; runs SQL with bound `SqlValue`s, returns and appends Arrow `RecordBatch`es, attaches a `DuckLakeCatalog` |
+| `Database`, `DatabaseConnection` | Connects to a `DatabaseLocation`; runs SQL with bound `SqlValue`s, returns and appends Arrow `RecordBatch`es, attaches a `DuckLakeCatalog`, a DuckDB file or a `PostgresSource` read-only, detaches them, loads an `Extension` and lists each `LoadedExtension` with its version |
 | `Keychain` | Get, set and delete operating system keychain entries by service and account |
 | `real::*` | `RealClock`, `RealDatabase`, `RealEnvironment`, `RealFileSystem`, `RealKeychain`, `RealProcess`, `RealRandom`, `RealSqlParser` (feature `real`) |
 
@@ -32,9 +32,10 @@ Every trait is `Send + Sync` and takes `&self`, so one value can be shared behin
 - `thiserror`: derives `PortError`.
 - `arrow` (default features off): the record batches of the `Database` port, at the version
   `duckdb` uses.
-- `duckdb` (feature `real` only; features `bundled`, `json` and `appender-arrow`, default
-  features off): the in-memory DuckDB of `RealSqlParser` (MG-REQ-0193) and the DuckDB of
-  `RealDatabase` (MG-REQ-0194). Bundles DuckDB v2.0.1, which supports DuckLake.
+- `duckdb` (feature `real` only; features `bundled`, `json`, `appender-arrow` and
+  `parquet`, default features off): the in-memory DuckDB of `RealSqlParser` (MG-REQ-0193)
+  and the DuckDB of `RealDatabase` (MG-REQ-0194). Bundles DuckDB v2.0.1, which supports
+  DuckLake, with Parquet linked in so DuckLake can write its data files.
 - `keyring` 3 (feature `real` only; default features off): `RealKeychain` on Keychain
   Services, Credential Manager and the Secret Service through `dbus`, with libdbus built from
   source (`vendored`) and pure-Rust cryptography, so no system library is needed to build.

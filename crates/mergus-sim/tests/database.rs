@@ -1,12 +1,17 @@
-//! MG-REQ-0194: the simulated `Database` answers from results recorded with the real one and
-//! injects errors, deterministically for a seed.
+//! MG-REQ-0194 and MG-REQ-0196: the simulated `Database` answers from results recorded with
+//! the real one and injects errors, deterministically for a seed.
 
+use std::path::Path;
 use std::sync::Arc;
+use std::time::Duration;
 
 use arrow::array::{ArrayRef, Int64Array};
 use arrow::error::ArrowError;
 use arrow::record_batch::RecordBatch;
-use mergus_ports::{Database, DatabaseLocation, DuckLakeCatalog, PortError, SqlValue};
+use mergus_ports::{
+    Database, DatabaseLocation, DuckLakeCatalog, Extension, LoadedExtension, PortError,
+    PostgresSource, SqlValue,
+};
 use mergus_sim::{DatabaseFaults, Rate, SimDatabase};
 
 fn batch() -> Result<RecordBatch, ArrowError> {
@@ -75,4 +80,126 @@ fn mg_req_0194_simulated_database_injects_errors_for_a_seed() {
         connection.append_arrow("items", &batch().unwrap()),
         Err(PortError::Failed(_))
     ));
+}
+
+/// The statements a PostgreSQL source is attached and detached with, in order, as the real
+/// `Database` runs them (MG-REQ-0196.2 and MG-REQ-0196.3).
+fn postgres_statements(connection: &str) -> Vec<(&'static str, Vec<SqlValue>)> {
+    vec![
+        (
+            "SET pg_pool_max_connections = ?",
+            vec![SqlValue::Integer(2)],
+        ),
+        (
+            "SET pg_pool_acquire_mode = ?",
+            vec![SqlValue::Text("wait".to_owned())],
+        ),
+        (
+            "SET pg_statement_timeout_millis = ?",
+            vec![SqlValue::Integer(600_000)],
+        ),
+        (
+            "CREATE TEMPORARY SECRET \"mergus_source_crm\" (TYPE postgres, URI ?)",
+            vec![SqlValue::Text(connection.to_owned())],
+        ),
+        (
+            "ATTACH '' AS \"crm\" (TYPE postgres, SECRET \"mergus_source_crm\", READ_ONLY)",
+            Vec::new(),
+        ),
+    ]
+}
+
+/// The statements the source `crm` is detached with.
+fn detach_statements() -> [(&'static str, Vec<SqlValue>); 2] {
+    [
+        ("DETACH \"crm\"", Vec::new()),
+        (
+            "DROP TEMPORARY SECRET IF EXISTS \"mergus_source_crm\"",
+            Vec::new(),
+        ),
+    ]
+}
+
+fn crm(connection: &str) -> PostgresSource {
+    PostgresSource {
+        alias: "crm".to_owned(),
+        connection: connection.to_owned(),
+        max_connections: 2,
+        query_timeout: Duration::from_secs(600),
+    }
+}
+
+#[test]
+fn mg_req_0196_simulated_database_attaches_sources_read_only() {
+    let connection_value = "postgresql://reader:pw@db.example/crm";
+    let database = SimDatabase::new(1, DatabaseFaults::default());
+    database.record_extension(Extension::Postgres, "8b9d0bbe8d");
+    let statements = postgres_statements(connection_value);
+    for (sql, params) in &statements {
+        database.record_execute(*sql, params.clone(), 0);
+    }
+    let detach = detach_statements();
+    for (sql, params) in &detach {
+        database.record_execute(*sql, params.clone(), 0);
+    }
+    let file = Path::new("data/sales.duckdb");
+    let file_params = vec![SqlValue::Text("data/sales.duckdb".to_owned())];
+    database.record_execute("ATTACH ? (READ_ONLY)", file_params.clone(), 0);
+    let mut connection = database.connect(&DatabaseLocation::InMemory).unwrap();
+
+    // PostgreSQL: the pool and timeout settings, then a temporary secret, then a read-only
+    // attach that names the secret and never holds the connection value.
+    connection.attach_postgres(&crm(connection_value)).unwrap();
+    let owned = |list: &[(&str, Vec<SqlValue>)]| {
+        list.iter()
+            .map(|(sql, params)| ((*sql).to_owned(), params.clone()))
+            .collect::<Vec<_>>()
+    };
+    assert_eq!(database.executed(), owned(&statements));
+    assert!(!statements[4].0.contains(connection_value));
+    assert_eq!(
+        connection.loaded_extensions(),
+        vec![LoadedExtension {
+            extension: Extension::Postgres,
+            version: "8b9d0bbe8d".to_owned(),
+        }]
+    );
+    // The source's debug form never shows the connection value.
+    assert!(!format!("{:?}", crm(connection_value)).contains(connection_value));
+
+    // Detaching drops the secret.
+    connection.detach("crm").unwrap();
+    let mut expected = owned(&statements);
+    expected.extend(owned(&detach));
+    assert_eq!(database.executed(), expected);
+
+    // A DuckDB file: attached read-only, with no extension.
+    connection.attach_duckdb_file(file).unwrap();
+    expected.push(("ATTACH ? (READ_ONLY)".to_owned(), file_params));
+    assert_eq!(database.executed(), expected);
+    assert_eq!(connection.loaded_extensions().len(), 1);
+}
+
+#[test]
+fn mg_req_0196_simulated_failed_attach_drops_the_secret() {
+    let database = SimDatabase::new(1, DatabaseFaults::default());
+    database.record_extension(Extension::Postgres, "8b9d0bbe8d");
+    let statements = postgres_statements("host=db.example");
+    // The attach itself has no recorded result, so it fails.
+    for (sql, params) in &statements[..4] {
+        database.record_execute(*sql, params.clone(), 0);
+    }
+    let drop = "DROP TEMPORARY SECRET IF EXISTS \"mergus_source_crm\"";
+    database.record_execute(drop, Vec::new(), 0);
+    let mut connection = database.connect(&DatabaseLocation::InMemory).unwrap();
+    assert!(connection.attach_postgres(&crm("host=db.example")).is_err());
+    let executed = database.executed();
+    assert_eq!(executed.len(), 6);
+    assert_eq!(executed[5], (drop.to_owned(), Vec::new()));
+
+    // A missing extension fails before any statement.
+    let bare = SimDatabase::new(1, DatabaseFaults::default());
+    let mut connection = bare.connect(&DatabaseLocation::InMemory).unwrap();
+    assert!(connection.attach_postgres(&crm("host=db.example")).is_err());
+    assert!(bare.executed().is_empty());
 }

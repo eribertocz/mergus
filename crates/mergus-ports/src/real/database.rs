@@ -1,25 +1,27 @@
-//! In-process DuckDB with the `ducklake` extension pinned and cached (MG-REQ-0194).
+//! In-process DuckDB with the `ducklake` and `postgres` extensions pinned and cached
+//! (MG-REQ-0194), which attaches database sources read-only (MG-REQ-0196).
 
 use std::path::{Path, PathBuf};
 
 use arrow::record_batch::RecordBatch;
 use duckdb::{Config, Connection};
 
-use crate::{Database, DatabaseConnection, DatabaseLocation, DuckLakeCatalog, PortError, SqlValue};
+use crate::database::quote_identifier;
+use crate::{
+    Database, DatabaseConnection, DatabaseLocation, DuckLakeCatalog, Extension, LoadedExtension,
+    PortError, SqlValue,
+};
 
 #[cfg(test)]
 mod tests;
-
-/// The one extension this port installs and loads.
-pub(super) const EXTENSION: &str = "ducklake";
 
 /// The host DuckDB downloads its extensions from (MG-REQ-0194.1).
 const HOST: &str = "extensions.duckdb.org";
 
 /// DuckDB, unable to install or load any extension on its own and refusing unsigned ones. It
-/// installs only `ducklake`, from `extensions.duckdb.org` at the version of the bundled
-/// DuckDB, into `mergus/duckdb/extensions/` under the user cache directory, the first time a
-/// DuckLake catalog is attached; later uses load it from there.
+/// installs only the extensions of [`Extension`], from `extensions.duckdb.org` at the version
+/// of the bundled DuckDB, into `mergus/duckdb/extensions/` under the user cache directory,
+/// the first time one is needed; later uses load it from there.
 #[derive(Clone, Debug)]
 pub struct RealDatabase {
     extension_dir: PathBuf,
@@ -28,7 +30,7 @@ pub struct RealDatabase {
 }
 
 impl RealDatabase {
-    /// Returns a database that caches the `ducklake` extension under `user_cache_dir`, the
+    /// Returns a database that caches its extensions under `user_cache_dir`, the
     /// user cache directory given by [`crate::Environment::cache_dir`].
     #[must_use]
     pub fn new(user_cache_dir: &Path) -> Self {
@@ -41,7 +43,7 @@ impl RealDatabase {
         }
     }
 
-    /// Returns the directory the `ducklake` extension is cached in.
+    /// Returns the directory the extensions are cached in.
     #[must_use]
     pub fn extension_dir(&self) -> &Path {
         &self.extension_dir
@@ -95,6 +97,7 @@ impl Database for RealDatabase {
             connection,
             extension_dir: self.extension_dir.clone(),
             host: self.host().to_owned(),
+            loaded: Vec::new(),
         }))
     }
 }
@@ -104,30 +107,21 @@ struct RealConnection {
     connection: Connection,
     extension_dir: PathBuf,
     host: String,
+    /// The load registry: every extension loaded, with the version DuckDB reports.
+    loaded: Vec<LoadedExtension>,
 }
 
 impl RealConnection {
-    /// Installs `ducklake` when it is not cached, then loads it from the cache.
-    fn load_ducklake(&self) -> Result<(), PortError> {
-        let installed = self
-            .connection
-            .query_row(
-                "SELECT installed FROM duckdb_extensions() WHERE extension_name = ?",
-                [EXTENSION],
-                |row| row.get::<_, bool>(0),
-            )
-            .map_err(failed)?;
-        if !installed {
-            self.connection
-                .execute_batch("INSTALL ducklake")
-                .map_err(|_| PortError::ExtensionUnavailable {
-                    extension: EXTENSION.to_owned(),
-                    host: self.host.clone(),
-                    cache_dir: self.extension_dir.clone(),
-                })?;
-        }
+    /// Returns whether `extension` is installed and the version DuckDB reports for it.
+    fn status(&self, extension: Extension) -> Result<(bool, String), PortError> {
+        let name = extension.name();
         self.connection
-            .execute_batch("LOAD ducklake")
+            .query_row(
+                "SELECT installed, coalesce(extension_version, '') FROM duckdb_extensions() \
+                 WHERE extension_name = ? OR list_contains(aliases, ?)",
+                [name, name],
+                |row| Ok((row.get::<_, bool>(0)?, row.get::<_, String>(1)?)),
+            )
             .map_err(failed)
     }
 }
@@ -160,8 +154,34 @@ impl DatabaseConnection for RealConnection {
             .map_err(failed)
     }
 
+    fn load_extension(&mut self, extension: Extension) -> Result<(), PortError> {
+        let name = extension.name();
+        let (installed, _) = self.status(extension)?;
+        if !installed {
+            // The names are those of `Extension`, never user text.
+            self.connection
+                .execute_batch(&format!("INSTALL {name}"))
+                .map_err(|_| PortError::ExtensionUnavailable {
+                    extension: name.to_owned(),
+                    host: self.host.clone(),
+                    cache_dir: self.extension_dir.clone(),
+                })?;
+        }
+        self.connection
+            .execute_batch(&format!("LOAD {name}"))
+            .map_err(failed)?;
+        let (_, version) = self.status(extension)?;
+        self.loaded.retain(|loaded| loaded.extension != extension);
+        self.loaded.push(LoadedExtension { extension, version });
+        Ok(())
+    }
+
+    fn loaded_extensions(&self) -> Vec<LoadedExtension> {
+        self.loaded.clone()
+    }
+
     fn attach_ducklake(&mut self, catalog: &DuckLakeCatalog) -> Result<(), PortError> {
-        self.load_ducklake()?;
+        self.load_extension(Extension::DuckLake)?;
         let metadata = format!("ducklake:{}", catalog.metadata);
         let alias = quote_identifier(&catalog.alias);
         // sql: identifiers quoted by quote_identifier
@@ -171,11 +191,6 @@ impl DatabaseConnection for RealConnection {
             .map(|_| ())
             .map_err(failed)
     }
-}
-
-/// Quotes `identifier` for DuckDB: in double quotes, with each double quote doubled.
-fn quote_identifier(identifier: &str) -> String {
-    format!("\"{}\"", identifier.replace('"', "\"\""))
 }
 
 /// Converts a bound value into DuckDB's.

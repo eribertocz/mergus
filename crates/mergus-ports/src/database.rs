@@ -1,7 +1,10 @@
-//! The `Database` port: in-process DuckDB connections that run SQL, read and write Arrow and
-//! attach DuckLake catalogs (MG-REQ-0194).
+//! The `Database` port: in-process DuckDB connections that run SQL, read and write Arrow,
+//! attach DuckLake catalogs (MG-REQ-0194) and attach database sources read-only
+//! (MG-REQ-0196).
 
-use std::path::PathBuf;
+use std::fmt;
+use std::path::{Path, PathBuf};
+use std::time::Duration;
 
 use arrow::record_batch::RecordBatch;
 
@@ -32,6 +35,62 @@ pub struct DuckLakeCatalog {
     pub metadata: String,
     /// The directory or object-store prefix of the catalog's data files.
     pub data_path: String,
+}
+
+/// A DuckDB extension the port may install and load (MG-REQ-0194).
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum Extension {
+    /// `ducklake`, for DuckLake catalogs.
+    DuckLake,
+    /// `postgres`, for PostgreSQL sources (MG-REQ-0196.2).
+    Postgres,
+}
+
+impl Extension {
+    /// Returns the name DuckDB installs and loads the extension by.
+    #[must_use]
+    pub const fn name(self) -> &'static str {
+        match self {
+            Self::DuckLake => "ducklake",
+            Self::Postgres => "postgres",
+        }
+    }
+}
+
+/// An extension a connection loaded, with the version DuckDB reports for it
+/// (MG-REQ-0194.1).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct LoadedExtension {
+    /// The extension.
+    pub extension: Extension,
+    /// The version DuckDB reports for it once loaded.
+    pub version: String,
+}
+
+/// A PostgreSQL source to attach read-only (MG-REQ-0196.2 and MG-REQ-0196.3).
+#[derive(Clone, PartialEq, Eq)]
+pub struct PostgresSource {
+    /// The name the source is attached as.
+    pub alias: String,
+    /// The resolved connection value of the source's `connection` secret (MG-REQ-1001), a
+    /// libpq connection string or URI. It is never shown by `Debug`.
+    pub connection: String,
+    /// The source's `max_connections`.
+    pub max_connections: u32,
+    /// The source's `query_timeout`.
+    pub query_timeout: Duration,
+}
+
+impl fmt::Debug for PostgresSource {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter
+            .debug_struct("PostgresSource")
+            .field("alias", &self.alias)
+            .field("connection", &"<redacted>")
+            .field("max_connections", &self.max_connections)
+            .field("query_timeout", &self.query_timeout)
+            .finish()
+    }
 }
 
 /// Where a connection keeps its database.
@@ -94,4 +153,111 @@ pub trait DatabaseConnection: Send {
     /// cannot be downloaded, and with [`PortError::Failed`] when the catalog cannot be
     /// attached.
     fn attach_ducklake(&mut self, catalog: &DuckLakeCatalog) -> Result<(), PortError>;
+
+    /// Loads `extension`, installing it first when it is not cached, and records the version
+    /// DuckDB reports for it in [`DatabaseConnection::loaded_extensions`].
+    ///
+    /// # Errors
+    ///
+    /// Fails with [`PortError::ExtensionUnavailable`] when the extension is not cached and
+    /// cannot be downloaded, and with [`PortError::Failed`] when it cannot be loaded.
+    fn load_extension(&mut self, extension: Extension) -> Result<(), PortError>;
+
+    /// Returns the extensions this connection loaded, with their versions, in load order.
+    fn loaded_extensions(&self) -> Vec<LoadedExtension>;
+
+    /// Attaches the DuckDB file at `location` read-only, with no extension, as
+    /// `ATTACH '<location>' (READ_ONLY)` (MG-REQ-0196.1). DuckDB names it after the file
+    /// name without its extension.
+    ///
+    /// # Errors
+    ///
+    /// Fails with [`PortError::Failed`] when the path is not valid Unicode or the file cannot
+    /// be attached.
+    fn attach_duckdb_file(&mut self, location: &Path) -> Result<(), PortError> {
+        let location = location.to_str().ok_or_else(|| {
+            PortError::Failed(format!(
+                "the DuckDB file `{}` is not valid Unicode",
+                location.display()
+            ))
+        })?;
+        let params = [SqlValue::Text(location.to_owned())];
+        self.execute("ATTACH ? (READ_ONLY)", &params).map(|_| ())
+    }
+
+    /// Attaches the PostgreSQL source `source` read-only with the `postgres` extension
+    /// (MG-REQ-0196.2): sets the pool to `max_connections` connections, acquired in `wait`
+    /// mode, and the statement timeout to `query_timeout` (MG-REQ-0196.3); puts the
+    /// connection value into a temporary secret; then attaches with
+    /// `ATTACH '' AS <alias> (TYPE postgres, SECRET <secret>, READ_ONLY)`. The secret is
+    /// dropped when the attach fails.
+    ///
+    /// # Errors
+    ///
+    /// Fails with [`PortError::ExtensionUnavailable`] when the extension is not cached and
+    /// cannot be downloaded, and with [`PortError::Failed`] when a statement fails.
+    fn attach_postgres(&mut self, source: &PostgresSource) -> Result<(), PortError> {
+        self.load_extension(Extension::Postgres)?;
+        let timeout = i64::try_from(source.query_timeout.as_millis()).unwrap_or(i64::MAX);
+        let settings = [
+            (
+                "SET pg_pool_max_connections = ?",
+                SqlValue::Integer(i64::from(source.max_connections)),
+            ),
+            (
+                "SET pg_pool_acquire_mode = ?",
+                SqlValue::Text("wait".to_owned()),
+            ),
+            (
+                "SET pg_statement_timeout_millis = ?",
+                SqlValue::Integer(timeout),
+            ),
+        ];
+        for (sql, value) in settings {
+            self.execute(sql, &[value])?;
+        }
+        let alias = quote_identifier(&source.alias);
+        let secret = quote_identifier(&secret_name(&source.alias));
+        // sql: identifiers quoted by quote_identifier
+        let create = format!("CREATE TEMPORARY SECRET {secret} (TYPE postgres, URI ?)");
+        self.execute(&create, &[SqlValue::Text(source.connection.clone())])?;
+        // sql: identifiers quoted by quote_identifier
+        let attach = format!("ATTACH '' AS {alias} (TYPE postgres, SECRET {secret}, READ_ONLY)");
+        if let Err(error) = self.execute(&attach, &[]) {
+            // The attach error is the one reported; the secret is dropped on a best effort.
+            self.execute(&drop_secret(&source.alias), &[]).ok();
+            return Err(error);
+        }
+        Ok(())
+    }
+
+    /// Detaches the source attached as `alias` and drops its secret, if it has one
+    /// (MG-REQ-0196.2).
+    ///
+    /// # Errors
+    ///
+    /// Fails with [`PortError::Failed`] when nothing is attached as `alias` or the secret
+    /// cannot be dropped.
+    fn detach(&mut self, alias: &str) -> Result<(), PortError> {
+        let quoted = quote_identifier(alias);
+        self.execute(&format!("DETACH {quoted}"), &[])?;
+        self.execute(&drop_secret(alias), &[]).map(|_| ())
+    }
+}
+
+/// Returns the name of the temporary secret of the source attached as `alias`.
+fn secret_name(alias: &str) -> String {
+    format!("mergus_source_{alias}")
+}
+
+/// Returns the statement that drops the secret of the source attached as `alias`.
+fn drop_secret(alias: &str) -> String {
+    let secret = quote_identifier(&secret_name(alias));
+    // sql: identifiers quoted by quote_identifier
+    format!("DROP TEMPORARY SECRET IF EXISTS {secret}")
+}
+
+/// Quotes `identifier` for DuckDB: in double quotes, with each double quote doubled.
+pub(crate) fn quote_identifier(identifier: &str) -> String {
+    format!("\"{}\"", identifier.replace('"', "\"\""))
 }
