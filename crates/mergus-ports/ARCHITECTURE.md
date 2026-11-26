@@ -32,9 +32,10 @@ Every trait is `Send + Sync` and takes `&self`, so one value can be shared behin
 - `thiserror`: derives `PortError`.
 - `arrow` (default features off): the record batches of the `Database` port, at the version
   `duckdb` uses.
-- `duckdb` (feature `real` only; features `bundled`, `json` and `appender-arrow`, default
-  features off): the in-memory DuckDB of `RealSqlParser` (MG-REQ-0193) and the DuckDB of
-  `RealDatabase` (MG-REQ-0194). Bundles DuckDB v2.0.1, which supports DuckLake.
+- `duckdb` (feature `real` only; features `bundled`, `json`, `appender-arrow` and
+  `parquet`, default features off): the in-memory DuckDB of `RealSqlParser` (MG-REQ-0193)
+  and the DuckDB of `RealDatabase` (MG-REQ-0194). Bundles DuckDB v2.0.1, which supports
+  DuckLake, with Parquet linked in so DuckLake can write its data files.
 - `keyring` 3 (feature `real` only; default features off): `RealKeychain` on Keychain
   Services, Credential Manager and the Secret Service through `dbus`, with libdbus built from
   source (`vendored`) and pure-Rust cryptography, so no system library is needed to build.

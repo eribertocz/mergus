@@ -306,3 +306,22 @@ fn real_database_runs_sql_and_reads_and_writes_arrow() {
     let text_param = [SqlValue::Text("a'b".to_owned())];
     assert_eq!(text_with(connection.as_mut(), count, &text_param), "2");
 }
+
+#[test]
+fn real_database_writes_parquet_with_no_network() {
+    // Parquet is linked into the bundled DuckDB: no extension is installed, from a repository
+    // that cannot be reached, nor loaded.
+    let dir = scratch("parquet");
+    let file = dir.join("x.parquet");
+    let offline = database(&dir, UNREACHABLE);
+    let mut connection = offline.connect(&DatabaseLocation::InMemory).unwrap();
+    let copy = "COPY (SELECT 42 AS id) TO ? (FORMAT parquet)";
+    let path = SqlValue::Text(file.display().to_string());
+    connection
+        .execute(copy, std::slice::from_ref(&path))
+        .unwrap();
+    assert!(file.is_file());
+    let read = "SELECT id::VARCHAR FROM read_parquet(?)";
+    assert_eq!(text_with(connection.as_mut(), read, &[path]), "42");
+    assert!(connection.loaded_extensions().is_empty());
+}
