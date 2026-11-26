@@ -80,8 +80,9 @@ returns trees recorded from the real one.
 Crates other than `mergus-ports` MUST NOT depend on the `duckdb` crate; they reach DuckDB
 through the `Database` port (MG-REQ-0186). Its real implementation MUST disable the automatic
 installing and loading of extensions, MUST NOT allow unsigned extensions, and MAY install and
-load only the `ducklake` extension and the scanner extensions of MG-REQ-0196 (`postgres` in
-phase 0.3; `mysql` and `sqlite` in phase 0.8):
+load only the `ducklake` extension, `httpfs` when DuckLake's encrypted mode needs it to write
+(MG-REQ-0515), and the scanner extensions of MG-REQ-0196 (`postgres` in phase 0.3; `mysql`
+and `sqlite` in phase 0.8):
 
 1. MG-REQ-0194.1: at the build that matches the DuckDB of the release's `duckdb` crate and the
    platform, from `extensions.duckdb.org`, with DuckDB's signature check; the version DuckDB
@@ -98,7 +99,7 @@ simulated `SqlParser` does, and injects the faults of `architecture/testing.md`.
 - Verify: test `mg_req_0194_ducklake_extension_pinned_and_cached`
 - Phase: 0.3
 - Depends: MG-REQ-0186
-- Decision: 0032, 0040
+- Decision: 0032, 0040, 0041
 
 ### MG-REQ-0195 · ADBC drivers are pinned, verified and cached
 
