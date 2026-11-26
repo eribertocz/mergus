@@ -9,7 +9,7 @@
 | `Capabilities` | What an adapter declares; the default declares nothing |
 | `Versioning`, `WriteMode` | Parts of the declaration |
 | `VersionRef` | The storage's name of one data version, returned by `commit` |
-| `PinRecipe` | How to read a version pinned, stored in the manifest |
+| `PinRecipe` | How to read a table pinned at a version, stored in the manifest (MG-REQ-0298) |
 | `Retention` | The live versions and the rollback window `expire` must keep |
 | `Requirement`, `check_capabilities` | What a run needs, and the check of MG-REQ-0287 |
 | `AdapterError`, `CapabilityError` | The failure of an operation; the undeclared needs |
@@ -19,7 +19,7 @@
 1. A caller reads `capabilities` and lists its `Requirement`s.
 2. `check_capabilities` refuses any requirement not declared, before data is extracted.
 3. The caller `write`s one `BatchStream` per table, then `commit`s and gets a `VersionRef`.
-4. `pin_recipe` describes that version for the manifest; `read_at` reads a table at it.
+4. `pin_recipe` describes a table at that version for the manifest; `read_at` reads a table at it.
 5. `expire` deletes old versions, keeping those of `Retention`.
 
 ## Dependencies

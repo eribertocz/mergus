@@ -44,8 +44,8 @@ impl StorageAdapter for Memory {
         Ok(VersionRef::new(self.committed.len().to_string()))
     }
 
-    fn pin_recipe(&self, version: &VersionRef) -> Result<PinRecipe, AdapterError> {
-        Ok(PinRecipe::new(format!("snapshot {}", version.as_str())))
+    fn pin_recipe(&self, table: &str, version: &VersionRef) -> Result<PinRecipe, AdapterError> {
+        Ok(PinRecipe::new(format!("{table} at {}", version.as_str())))
     }
 
     fn read_at(&self, table: &str, _version: &VersionRef) -> Result<BatchStream, AdapterError> {
@@ -94,7 +94,10 @@ fn mg_req_0285_adapter_trait_has_six_operations() {
         .write("orders", WriteMode::Append, stream(vec![1, 2, 3]))
         .unwrap();
     let version = adapter.commit().unwrap();
-    assert_eq!(adapter.pin_recipe(&version).unwrap().as_str(), "snapshot 1");
+    assert_eq!(
+        adapter.pin_recipe("orders", &version).unwrap().as_str(),
+        "orders at 1"
+    );
     let rows: usize = adapter
         .read_at("orders", &version)
         .unwrap()

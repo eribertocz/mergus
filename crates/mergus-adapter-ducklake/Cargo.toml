@@ -12,8 +12,13 @@ description = "DuckLake storage adapter."
 # are needed, so default features stay off. The version is the one of `mergus-adapter`.
 arrow = { version = "60.2.0", default-features = false }
 mergus-adapter = { path = "../mergus-adapter" }
+# The pin recipe is canonical JSON (MG-REQ-0298, MG-REQ-0208); `mergus-contracts` is layer 0.
+mergus-contracts = { path = "../mergus-contracts" }
 # DuckDB and the clock are reached only through the ports (MG-REQ-0194).
 mergus-ports = { path = "../mergus-ports" }
+# Builds the pin recipe object that `canonical_json` serializes; the version of
+# `mergus-contracts`.
+serde_json = "1.0.154"
 thiserror = "2.0.21"
 
 [lints]

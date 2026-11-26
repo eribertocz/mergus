@@ -15,6 +15,13 @@
 //! [`attach_duckdb_file`] and [`attach_postgres`] attach a database source read-only through
 //! the `Database` port (MG-REQ-0421, MG-REQ-0196) and identify the engine that answers before
 //! any data is read (MG-REQ-0410).
+//!
+//! [`declared_tables`] lists the tables a source declares, the only ones extracted
+//! (MG-REQ-0402), and [`DeclaredTable::raw`] names the raw tables each lands in
+//! (MG-REQ-0403). [`read_table`] reads one table in chunks, with the caller's projection and
+//! incremental mark pushed down (MG-REQ-0404), completely when it has no `incremental`
+//! (MG-REQ-0411), and by keyset pagination when chunks are asked (MG-REQ-0417);
+//! [`extract_source`] reads every declared table of a source.
 
 #![forbid(unsafe_code)]
 
@@ -22,6 +29,8 @@ mod check;
 mod engine;
 mod kind;
 mod problem;
+mod read;
+mod table;
 
 pub use check::check_sources;
 pub use engine::{
@@ -30,3 +39,5 @@ pub use engine::{
 };
 pub use kind::{Mode, SourceKind};
 pub use problem::{Severity, SourceProblem};
+pub use read::{Projection, ReadOptions, TableExtraction, TableReader, extract_source, read_table};
+pub use table::{DeclaredTable, RawTables, declared_tables};

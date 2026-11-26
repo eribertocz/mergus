@@ -33,12 +33,14 @@ pub trait StorageAdapter: Send {
     /// Returns an [`AdapterError`] when the storage cannot commit.
     fn commit(&mut self) -> Result<VersionRef, AdapterError>;
 
-    /// Describes how to read `version` pinned. The recipe is stored in the manifest.
+    /// Describes how to read `table` pinned at `version`. The recipe is stored in the
+    /// manifest: the canonical JSON of exactly `format`, `table` and `version`, never a
+    /// location, a credential or a secret value (MG-REQ-0298).
     ///
     /// # Errors
     ///
     /// Returns an [`AdapterError`] when the version is unknown to the storage.
-    fn pin_recipe(&self, version: &VersionRef) -> Result<PinRecipe, AdapterError>;
+    fn pin_recipe(&self, table: &str, version: &VersionRef) -> Result<PinRecipe, AdapterError>;
 
     /// Reads `table` as it was at `version`, for checks, summaries and comparisons.
     ///

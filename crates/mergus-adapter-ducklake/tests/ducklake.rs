@@ -314,3 +314,26 @@ fn open_attaches_the_catalog_and_declares_its_capabilities() {
     assert!(capabilities.multi_table_transactions);
     assert!(capabilities.exact_types.contains(&DataType::Int64));
 }
+
+#[test]
+fn mg_req_0298_pin_recipe_is_structured() {
+    let database = Logged::new();
+    record_published(&database.inner, 42, vec![1]);
+    let adapter = DuckLakeAdapter::open(&database, &catalog(), clock(0)).unwrap();
+
+    // The canonical JSON of exactly `format`, `table` and `version`, the snapshot id in decimal.
+    let recipe = adapter
+        .pin_recipe("orders", &VersionRef::new("42"))
+        .unwrap();
+    assert_eq!(
+        recipe.as_str(),
+        r#"{"format":"ducklake","table":"orders","version":"42"}"#
+    );
+    // No catalog location: neither the metadata file nor the data path.
+    assert!(!recipe.as_str().contains("metadata.ducklake"));
+    assert!(!recipe.as_str().contains("data/"));
+
+    // An unknown snapshot has no recipe.
+    let unknown = adapter.pin_recipe("orders", &VersionRef::new("7"));
+    assert!(unknown.is_err());
+}
