@@ -9,8 +9,11 @@ use mergus_contracts::generated::mergus_events_v1::Step as EventStep;
 use mergus_contracts::generated::mergus_plan_v1::{StepAction, StepReason};
 use mergus_plan::{Plan, PlanModel, PlanRequest};
 use mergus_ports::{FileSystem, PortError};
+use mergus_project::Source;
+use mergus_source::{SourceCare, TableImpact, source_impact};
 
 use crate::args::Invocation;
+use crate::care::attach;
 use crate::commands::{EXCLUDE, MAX_PARALLEL, SELECTION};
 use crate::diagnostic::Diagnostic;
 use crate::error::CliError;
@@ -68,8 +71,35 @@ pub(crate) fn plan(
         .map_err(|error| CliError::Internal(error.to_string()))?;
     let relative = write(ports.files, &project.root, &plan)?;
     output.plan_ready(steps(&plan))?;
-    output.report(&summary(&plan, &relative))?;
+    let mut text = summary(&plan, &relative);
+    for source in &project.configuration.sources {
+        for impact in impacts(ports, &project.root, source) {
+            let _ = writeln!(text, "{impact}");
+        }
+    }
+    output.report(&text)?;
     Ok(Vec::new())
+}
+
+/// What reading each table of `source` costs it (MG-REQ-0432). A source that cannot be
+/// attached, or whose estimates cannot be read, shows them as unknown: `plan` reads nothing
+/// from it and fails for none. A `connect` or `live` source is read by no extraction and
+/// shows nothing.
+fn impacts(ports: &Ports<'_>, root: &Path, source: &Source) -> Vec<TableImpact> {
+    let mode = source.file.value.get("mode").and_then(|mode| mode.as_str());
+    if mode.is_some_and(|mode| mode != "copy") {
+        return Vec::new();
+    }
+    let care = SourceCare::of(source, ENVIRONMENT);
+    let mut attached = attach(ports, root, source, &care).ok().flatten();
+    let known = source_impact(attached.as_mut(), source, &care);
+    if let Some(attached) = &mut attached {
+        // Only the estimates are wanted; the detach is a best effort.
+        attached.connection.detach(&attached.alias).ok();
+    }
+    known
+        .or_else(|_| source_impact(None, source, &care))
+        .unwrap_or_default()
 }
 
 /// Writes `plan` to `.mergus/plans/<plan_id>.json` under `root`, unless a file of that name
