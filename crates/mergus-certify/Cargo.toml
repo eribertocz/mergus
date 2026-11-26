@@ -1,0 +1,26 @@
+[package]
+name = "mergus-certify"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+description = "Conformance kit every storage adapter must pass."
+
+[dependencies]
+# The kit writes and reads Arrow record batches through the adapter contract; only the array
+# and schema types are needed, so default features stay off. The version is the one of
+# `mergus-adapter`.
+arrow = { version = "60.2.0", default-features = false }
+mergus-adapter = { path = "../mergus-adapter" }
+
+[lints]
+workspace = true
+
+# The kit runs on the DuckLake adapter over the real `Database`; crash points come from the
+# simulated `Database`'s faults. Dev-dependencies are ignored for layers (MG-REQ-0126.2) and
+# never linked into other crates (MG-REQ-0126.5, MG-REQ-0126.8).
+[dev-dependencies]
+mergus-adapter-ducklake = { path = "../mergus-adapter-ducklake" }
+mergus-ports = { path = "../mergus-ports", features = ["real"] }
+mergus-sim = { path = "../mergus-sim" }
