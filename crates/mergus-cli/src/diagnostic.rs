@@ -2,6 +2,7 @@
 //! (MG-REQ-1324, MG-REQ-1334).
 
 use mergus_project::ProjectError;
+use mergus_runtime::StorageProblem;
 use mergus_security::StoreError;
 use mergus_source::{Severity, SourceProblem};
 
@@ -76,6 +77,24 @@ impl Diagnostic {
         Self {
             code: problem.code(),
             warning: problem.severity() == Severity::Warning,
+            message: problem.to_string(),
+            location: Some(Location {
+                file: problem.path().to_owned(),
+                line: Some(problem.line()),
+                column: None,
+            }),
+            hint: None,
+            next: Vec::new(),
+            source: None,
+        }
+    }
+
+    /// The diagnostic of a problem of the storage of the zones of `mergus-runtime`, located
+    /// at its file and line (MG-REQ-0501).
+    pub(crate) fn of_storage(problem: &StorageProblem) -> Self {
+        Self {
+            code: problem.code(),
+            warning: false,
             message: problem.to_string(),
             location: Some(Location {
                 file: problem.path().to_owned(),

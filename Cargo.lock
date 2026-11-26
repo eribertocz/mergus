@@ -1392,6 +1392,7 @@ dependencies = [
  "mergus-plan",
  "mergus-ports",
  "mergus-project",
+ "mergus-runtime",
  "mergus-security",
  "mergus-sim",
  "mergus-source",
