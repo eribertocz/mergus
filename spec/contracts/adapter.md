@@ -18,7 +18,7 @@ storage is behind it. The contract is a public Rust trait in `mergus-adapter`, p
 | `capabilities` | Declares: versioning (native, by files, none), multi-table transactions, concurrent clients, exactly stored types, write modes |
 | `write` | Receives an Arrow stream for one table and a mode: append, replace, replace period, merge by key |
 | `commit` | Commits everything written and returns the data version reference |
-| `pin_recipe` | For a version reference, describes how to read it pinned; stored in the manifest |
+| `pin_recipe` | For a table and a version reference, describes how to read that table pinned at that version (MG-REQ-0298); stored in the manifest |
 | `read_at` | Reads a table at a version, for checks, summaries and comparisons |
 | `expire` | Deletes old versions, never one referenced by a live manifest or inside the rollback window |
 
