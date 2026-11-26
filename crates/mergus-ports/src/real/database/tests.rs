@@ -1,7 +1,8 @@
-//! Tests of the real `Database` (MG-REQ-0194, MG-REQ-0196). They never use the network nor a
-//! database server: a missing extension is installed from an unreachable repository, and a
-//! download is covered by a local repository holding the extension of the user cache, when it
-//! is already cached.
+//! Tests of the real `Database` (MG-REQ-0194, MG-REQ-0196). They never use a database server.
+//! A missing extension is installed from an unreachable repository, and a download is covered
+//! by a local repository holding the extension of the user cache. Only in CI (the variable
+//! `CI` set) is an extension missing from the user cache first installed there from
+//! `extensions.duckdb.org`; elsewhere those parts are skipped.
 
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -69,14 +70,18 @@ fn cached_extension(
 }
 
 /// Returns a user cache that got `extension` from a local repository holding the signed
-/// extension of the real user cache, and the path of the extension under it; `None` when the
-/// real user cache does not hold it.
+/// extension of the real user cache, and the path of the extension under it. When the real
+/// user cache does not hold it, CI (the variable `CI` set) first installs it there from
+/// `extensions.duckdb.org`, so a failed install fails the test; elsewhere it returns `None`.
 fn downloaded(extension: Extension) -> Option<(PathBuf, PathBuf)> {
     let real = RealDatabase::new(&RealEnvironment.cache_dir()?);
     let mut probe = real.connect(&DatabaseLocation::InMemory).unwrap();
     let cached = cached_extension(probe.as_mut(), real.extension_dir(), extension);
     if !cached.is_file() {
-        return None;
+        // Outside CI, skip.
+        std::env::var_os("CI")?;
+        probe.load_extension(extension).unwrap();
+        assert!(cached.is_file(), "{}", cached.display());
     }
     let repository = scratch("repository");
     let relative = cached.strip_prefix(real.extension_dir()).unwrap();
@@ -268,8 +273,16 @@ fn postgres_without_server() {
     let offline = database(&user_cache, UNREACHABLE);
     let mut connection = offline.connect(&DatabaseLocation::InMemory).unwrap();
     let value = "host=/nonexistent/mergus dbname=crm password=hunter2";
+    // The error is the attach's failure to reach the server, so the settings and the secret
+    // were accepted with their bound values.
     let error = connection.attach_postgres(&crm(value)).unwrap_err();
-    assert!(!error.to_string().contains("hunter2"), "{error}");
+    let message = error.to_string();
+    assert!(matches!(error, PortError::Failed(_)), "{error:?}");
+    assert!(
+        message.contains("IO Error: Unable to connect to Postgres"),
+        "{message}"
+    );
+    assert!(!message.contains("hunter2"), "{message}");
     for (setting, expected) in [
         ("pg_pool_max_connections", "3"),
         ("pg_pool_acquire_mode", "wait"),
