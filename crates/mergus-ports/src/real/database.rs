@@ -157,6 +157,25 @@ impl DatabaseConnection for RealConnection {
         Ok(batches)
     }
 
+    /// Runs the statement with DuckDB's streaming execution (`stream_arrow`), so that DuckDB
+    /// produces each batch only when the one before it has been handled, and a fetch error is
+    /// returned, never a panic.
+    fn query_arrow_each(
+        &mut self,
+        sql: &str,
+        params: &[SqlValue],
+        each: &mut dyn FnMut(RecordBatch) -> Result<(), PortError>,
+    ) -> Result<(), PortError> {
+        let mut statement = self.connection.prepare(sql).map_err(failed)?;
+        let batches = statement
+            .stream_arrow(duckdb::params_from_iter(params.iter().map(value)))
+            .map_err(failed)?;
+        for batch in batches {
+            each(batch.map_err(failed)?)?;
+        }
+        Ok(())
+    }
+
     /// Binds `sql` with `params` under `DESCRIBE`, which gives the names and types of its
     /// result and runs none of it.
     fn describe(&mut self, sql: &str, params: &[SqlValue]) -> Result<Vec<ResultColumn>, PortError> {

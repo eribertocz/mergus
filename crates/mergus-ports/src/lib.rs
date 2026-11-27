@@ -39,7 +39,7 @@ pub use database::{
 };
 pub use environment::Environment;
 pub use error::PortError;
-pub use file_system::FileSystem;
+pub use file_system::{FileSystem, SeekRead};
 pub use keychain::Keychain;
 pub use macros::{CatalogMacro, MacroRun};
 pub use network::{Connection, HttpRequest, HttpResponse, Network};

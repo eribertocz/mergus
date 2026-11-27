@@ -170,6 +170,30 @@ pub trait DatabaseConnection: Send {
         params: &[SqlValue],
     ) -> Result<Vec<RecordBatch>, PortError>;
 
+    /// Runs the query `sql` with `params` bound to its parameters, and calls `each` with each
+    /// Arrow record batch of its rows, in order, as the database produces them, so that the
+    /// caller never holds more than one batch. It stops at the first error of `each`.
+    ///
+    /// The default collects the rows with [`DatabaseConnection::query_arrow`] first; the real
+    /// and simulated databases stream them. A connection that wraps another must forward this
+    /// method, or it collects.
+    ///
+    /// # Errors
+    ///
+    /// Fails with [`PortError::Failed`] when the query fails, and with the error of `each`
+    /// when it fails.
+    fn query_arrow_each(
+        &mut self,
+        sql: &str,
+        params: &[SqlValue],
+        each: &mut dyn FnMut(RecordBatch) -> Result<(), PortError>,
+    ) -> Result<(), PortError> {
+        for batch in self.query_arrow(sql, params)? {
+            each(batch)?;
+        }
+        Ok(())
+    }
+
     /// Returns the columns of the result of the query `sql` with `params` bound to its
     /// parameters, as DuckDB binds it, without running it, so no data is read
     /// (MG-REQ-0604).
