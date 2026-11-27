@@ -17,6 +17,7 @@ mod network;
 mod object_store;
 mod process;
 mod random;
+mod session;
 mod source;
 mod sql_parser;
 
