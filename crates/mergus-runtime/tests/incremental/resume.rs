@@ -119,17 +119,17 @@ fn run(options: &serde_json::Value, crash: Option<(usize, usize)>) -> World {
 }
 
 /// One row of `__changes` or of the current table, its load told by its rank in `ops.loads`.
-type Seen = (i64, i64, bool, usize, bool);
+pub type Seen = (i64, i64, bool, usize, bool);
 
 /// The rows of `__changes`, of the current table, and each load's watermark, whether it
 /// compared and its rows read.
-type Snapshot = (Vec<Seen>, Vec<Seen>, Vec<(Option<String>, bool, i64)>);
+pub type Snapshot = (Vec<Seen>, Vec<Seen>, Vec<(Option<String>, bool, i64)>);
 
 #[cfg(test)]
 /// What readers see of `world`: every row with the rank of its load and whether
 /// `_deleted_at` is its load's `_extracted_at` exactly for deletes, then each load's
 /// `watermark_after` and whether it compared.
-fn snapshot(world: &World) -> Snapshot {
+pub fn snapshot(world: &World) -> Snapshot {
     let registry = world.registry();
     let ids = texts(&registry, "load_id");
     let rank = |id: &Option<String>| ids.iter().position(|known| known == id).unwrap();

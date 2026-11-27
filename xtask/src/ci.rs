@@ -9,16 +9,17 @@ use std::path::Path;
 use std::process::{Command, ExitCode};
 
 use crate::failure::Failure;
-use crate::{cargo, traceability, workspace};
+use crate::{cargo, simulation, traceability, workspace};
 
 /// The steps, in the order they run.
-pub(crate) const STEPS: [&str; 19] = [
+pub(crate) const STEPS: [&str; 20] = [
     "fmt",
     "contracts-generated",
     "clippy",
     "unsafe",
     "missing-docs",
     "test",
+    "simulation",
     "check-boundaries",
     "language",
     "size",
@@ -67,6 +68,10 @@ fn run_step(root: &Path, step: &str) -> Result<ExitCode, Failure> {
             &["test", "--workspace", "--all-targets", "--locked"],
             &[],
         ),
+        "simulation" => simulation::run(&[
+            "--seeds".to_owned(),
+            simulation::PULL_REQUEST_SEEDS.to_string(),
+        ]),
         "cargo-deny" => cargo::run(root, &["deny", "check"], &[]),
         "spec-check" => spec_check(root),
         "traceability" => return traceability::run(&[]),
@@ -224,6 +229,16 @@ mod tests {
         let root = workspace::root().unwrap();
         let justfile = workspace::read(&root.join("justfile")).unwrap();
         assert!(justfile.contains("\nerror-catalog:\n    cargo xtask error-catalog\n"));
+    }
+
+    #[test]
+    fn mg_req_0198_ci_runs_the_simulation_after_the_tests() {
+        let position = |step: &str| STEPS.iter().position(|other| *other == step);
+        assert_eq!(
+            position("simulation"),
+            position("test").map(|index| index + 1)
+        );
+        assert_eq!(crate::simulation::PULL_REQUEST_SEEDS, 1_000);
     }
 
     #[test]
