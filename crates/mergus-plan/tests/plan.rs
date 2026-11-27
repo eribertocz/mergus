@@ -184,7 +184,7 @@ const STEP_FIELDS: [&str; 8] = [
 fn mg_req_0742_plan_contract_fields() {
     assert_eq!(
         (MergusPlan::NAME, MergusPlan::SEMANTIC_VERSION),
-        ("mergus_plan", "1.0.0")
+        ("mergus_plan", "1.1.0")
     );
     // The generated type includes `schemas/mergus_plan/v1/schema.json`.
     let schema: Value = serde_json::from_str(MergusPlan::SCHEMA).unwrap();
