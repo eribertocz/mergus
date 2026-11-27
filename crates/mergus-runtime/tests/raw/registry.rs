@@ -33,6 +33,7 @@ pub(super) fn marks(before: Option<&str>, after: Option<&str>) -> Watermarks {
     Watermarks {
         before: before.map(str::to_owned),
         after: after.map(str::to_owned),
+        deletes_checked_at: None,
     }
 }
 
@@ -129,7 +130,8 @@ fn assert_three_loads(loads: &RecordBatch) {
     );
 }
 
-/// MG-REQ-0514: the columns of `ops.loads`, in order, with their types.
+/// MG-REQ-0514: the columns of `ops.loads`, in order, with their types; `deletes_checked_at`
+/// is MG-REQ-0415.3's.
 #[cfg(test)]
 fn assert_loads_schema(loads: &RecordBatch) {
     let schema = loads.schema();
@@ -152,6 +154,7 @@ fn assert_loads_schema(loads: &RecordBatch) {
             ("duration_ms", DataType::Int64),
             ("result", DataType::Utf8),
             ("error_code", DataType::Utf8),
+            ("deletes_checked_at", utc()),
         ]
     );
 }

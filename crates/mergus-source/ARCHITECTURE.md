@@ -30,6 +30,11 @@
 | `breaking_changes`, `ColumnChange` | The dropped, renamed or retyped columns since the last load (MG-REQ-0407) |
 | `SchemaChange` | A table stopped by breaking changes (`MG-0405`) |
 | `extract_source_timed`, `SourceExtraction`, `TableRead` | A source read with its changes checked and each table's read times and spread (MG-REQ-0419) |
+| `load_options`, `LoadOptions`, `DeletePolicy`, `DeleteCheck` | A table's `overlap`, `deletes`, `delete_check` and `delete_window` |
+| `IncrementalReader`, `Start`, `Chunk` | An incremental read whose position moves on commit (MG-REQ-0412, MG-REQ-0413, MG-REQ-0418) |
+| `IncrementalReader::watermark`, `Temporal` | The watermark of committed rows in DuckDB's text (MG-REQ-0412.1, MG-REQ-0413) |
+| `Comparison` | The deletes and very late rows a `compare` found (MG-REQ-0415.3, MG-REQ-0420) |
+| `ExtractError`, `LateRows` | `MG-0411`, a missing delete column, `MG-0413`, and the `MG-0412` warning |
 
 ## Data flow
 
@@ -115,6 +120,22 @@
 4. `extract_source` reads the same tables without the check and the times; a run extracts
    with `extract_source_timed`.
 
+## Incremental reads
+
+1. `IncrementalReader::open` reads the columns with `DESCRIBE`; a missing `column:<name>`
+   stops it with `MG-0411`, an unrunnable `compare` or `delete_window` with `MG-0413`.
+2. The start of the reads is computed in Rust: `Temporal` parses the watermark, subtracts
+   the overlap (whole days, rounded up, from a `DATE`) and writes DuckDB's text, bound as
+   `>= ?`. Other types are bound as the watermark itself.
+3. `next_chunk` reads from the committed position; `committed` moves it. A chunk shorter
+   than the chunk size is the last.
+4. `watermark` takes the largest value in Arrow's row format, skipping NULL, and asks DuckDB
+   `SELECT CAST(COALESCE((SELECT <col> FROM <table> WHERE false), ?) AS VARCHAR)`: the bound
+   text is cast to the column's type with no type name in the SQL.
+5. `compare` sends `SELECT <key>, <incremental>`, with `>= now − delete_window` for a
+   temporal column, and compares keys in Arrow's row format: raw rows the source lacks are
+   deletes; source rows raw lacks, older than the start of the reads, are very late rows.
+
 ## Dependencies
 
 - `mergus-ports`: the `FileSystem`, `Database` and `Clock` ports and `PortError`.
@@ -123,4 +144,6 @@
   `key_line`, the line of a key, so that this crate parses no TOML (MG-REQ-0186).
 - `serde_json`: the JSON values of those files.
 - `thiserror`: derives `SourceProblem`.
-- `mergus-sim`, as a dev-dependency only: the in-memory file system of the tests.
+- `mergus-sim`, as a dev-dependency only: the in-memory file system and the simulated
+  `Database` of the tests. `mergus-ports` with `real`, as a dev-dependency only: the real
+  DuckDB the text of watermarks is checked against.

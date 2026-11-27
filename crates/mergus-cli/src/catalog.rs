@@ -2,7 +2,7 @@
 //! retryable, the hint and the cause of every code (MG-REQ-0008, MG-REQ-1334, MG-REQ-1346).
 
 /// The text of every catalog file, by code.
-const FILES: [(&str, &str); 48] = [
+const FILES: [(&str, &str); 51] = [
     ("MG-0301", include_str!("../errors/MG-0301.md")),
     ("MG-0302", include_str!("../errors/MG-0302.md")),
     ("MG-0303", include_str!("../errors/MG-0303.md")),
@@ -28,6 +28,9 @@ const FILES: [(&str, &str); 48] = [
     ("MG-0408", include_str!("../errors/MG-0408.md")),
     ("MG-0409", include_str!("../errors/MG-0409.md")),
     ("MG-0410", include_str!("../errors/MG-0410.md")),
+    ("MG-0411", include_str!("../errors/MG-0411.md")),
+    ("MG-0412", include_str!("../errors/MG-0412.md")),
+    ("MG-0413", include_str!("../errors/MG-0413.md")),
     ("MG-0501", include_str!("../errors/MG-0501.md")),
     ("MG-0502", include_str!("../errors/MG-0502.md")),
     ("MG-0503", include_str!("../errors/MG-0503.md")),

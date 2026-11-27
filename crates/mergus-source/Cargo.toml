@@ -17,5 +17,7 @@ thiserror = "2.0.21"
 [lints]
 workspace = true
 
+# The real `Database` checks that incremental values are written as DuckDB writes them.
 [dev-dependencies]
+mergus-ports = { path = "../mergus-ports", features = ["real"] }
 mergus-sim = { path = "../mergus-sim" }

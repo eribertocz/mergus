@@ -1,19 +1,23 @@
 //! One load of a declared table, recorded in the load registry (MG-REQ-0514, MG-REQ-0517).
 
 use mergus_adapter::{StorageAdapter, VersionRef};
-use mergus_ports::Clock;
+use mergus_ports::{Clock, Timestamp};
 
 use crate::registry::{LoadMode, LoadRecord, LoadResult, micros, record_load};
 use crate::{RawError, RawLoad, write_raw};
 
 /// The watermarks of a load: the incremental column's value it started from and the one it
-/// reached, in text. Both are `None` for a table without `incremental`.
+/// reached, in text. Both are `None` for a table without `incremental`. With them, when the
+/// last `compare` of the table ran.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct Watermarks {
     /// `watermark_before`: `None` for a first load.
     pub before: Option<String>,
     /// `watermark_after`.
     pub after: Option<String>,
+    /// `deletes_checked_at`: the load's `_extracted_at` when it ran a `compare`, else `None`
+    /// (MG-REQ-0415.3).
+    pub deletes_checked_at: Option<Timestamp>,
 }
 
 /// Writes `load` into raw through `raw` with [`write_raw`], then records it in `ops.loads`
@@ -92,7 +96,7 @@ pub fn load_raw_off_failed(
 
 /// How a load ended, for its row of `ops.loads`.
 #[derive(Clone, Copy)]
-enum Outcome<'a> {
+pub(crate) enum Outcome<'a> {
     /// It was written.
     Ok,
     /// It failed, with the `MG-####` code of its error.
@@ -101,7 +105,7 @@ enum Outcome<'a> {
 
 /// The row of `ops.loads` of `load`, read in `mode`, ending now by `clock`. A failed load has
 /// 0 rows and keeps its `watermark_before` (MG-REQ-0514.1).
-fn record(
+pub(crate) fn record(
     clock: &dyn Clock,
     load: &RawLoad,
     mode: LoadMode,
@@ -136,5 +140,6 @@ fn record(
         duration_ms: elapsed.max(0) / 1_000,
         result,
         error_code,
+        deletes_checked_at: watermarks.deletes_checked_at,
     }
 }

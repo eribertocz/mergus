@@ -31,6 +31,7 @@ fn row(id: &str, at: i64, after: &str) -> LoadRecord {
         duration_ms: 0,
         result: LoadResult::Ok,
         error_code: None,
+        deletes_checked_at: None,
     }
 }
 

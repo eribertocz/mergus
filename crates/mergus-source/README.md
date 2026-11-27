@@ -84,6 +84,26 @@ Extract from databases (ADBC) and files.
     `MG-0408`, an error (`InspectError`); one that `plan` cannot reach or read is `MG-0409`,
     a warning (`ImpactUnknown`) with the reason, and its tables show `unknown`
     (MG-REQ-0432.2).
+- Reads an incremental table chunk by chunk with `IncrementalReader`, whose position moves
+  past a chunk only when the caller says it committed it (MG-REQ-0413, MG-REQ-0418). With
+  the watermark of the last load, the read starts at `watermark − overlap` for a `DATE`,
+  `TIMESTAMP` (read as UTC) or `TIMESTAMPTZ` column, the overlap counted in whole days rounded
+  up for a `DATE`, and at the watermark for any other (MG-REQ-0412.2); the overlap is the
+  table's, else the source's, else `1h`. A resumed read
+  starts after the key the caller gives (MG-REQ-0418.2). `IncrementalReader::watermark`
+  gives the largest non-NULL incremental value of committed rows in the text DuckDB itself
+  gives for `CAST(value AS VARCHAR)`, asked through the port (MG-REQ-0412.1, MG-REQ-0413).
+- Detects deletes as declared (MG-REQ-0415): `column:<name>` splits each chunk into kept and
+  deleted rows, `true` or any non-NULL value of a non-boolean column being a delete, and a
+  source without the column is `MG-0411`, before any row is read; `compare` reads the key and
+  incremental columns of the source, within `delete_window` back from the load's start, when
+  `delete_check` is due, and returns the raw rows whose key is gone; `none`, or no `deletes`,
+  detects nothing. `compare` without `key`, and `delete_window` without `incremental`, are
+  `MG-0413` errors of `mergus validate`; a `delete_window` whose incremental column is not a
+  date or time is `MG-0413` when the table is read (MG-REQ-0415.4).
+- Reports, from a `compare`, the source rows missing from raw whose incremental value is
+  older than `watermark − overlap`, with the `MG-0412` warning and the suggested
+  `mergus backfill` command (MG-REQ-0420). They are counted, not loaded.
 
 ## What it does not
 
@@ -94,3 +114,6 @@ Extract from databases (ADBC) and files.
 - It does not store the columns of the last load, nor show the spread: the caller keeps the
   columns each read returns, and the run report shows the spread.
 - It writes nothing and prints nothing: `mergus validate` reports its problems.
+- It does not commit chunks, drop re-read rows that did not change, or store the watermark:
+  `mergus-runtime` does, through the storage adapters.
+- It runs no `mergus backfill`: the command comes with backfill of raw in a later phase.

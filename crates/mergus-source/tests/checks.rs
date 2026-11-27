@@ -86,7 +86,7 @@ fn mg_req_0401_source_kind_required() {
 #[test]
 fn mg_req_0414_incremental_requires_key() {
     let without =
-        format!("{DATABASE}[tables.sales]\nincremental = \"updated_at\"\ndeletes = \"compare\"\n");
+        format!("{DATABASE}[tables.sales]\nincremental = \"updated_at\"\ndeletes = \"none\"\n");
     let problems = check(&without).unwrap();
     assert_eq!(problems.len(), 1, "{problems:?}");
     assert_eq!(problems[0].code(), "MG-0401");
@@ -106,7 +106,7 @@ fn mg_req_0414_incremental_requires_key() {
          deletes = \"compare\"\n"
     );
     assert_eq!(found(&keyed), []);
-    let full_load = format!("{DATABASE}[tables.sales]\ndeletes = \"compare\"\n");
+    let full_load = format!("{DATABASE}[tables.sales]\ndeletes = \"none\"\n");
     assert_eq!(found(&full_load), []);
     let inline = format!(
         "{DATABASE}tables = {{ sales = {{ incremental = \"at\", deletes = \"none\" }} }}\n"
@@ -303,4 +303,44 @@ fn copy_reads_postgresql_or_duckdb() {
         found("kind = \"rest\"\nengine = \"duckdb\"\n"),
         rejected(2, "engine")
     );
+}
+
+#[test]
+fn mg_req_0415_unrunnable_deletes_refused() {
+    let source = format!(
+        "{DATABASE}[tables.sales]\ndeletes = \"compare\"\n\
+         [tables.lines]\nkey = \"id\"\ndelete_window = \"7d\"\n"
+    );
+    let problems = check(&source).unwrap();
+    let summary: Vec<_> = problems
+        .iter()
+        .map(|p| (p.code(), p.severity(), p.line(), p.key()))
+        .collect();
+    assert_eq!(
+        summary,
+        [
+            (
+                "MG-0413",
+                Severity::Error,
+                5,
+                "tables.sales.deletes".to_owned()
+            ),
+            (
+                "MG-0413",
+                Severity::Error,
+                8,
+                "tables.lines.delete_window".to_owned()
+            ),
+        ]
+    );
+    assert_eq!(
+        problems[0].to_string(),
+        "`sources/erp.toml` line 5: table `sales` of source `erp` declares `deletes` but no \
+         `key`; `compare` compares the keys of the source with raw"
+    );
+    let runnable = format!(
+        "{DATABASE}[tables.sales]\nkey = \"id\"\nincremental = \"at\"\ndeletes = \"compare\"\n\
+         delete_window = \"7d\"\n"
+    );
+    assert_eq!(found(&runnable), []);
 }

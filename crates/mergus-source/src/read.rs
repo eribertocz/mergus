@@ -171,7 +171,7 @@ impl TableReader<'_> {
 }
 
 /// The statement of one read of `table` attached as `alias`, with its parameters.
-fn statement(
+pub(crate) fn statement(
     table: &DeclaredTable,
     options: &ReadOptions,
     alias: &str,
@@ -243,7 +243,10 @@ fn select_list(table: &DeclaredTable, projection: &Projection) -> String {
 }
 
 /// The key of the last row of `batches`, one bound value per key column.
-fn last_key(batches: &[RecordBatch], key: &[String]) -> Result<Vec<SqlValue>, PortError> {
+pub(crate) fn last_key(
+    batches: &[RecordBatch],
+    key: &[String],
+) -> Result<Vec<SqlValue>, PortError> {
     let Some(batch) = batches.iter().rev().find(|batch| batch.num_rows() > 0) else {
         return Err(PortError::Failed("a full chunk holds no row".to_owned()));
     };
@@ -260,7 +263,7 @@ fn last_key(batches: &[RecordBatch], key: &[String]) -> Result<Vec<SqlValue>, Po
 
 /// The value at `row` of `column`, bound with its own type when [`SqlValue`] has it, and
 /// as its text otherwise, which DuckDB casts to the type of the key column.
-fn value_at(column: &dyn Array, row: usize) -> Result<SqlValue, PortError> {
+pub(crate) fn value_at(column: &dyn Array, row: usize) -> Result<SqlValue, PortError> {
     if column.is_null(row) {
         return Ok(SqlValue::Null);
     }

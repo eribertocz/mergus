@@ -26,6 +26,10 @@
 | `expire_raw` | Expires raw with `raw_retention`; maintenance only |
 | `raw_off_sources`, `keeps_raw` | The sources with `raw = false` |
 | `RawError` | Why raw could not be opened or written, with its code |
+| `load_table`, `TableLoad`, `Stores`, `LoadOutcome` | An incremental load by chunks, resumed when interrupted |
+| `LoadError` | Why `load_table` failed, with its code |
+| `table_loads`, `TableLoads`, `LastLoad` | The last load of a table and the ids of its recorded loads |
+| `finished_changes` | The rows of `__changes` of recorded loads, those readers see |
 
 ## Data flow
 
@@ -75,6 +79,35 @@
 4. `load_raw_off_failed` records a failed extraction of a source with `raw = false`, with the
    code the caller gives.
 
+## Loads by chunks
+
+1. `load_table` reads `ops.loads` for the table's last row, its watermark and
+   `deletes_checked_at`, and the ids of its recorded loads. It reads `__changes` at the latest
+   raw version: the latest load id there without a row, by `_extracted_at`, is unfinished.
+   For a table with `key` it is resumed: same load id, same `_extracted_at`, and the read
+   starts after its largest key, compared in Arrow's row format. A table missing at a
+   version reads as empty.
+2. Each chunk is compared with the current table at the start of the load: a row whose source
+   columns equal the current row of its key is dropped; a deleted row whose key is not
+   current is dropped too, since it changes nothing. What is left is appended and committed,
+   then the reader is told. An empty chunk commits nothing.
+3. The last commit reads the load's rows back from `__changes`, so the rows of a resumed load
+   count. The current rows are those of the start without the load's keys, plus its rows that
+   are not deletes. A due `compare` runs on them; its deletes, less those the load already
+   holds, are appended with `_deleted = true`, and their keys leave the current table. The
+   current table is replaced in the same commit.
+4. `watermark_after` is `watermark_of` the load's rows, or the previous watermark when none
+   has a value. The `ops.loads` row follows, through the ops adapter.
+5. A failure before any commit of the load is recorded as `failed` with its code, `MG-0411`
+   among them. After a commit, nothing is recorded: the load is unfinished and the next one
+   resumes it (MG-REQ-0418.2). A key read twice in the load, across its chunks and those of
+   before a resume, is `MG-0504`, recorded `failed` even after commits; readers see only
+   loads recorded `ok` (MG-REQ-0518.1, MG-REQ-0518.3).
+6. A resumed load whose last commit was made, its rows current with its load id and its
+   deleted keys gone, only gets its `ops.loads` row (MG-REQ-0418.2).
+7. `rows` is the rows read; `deletes_checked_at` is the load's start when it compared, else
+   NULL; the last compare is the latest non-NULL value (MG-REQ-0415.3).
+
 ## Retention
 
 `expire_raw` calls the adapter's `expire` with the versions given as live and a rollback
@@ -88,7 +121,8 @@ window of `raw_retention`: the longest `retention` of the sources without `raw =
 - `mergus-adapter`: the `StorageAdapter` contract raw is written through.
 - `mergus-adapter-ducklake`: the DuckLake adapter raw is stored in.
 - `mergus-ports`: the `FileSystem`, `Database` and `Clock` ports, and `PortError`.
-- `mergus-source`: `DeclaredTable` and the raw table names (MG-REQ-0403).
+- `mergus-source`: `DeclaredTable` and the raw table names (MG-REQ-0403), and the
+  incremental reads, deletes and very late rows of `load_table`.
 - `mergus-project`: `Configuration`, and `key_line`, so that this crate parses no TOML
   (MG-REQ-0186).
 - `serde_json`: the JSON values of `project.toml`.
