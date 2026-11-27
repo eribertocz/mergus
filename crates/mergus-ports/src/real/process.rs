@@ -13,6 +13,9 @@ impl Process for RealProcess {
     fn run(&self, command: &ProcessCommand) -> Result<ProcessOutput, PortError> {
         let mut child = Command::new(&command.program);
         child.args(&command.args);
+        if command.clear_env {
+            child.env_clear();
+        }
         child.envs(command.env.iter().map(|(name, value)| (name, value)));
         if let Some(dir) = &command.current_dir {
             child.current_dir(dir);
