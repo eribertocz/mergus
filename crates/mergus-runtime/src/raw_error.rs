@@ -61,17 +61,17 @@ pub enum RawError {
 
 impl RawError {
     /// Returns the `MG-####` code of the error (MG-REQ-0008), or `None` for a failure of the
-    /// caller or of the storage, which carries its own cause.
+    /// load registry, which cannot record itself.
     #[must_use]
     pub fn code(&self) -> Option<&'static str> {
         match self {
             Self::CatalogInsideProject { .. } => Some("MG-0502"),
             Self::UnencryptedCatalog { .. } => Some("MG-0503"),
             Self::RepeatedKey { .. } => Some("MG-0504"),
-            Self::MissingConnection { .. }
-            | Self::Rows { .. }
-            | Self::Storage(_)
-            | Self::Registry(_) => None,
+            Self::Rows { .. } => Some("MG-0505"),
+            Self::Storage(_) => Some("MG-0506"),
+            Self::MissingConnection { .. } => Some("MG-0507"),
+            Self::Registry(_) => None,
         }
     }
 }
