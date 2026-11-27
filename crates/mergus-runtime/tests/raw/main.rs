@@ -2,6 +2,8 @@
 //! adapter in memory.
 
 mod memory;
+mod registry;
+mod retention;
 
 use std::sync::Arc;
 

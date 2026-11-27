@@ -36,13 +36,23 @@ Run cycle and scheduling; wires ports to crates.
   `_deleted_at TIMESTAMPTZ` (MG-REQ-0512). A load that returns a key twice fails with
   `MG-0504` and writes nothing (MG-REQ-0518.3).
 
+- Records every load in `ops.loads` (MG-REQ-0514) with `load_raw`, after the raw commit,
+  through the adapter of the ops zone. A failed load, one refused with `MG-0504` too, is
+  recorded with `result = 'failed'`, 0 rows, an unchanged watermark and its code.
+  `load_raw_off` records the extraction of a source with `raw = false` as `raw_off` and writes
+  nothing to raw (MG-REQ-0517). `new_load_id` makes the load id, a UUID version 7, and
+  `last_watermark` gives the last recorded `watermark_after`, where the next load starts.
+- Gives the retention of each source, 30 days unless it sets `retention`, and expires the
+  shared raw catalog with the longest of the sources that keep raw (MG-REQ-0516), through the
+  adapter's `expire`.
+
 ## What it does not
 
 - It does not check the keys of a zone: the schema of `mergus-project` rejects an unknown
   key or profile, a missing `profile` or `location`, and a `cloud` zone without a `catalog`
   secret reference.
-- It reads no secret: a `cloud` catalog's connection value is given resolved. It keeps no
-  load registry and expires nothing (#195): the caller gives each load's id and the version
-  of the table's last commit.
+- It reads no secret: a `cloud` catalog's connection value is given resolved. The caller
+  gives the version of the table's last commit and the watermarks of each load.
+- It does not expire raw during a run: `expire_raw` is maintenance work (MG-REQ-0513).
 - It does not detect deletes: a load carries the keys found deleted.
 - The current table is rewritten in full at each load.
