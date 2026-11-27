@@ -41,9 +41,22 @@ Before loading user Python code, the interpreter's process MUST start with an en
 from which every `MERGUS_SECRET_*` variable and every credential variable of known cloud SDKs
 has been removed. Python steps receive only Arrow batches.
 
+1. MG-REQ-1003.1: the environment is an allowlist: `PATH`, `LANG`, `LC_ALL`, `TZ`,
+   `SYSTEMROOT`, `VIRTUAL_ENV`, and the variables Mergus sets: `PYTHONHASHSEED=0`,
+   `PYTHONNOUSERSITE=1`, and `TMP`, `TEMP` and `TMPDIR` set to the run's work directory;
+2. MG-REQ-1003.2: the cloud SDK credential variables it is tested against are: `AWS_ACCESS_KEY_ID`,
+   `AWS_SECRET_ACCESS_KEY`, `AWS_SESSION_TOKEN`, `AWS_SECURITY_TOKEN`,
+   `AWS_WEB_IDENTITY_TOKEN_FILE`, `AWS_CONTAINER_CREDENTIALS_FULL_URI`,
+   `AWS_CONTAINER_AUTHORIZATION_TOKEN`, `AZURE_CLIENT_SECRET`, `AZURE_CLIENT_CERTIFICATE_PATH`,
+   `AZURE_CLIENT_CERTIFICATE_PASSWORD`, `AZURE_PASSWORD`, `AZURE_STORAGE_KEY`,
+   `AZURE_STORAGE_CONNECTION_STRING`, `AZURE_STORAGE_SAS_TOKEN`,
+   `GOOGLE_APPLICATION_CREDENTIALS`, `GOOGLE_OAUTH_ACCESS_TOKEN`, `CLOUDSDK_AUTH_ACCESS_TOKEN`,
+   `CLOUDSDK_AUTH_CREDENTIAL_FILE_OVERRIDE`, `PGPASSWORD` and `PGPASSFILE`.
+
 - Kind: behavior
 - Verify: test `mg_req_1003_python_env_has_no_credentials`
 - Phase: 0.4
+- Decision: 0051
 - Depends: MG-REQ-0006
 
 ### MG-REQ-1004 · Doctor shows origins, never values

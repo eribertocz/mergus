@@ -141,3 +141,20 @@ nothing. `.mergus/` holds local state and is never committed.
 - Verify: test `mg_req_0746_plan_command_writes_artifact`
 - Phase: 0.2
 - Decision: 0026
+
+### MG-REQ-0747 · Execution fields of the plan
+
+From phase 0.4 the `mergus_plan` contract MUST carry what execution applies without deciding
+again (MG-REQ-0704), as minor version 1.1.0 of the contract (MG-REQ-0205):
+
+1. MG-REQ-0747.1: per model, its `segments` (MG-REQ-0631) and their `boundaries`, each with
+   its `transport` (`arrow` or `parquet`, MG-REQ-0633) and its `polars_level` with the reason
+   (MG-REQ-0635);
+2. MG-REQ-0747.2: per incremental model, the `periods` it recomputes (MG-REQ-0652);
+3. MG-REQ-0747.3: the `gates` of stage 4 with their status (`pass`, `block` or
+   `not_applicable` with the phase it is due in) and their errors (MG-REQ-0720, MG-REQ-0722).
+
+- Kind: behavior
+- Verify: test `mg_req_0747_plan_carries_execution_fields`
+- Phase: 0.4
+- Decision: 0051
