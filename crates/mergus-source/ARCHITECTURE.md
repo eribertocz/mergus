@@ -18,6 +18,13 @@
 | `ReadOptions`, `Projection` | The caller's columns, incremental mark and chunk size |
 | `extract_source`, `TableExtraction` | Every declared table of a source, with its raw tables |
 | `ConnectError` | `EngineMismatch` (`MG-0404`) or a `PortError` |
+| `SourceCare`, `Load`, `Budget` | The care options of a source with their defaults, and its budget (MG-REQ-0426, MG-REQ-0427) |
+| `Brake`, `read_with_brake`, `SourceIncident` | The pace of the reads of a source, and the stop after three failures (`MG-0406`, MG-REQ-0428) |
+| `Window`, `LoadKind`, `wait_for_window` | When a full load or a backfill may start (MG-REQ-0430) |
+| `check_indexes`, `IndexWarning` | Keys and incremental columns without an index (`MG-0407`, MG-REQ-0431) |
+| `InspectError`, `ImpactUnknown` | A source `doctor` cannot reach or read (`MG-0408`), and the warning of `plan` for one (`MG-0409`, MG-REQ-0432.2) |
+| `source_impact`, `TableImpact` | What reading each table costs the source (MG-REQ-0432) |
+| `PG_INDEXES`, `SCHEMA_INDEXES`, `PG_ESTIMATES`, `SCHEMA_ESTIMATES` | The fixed statements of the index check and the estimates, so that tests can record their answers |
 | `copied_tables` | The tables copied into raw: none of a `connect` or `live` source (MG-REQ-0405) |
 | `source_columns`, `SourceColumn` | The columns of a source table and their DuckDB types, from `DESCRIBE` |
 | `breaking_changes`, `ColumnChange` | The dropped, renamed or retyped columns since the last load (MG-REQ-0407) |
@@ -27,7 +34,7 @@
 | `IncrementalReader`, `Start`, `Chunk` | An incremental read whose position moves on commit (MG-REQ-0412, MG-REQ-0413, MG-REQ-0418) |
 | `watermark_of`, `value_text`, `Temporal` | The watermark of committed rows and DuckDB's text of a value (MG-REQ-0412.1, MG-REQ-0413) |
 | `Comparison` | The deletes and very late rows a `compare` found (MG-REQ-0415.3, MG-REQ-0420) |
-| `ExtractError`, `LateRows` | `MG-0406`, a missing delete column, and the `MG-0407` warning |
+| `ExtractError`, `LateRows` | `MG-0410`, a missing delete column, and the `MG-0411` warning |
 
 ## Data flow
 
@@ -71,6 +78,28 @@
    the last. Each chunk is one statement, so no transaction outlives it.
 5. A key value is bound with its Arrow type when `SqlValue` has one, and as text otherwise.
 
+## Taking care of the source
+
+1. `SourceCare::of` reads `connection`, `replica`, `load`, `max_connections`, `window` and
+   `query_timeout` of a validated source file, with their defaults for the environment.
+2. `SourceCare::extraction_reference` is the secret reference the caller resolves: the
+   replica's when there is one. `SourceCare::postgres_source` builds the `PostgresSource` of
+   the `Database` port with the budget's connections and `query_timeout`, which the port
+   sets as `pg_pool_max_connections` and `pg_statement_timeout_millis` (MG-REQ-0196.3).
+3. `read_with_brake` reads the chunks of `read_table` with the `Brake`'s chunk rows, the
+   budget's, sleeping on the `Clock` port for the
+   `Brake`'s pause before each chunk but the first, and measuring each chunk on the
+   monotonic clock. The running median is the lower middle of the sorted latencies of the
+   chunks before; an extra pause below 1 ms is dropped so that halving ends. A failed chunk
+   is sent again by `TableReader::retry`, from the same key.
+4. `wait_for_window` reads the wall clock and sleeps until the window's start, in UTC, so
+   that the result does not depend on the machine's time zone (MG-REQ-0005).
+5. The index check and the estimates send a fixed PostgreSQL text through `postgres_query`
+   once per source, and choose the schema with a bound parameter in the DuckDB query around
+   it (MG-REQ-0007); the answer is grouped by table. A table is in the schema `public`, where
+   DuckDB's `postgres` extension reads `<alias>.<table>`. An index covers columns when its
+   leading columns are those columns, in their order (MG-REQ-0431.4).
+
 ## Source changes and read times
 
 1. `copied_tables` is `declared_tables` for a `copy` source, the default, and empty for a
@@ -94,7 +123,7 @@
 ## Incremental reads
 
 1. `IncrementalReader::open` reads the table's columns with `DESCRIBE`. A `column:<name>`
-   policy whose column is missing stops here with `MG-0406`.
+   policy whose column is missing stops here with `MG-0410`.
 2. The start of the reads is computed in Rust, not in SQL: `Temporal` parses the watermark,
    the text DuckDB gave for the value, subtracts the overlap in microseconds and writes the
    result back in DuckDB's text; for a `DATE` it is the first date not before that instant,

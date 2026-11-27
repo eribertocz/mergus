@@ -94,12 +94,15 @@ The hash chains of the journal and of manifests MUST always verify with
 ### MG-REQ-0149 · INV-10 Same input, same output
 
 The same project, the same input data and the same version MUST produce identical tokens,
-hashes, manifests and catalog documents.
+hashes, manifests and catalog documents, on every platform of MG-REQ-1601: the determinism
+test runs on each platform of MG-REQ-1606 and compares its outputs byte for byte with those
+of Linux x86_64.
 
 - Kind: behavior
 - Verify: test `mg_req_0149_identical_outputs_for_identical_inputs`
 - Phase: 0.5
 - Depends: MG-REQ-0005
+- Decision: 0048
 
 ### MG-REQ-0150 · New promises become invariants
 

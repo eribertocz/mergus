@@ -169,7 +169,7 @@ fn mg_req_0420_very_late_rows_reported() {
         (late.count, late.since.as_str(), late.oldest.as_str()),
         (2, "2026-01-01 09:00:00", "2026-01-01 05:00:00")
     );
-    assert_eq!(late.code(), "MG-0407");
+    assert_eq!(late.code(), "MG-0411");
     assert_eq!(
         late.to_string(),
         "table erp.sales: 2 rows older than 2026-01-01 09:00:00 arrived late; run mergus \

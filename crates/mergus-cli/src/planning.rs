@@ -9,14 +9,16 @@ use mergus_contracts::generated::mergus_events_v1::Step as EventStep;
 use mergus_contracts::generated::mergus_plan_v1::{StepAction, StepReason};
 use mergus_plan::{Plan, PlanModel, PlanRequest};
 use mergus_ports::{FileSystem, PortError};
-use mergus_project::{Configuration, read_configuration};
+use mergus_project::{Configuration, Source, read_configuration};
 use mergus_runtime::{raw_off_sources, raw_retention, show_retention};
+use mergus_source::{ImpactUnknown, SourceCare, TableImpact, declared_tables, source_impact};
 
 use crate::args::Invocation;
+use crate::care::attach;
 use crate::commands::{EXCLUDE, MAX_PARALLEL, SELECTION};
 use crate::diagnostic::Diagnostic;
 use crate::error::CliError;
-use crate::models;
+use crate::models::{self, Project};
 use crate::output::{ENVIRONMENT, Output};
 use crate::run::Ports;
 use crate::selection::select;
@@ -60,7 +62,29 @@ pub(crate) fn plan(
         .value(MAX_PARALLEL)
         .map(|value| (MAX_PARALLEL, value));
     let setting = max_parallel(flag, ports.environment, ports.files)?;
-    let planned: Vec<PlanModel> = project
+    let planned = planned_models(&project);
+    let names: BTreeSet<String> = selected.into_keys().collect();
+    let mut request = PlanRequest::new(env!("CARGO_PKG_VERSION"), ENVIRONMENT, names);
+    request.max_parallel = setting.value;
+    let plan = mergus_plan::plan(&planned, &request)
+        .map_err(|error| CliError::Internal(error.to_string()))?;
+    let relative = write(ports.files, &project.root, &plan)?;
+    output.plan_ready(steps(&plan))?;
+    let mut text = summary(&plan, &relative);
+    text.push_str(&raw_summary(&configuration));
+    diagnostics.extend(impact_lines(
+        ports,
+        &project.root,
+        &configuration,
+        &mut text,
+    ));
+    output.report(&text)?;
+    Ok(diagnostics)
+}
+
+/// The models of `project` as `mergus-plan` plans them.
+fn planned_models(project: &Project) -> Vec<PlanModel> {
+    project
         .models
         .iter()
         .map(|model| {
@@ -71,18 +95,69 @@ pub(crate) fn plan(
                 &model.inputs,
             )
         })
-        .collect();
-    let names: BTreeSet<String> = selected.into_keys().collect();
-    let mut request = PlanRequest::new(env!("CARGO_PKG_VERSION"), ENVIRONMENT, names);
-    request.max_parallel = setting.value;
-    let plan = mergus_plan::plan(&planned, &request)
-        .map_err(|error| CliError::Internal(error.to_string()))?;
-    let relative = write(ports.files, &project.root, &plan)?;
-    output.plan_ready(steps(&plan))?;
-    let mut text = summary(&plan, &relative);
-    text.push_str(&raw_summary(&configuration));
-    output.report(&text)?;
-    Ok(Vec::new())
+        .collect()
+}
+
+/// Appends to `text` one line per table of each source of `configuration`, with what reading
+/// it costs the source (MG-REQ-0432), and returns the warnings of the sources that could not
+/// be reached or read (MG-REQ-0432.2).
+fn impact_lines(
+    ports: &Ports<'_>,
+    root: &Path,
+    configuration: &Configuration,
+    text: &mut String,
+) -> Vec<Diagnostic> {
+    let mut warnings = Vec::new();
+    for source in &configuration.sources {
+        let (impacts, warning) = impacts(ports, root, source);
+        for impact in impacts {
+            // Writing to a `String` cannot fail.
+            let _ = writeln!(text, "{impact}");
+        }
+        warnings.extend(warning);
+    }
+    warnings
+}
+
+/// What reading each table of `source` costs it (MG-REQ-0432). A source that cannot be
+/// attached, or whose catalog cannot be read, shows `unknown` and gives the `MG-0409`
+/// warning with the reason; `plan` fails for none (MG-REQ-0432.2). A `connect` or `live`
+/// source is read by no extraction, and a source without tables has none to show: neither
+/// is attached.
+fn impacts(
+    ports: &Ports<'_>,
+    root: &Path,
+    source: &Source,
+) -> (Vec<TableImpact>, Option<Diagnostic>) {
+    let mode = source.file.value.get("mode").and_then(|mode| mode.as_str());
+    if mode.is_some_and(|mode| mode != "copy") || declared_tables(source).is_empty() {
+        return (Vec::new(), None);
+    }
+    let care = SourceCare::of(source, ENVIRONMENT);
+    let (mut attached, mut reason) = match attach(ports, root, source, &care) {
+        Ok(attached) => (attached, None),
+        Err(diagnostic) => (
+            None,
+            Some(format!("{} {}", diagnostic.code, diagnostic.message)),
+        ),
+    };
+    let known = source_impact(attached.as_mut(), source, &care);
+    if let Some(attached) = &mut attached {
+        // Only the estimates are wanted; the detach is a best effort.
+        attached.connection.detach(&attached.alias).ok();
+    }
+    let impacts = known.unwrap_or_else(|error| {
+        reason = Some(error.to_string());
+        source_impact(None, source, &care).unwrap_or_default()
+    });
+    let warning = reason.map(|reason| {
+        let unknown = ImpactUnknown {
+            source_name: source.name.clone(),
+            reason,
+        };
+        Diagnostic::warning_of_code(unknown.code(), unknown.to_string())
+    });
+    (impacts, warning)
 }
 
 /// Writes `plan` to `.mergus/plans/<plan_id>.json` under `root`, unless a file of that name

@@ -3,7 +3,7 @@
 use std::cell::RefCell;
 use std::io::{BufRead, Write};
 
-use mergus_ports::{Clock, Environment, FileSystem, Keychain, Random, SqlParser};
+use mergus_ports::{Clock, Database, Environment, FileSystem, Keychain, Random, SqlParser};
 
 use crate::args::{self, Invocation};
 use crate::cli_schema;
@@ -70,6 +70,9 @@ pub(crate) struct Ports<'a> {
     pub(crate) secret_input: &'a dyn SecretInput,
     /// The keychain `secret set` writes into (MG-REQ-1007) and `doctor` reads (MG-REQ-1004).
     pub(crate) keychain: &'a dyn Keychain,
+    /// The DuckDB `doctor --source` and `plan` attach database sources to (MG-REQ-0431,
+    /// MG-REQ-0432); `None` when there is no user cache directory for its extensions.
+    pub(crate) database: Option<&'a dyn Database>,
 }
 
 /// Runs the command of the arguments of `ports.environment` and returns its exit code
@@ -133,7 +136,7 @@ fn execute(
             return Ok(diagnostics);
         }
         Command::Ls => return ls(ports, invocation, output),
-        Command::Doctor => return doctor(ports, output),
+        Command::Doctor => return doctor(ports, invocation, output),
         Command::SecretSet => return secret_set(ports, invocation, output),
         Command::Plan => return plan(ports, invocation, output),
         Command::Explain => {

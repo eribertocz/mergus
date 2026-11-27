@@ -88,7 +88,7 @@ pub struct LoadOutcome {
 ///
 /// # Errors
 ///
-/// - [`LoadError::Source`] when the source cannot be read, `MG-0406` among them;
+/// - [`LoadError::Source`] when the source cannot be read, `MG-0410` among them;
 /// - [`LoadError::Raw`] when raw or `ops.loads` cannot be read or written.
 pub fn load_table(
     stores: &mut Stores<'_>,

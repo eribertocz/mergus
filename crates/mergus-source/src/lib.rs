@@ -34,15 +34,31 @@
 //! (MG-REQ-0413, MG-REQ-0418); [`watermark_of`] is the watermark of committed rows. It detects
 //! deletes as [`load_options`] declare them (MG-REQ-0415) and reports very late rows,
 //! [`LateRows`] (MG-REQ-0420).
+//!
+//! [`SourceCare`] holds the care options of a source (`extract/source-care.md`): every
+//! extraction query goes through the `replica` when it is set
+//! ([`SourceCare::extraction_reference`], MG-REQ-0426), and `load` and `max_connections` set
+//! the [`Budget`] of [`Load::table`] (MG-REQ-0427). [`read_with_brake`] reads a table at the
+//! pace of a [`Brake`] and stops after three consecutive failures with a [`SourceIncident`]
+//! (MG-REQ-0428). [`wait_for_window`] holds a full load or a backfill until the [`Window`]
+//! opens (MG-REQ-0430). [`check_indexes`] returns an [`IndexWarning`] for each key or
+//! incremental column without an index (MG-REQ-0431), and [`source_impact`] the
+//! [`TableImpact`] `mergus plan` shows (MG-REQ-0432). A source that cannot be reached or read
+//! is an [`InspectError`] for `doctor` and an [`ImpactUnknown`] warning for `plan`.
 
 #![forbid(unsafe_code)]
 
+mod brake;
+mod care;
 mod check;
 mod compare;
 mod copied;
 mod engine;
+mod impact;
 mod incremental;
 mod incremental_error;
+mod index;
+mod inspect;
 mod kind;
 mod options;
 mod problem;
@@ -51,7 +67,10 @@ mod schema_change;
 mod snapshot;
 mod table;
 mod temporal;
+mod window;
 
+pub use brake::{AfterFailure, Brake, SourceIncident, read_with_brake};
+pub use care::{Budget, Load, SourceCare};
 pub use check::check_sources;
 pub use compare::Comparison;
 pub use copied::copied_tables;
@@ -59,8 +78,11 @@ pub use engine::{
     AttachedSource, ConnectError, DatabaseEngine, EngineIdentity, attach_duckdb_file,
     attach_postgres,
 };
+pub use impact::{PG_ESTIMATES, SCHEMA_ESTIMATES, TableImpact, source_impact};
 pub use incremental::{Chunk, IncrementalReader, Start, watermark_of};
 pub use incremental_error::{ExtractError, LateRows};
+pub use index::{IndexWarning, PG_INDEXES, SCHEMA_INDEXES, Unindexed, check_indexes};
+pub use inspect::{ImpactUnknown, InspectError};
 pub use kind::{Mode, SourceKind};
 pub use options::{DEFAULT_OVERLAP, DeleteCheck, DeletePolicy, LoadOptions, load_options};
 pub use problem::{Severity, SourceProblem};
@@ -71,3 +93,4 @@ pub use schema_change::{
 pub use snapshot::{SourceExtraction, TableRead, extract_source_timed};
 pub use table::{DeclaredTable, RawTables, declared_tables};
 pub use temporal::{Temporal, value_text};
+pub use window::{LoadKind, Window, wait_for_window};

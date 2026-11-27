@@ -132,6 +132,16 @@ impl Iterator for TableReader<'_> {
 }
 
 impl TableReader<'_> {
+    /// Whether every chunk was read, or the last one failed.
+    pub(crate) const fn is_done(&self) -> bool {
+        self.done
+    }
+
+    /// Sends the chunk that failed again on the next call (MG-REQ-0428).
+    pub(crate) fn retry(&mut self) {
+        self.done = false;
+    }
+
     /// Reads the next chunk and remembers where the following one starts.
     fn read_chunk(&mut self) -> Result<Vec<RecordBatch>, PortError> {
         let chunk_rows = self

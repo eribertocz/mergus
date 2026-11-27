@@ -98,7 +98,7 @@
    current table is replaced in the same commit.
 4. `watermark_after` is `watermark_of` the load's rows, or the previous watermark when none
    has a value. The `ops.loads` row follows, through the ops adapter.
-5. A failure before any commit of the load is recorded as `failed` with its code, `MG-0406`
+5. A failure before any commit of the load is recorded as `failed` with its code, `MG-0410`
    among them. After a commit, nothing is recorded: the load is unfinished and the next one
    resumes it (MG-REQ-0418.2).
 

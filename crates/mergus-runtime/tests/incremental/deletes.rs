@@ -164,7 +164,7 @@ fn mg_req_0415_missing_delete_column_fails() {
         error,
         LoadError::Source(ExtractError::MissingDeleteColumn { .. })
     ));
-    assert_eq!(error.code(), Some("MG-0406"));
+    assert_eq!(error.code(), Some("MG-0410"));
     assert_eq!(
         error.to_string(),
         "table `sales` of source `erp` declares `deletes = \"column:removed\"` but the source \
@@ -174,5 +174,5 @@ fn mg_req_0415_missing_delete_column_fails() {
     assert_eq!(world.raw.commits(), 0);
     let registry = world.registry();
     assert_eq!(texts(&registry, "result"), [Some("failed".to_owned())]);
-    assert_eq!(texts(&registry, "error_code"), [Some("MG-0406".to_owned())]);
+    assert_eq!(texts(&registry, "error_code"), [Some("MG-0410".to_owned())]);
 }

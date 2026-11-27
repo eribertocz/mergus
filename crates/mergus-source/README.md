@@ -42,6 +42,48 @@ Extract from databases (ADBC) and files.
 - Records, from the `Clock` port, the start and the end in UTC of each table's read, and the
   spread of the source: the latest end minus the earliest start (MG-REQ-0419).
 
+- Takes care of the source (`SourceCare`), so that Mergus is never the reason it becomes
+  slow:
+  - every extraction query goes through the `replica` secret reference when it is set, and
+    through `connection` otherwise (MG-REQ-0426);
+  - `load` sets the budget of an extraction from this table, and the connections used are
+    never more than `max_connections` (MG-REQ-0427). `load` defaults to `low` in `prod` and
+    to `normal` elsewhere, `max_connections` to 2, `query_timeout` to `10m`. A PostgreSQL
+    source is attached with a pool of the budget's connections and the statement timeout of
+    `query_timeout`.
+
+    | `load` | Connections | Chunk rows | Pause between chunks |
+    |---|---|---|---|
+    | `low` | 1 | 10 000 | 1 s |
+    | `normal` | 2 | 50 000 | 200 ms |
+    | `high` | 4 | 100 000 | none |
+
+  - `read_with_brake` reads in chunks of the budget's rows, never a size the caller gives,
+    and measures the latency of each chunk. Above twice the running median of
+    the chunks before it, the pause before the next chunk doubles, or becomes the chunk's
+    latency when it is zero; each chunk at most the median halves the pause above the
+    budget's, until it is back. A chunk statement that fails or times out is sent again;
+    after three consecutive failures the extraction of the source stops with `MG-0406`, an
+    error, and is not retried until the next trigger (MG-REQ-0428);
+  - `wait_for_window` holds a full load or a backfill until the source's `window` opens;
+    the window is in UTC, spans midnight when its end is before its start, and is open all
+    day when its start is its end (MG-REQ-0430.1). An incremental load is not held
+    (MG-REQ-0430);
+  - `check_indexes` gives `MG-0407`, a warning, for each key or incremental column of a
+    PostgreSQL source without an index led by it: by the key columns in key order, or by the
+    incremental column (MG-REQ-0431.4). The indexes are read from `pg_index` through
+    `postgres_query`, once per source, and the warning gives the index to create:
+    `CREATE INDEX ON "public"."<table>" ("<column>", …);` (MG-REQ-0431). A DuckDB file is
+    not checked;
+  - `source_impact` gives, per declared table, the rows the source estimates it holds,
+    shown as "up to N" (`reltuples` for PostgreSQL, `estimated_size` for a DuckDB file,
+    MG-REQ-0432.1), the index a read uses (one led by the incremental column, or by the key),
+    the window and the budget, for `mergus plan` (MG-REQ-0432). The estimates and indexes are
+    read once per source;
+  - a source that `doctor --source` cannot reach, or whose catalog it cannot read, is
+    `MG-0408`, an error (`InspectError`); one that `plan` cannot reach or read is `MG-0409`,
+    a warning (`ImpactUnknown`) with the reason, and its tables show `unknown`
+    (MG-REQ-0432.2).
 - Reads an incremental table chunk by chunk with `IncrementalReader`, whose position moves
   past a chunk only when the caller says it committed it (MG-REQ-0413, MG-REQ-0418). With
   the watermark of the last load, the read starts at `watermark − overlap` for a `DATE`,
@@ -52,12 +94,12 @@ Extract from databases (ADBC) and files.
   `CAST(value AS VARCHAR)` (MG-REQ-0412.1, MG-REQ-0413).
 - Detects deletes as declared (MG-REQ-0415): `column:<name>` splits each chunk into kept and
   deleted rows, `true` or any non-NULL value of a non-boolean column being a delete, and a
-  source without the column is `MG-0406`, before any row is read; `compare` reads the key and
+  source without the column is `MG-0410`, before any row is read; `compare` reads the key and
   incremental columns of the source, within `delete_window` back from the load's start, when
   `delete_check` is due, and returns the raw rows whose key is gone; `none`, or no `deletes`,
   detects nothing.
 - Reports, from a `compare`, the source rows missing from raw whose incremental value is
-  older than `watermark − overlap`, with the `MG-0407` warning and the suggested
+  older than `watermark − overlap`, with the `MG-0411` warning and the suggested
   `mergus backfill` command (MG-REQ-0420). They are counted, not loaded.
 
 ## What it does not

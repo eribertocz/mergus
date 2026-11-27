@@ -31,7 +31,7 @@ impl ExtractError {
     #[must_use]
     pub fn code(&self) -> Option<&'static str> {
         match self {
-            Self::MissingDeleteColumn { .. } => Some("MG-0406"),
+            Self::MissingDeleteColumn { .. } => Some("MG-0410"),
             Self::Port(_) => None,
         }
     }
@@ -61,6 +61,6 @@ impl LateRows {
     /// Returns the `MG-####` code of the warning (MG-REQ-0420.2).
     #[must_use]
     pub fn code(&self) -> &'static str {
-        "MG-0407"
+        "MG-0411"
     }
 }

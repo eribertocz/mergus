@@ -24,6 +24,7 @@
 #![forbid(unsafe_code)]
 
 mod args;
+mod care;
 mod catalog;
 mod cli_schema;
 mod commands;
@@ -54,8 +55,10 @@ use std::io::{IsTerminal, Read, StdinLock};
 use std::process::ExitCode;
 
 use mergus_ports::real::{
-    RealClock, RealEnvironment, RealFileSystem, RealKeychain, RealRandom, RealSqlParser,
+    RealClock, RealDatabase, RealEnvironment, RealFileSystem, RealKeychain, RealRandom,
+    RealSqlParser,
 };
+use mergus_ports::{Database, Environment};
 
 /// Standard input, read through the lock `main` holds (MG-REQ-1007).
 struct Stdin<'a>(&'a RefCell<StdinLock<'static>>);
@@ -80,6 +83,9 @@ impl run::SecretInput for Stdin<'_> {
 fn main() -> ExitCode {
     let random = RealRandom::new();
     let stdin = RefCell::new(std::io::stdin().lock());
+    let database = RealEnvironment
+        .cache_dir()
+        .map(|cache_dir| RealDatabase::new(&cache_dir));
     let ports = run::Ports {
         environment: &RealEnvironment,
         files: &RealFileSystem,
@@ -92,6 +98,7 @@ fn main() -> ExitCode {
             .then_some(&stdin as &dyn run::Answers),
         secret_input: &Stdin(&stdin),
         keychain: &RealKeychain,
+        database: database.as_ref().map(|database| database as &dyn Database),
     };
     let code = run::run(&ports, &mut std::io::stdout(), &mut std::io::stderr());
     ExitCode::from(code)

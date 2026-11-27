@@ -1,14 +1,21 @@
 //! `mergus doctor` (MG-REQ-1004): for each secret reference of the sources, which link of the
-//! resolution chain answers (MG-REQ-1001), and never its value.
+//! resolution chain answers (MG-REQ-1001), and never its value. With `--source <name>`, it
+//! also warns for each key or incremental column of that source without an index
+//! (MG-REQ-0431).
 
 use std::collections::BTreeSet;
+use std::path::Path;
 
-use mergus_project::{Configuration, read_configuration};
+use mergus_project::{Configuration, closest_name, read_configuration};
 use mergus_security::{SecretRef, origin};
+use mergus_source::{InspectError, SourceCare, check_indexes};
 
+use crate::args::Invocation;
+use crate::care::attach;
+use crate::commands::SOURCE;
 use crate::diagnostic::Diagnostic;
 use crate::error::CliError;
-use crate::output::Output;
+use crate::output::{ENVIRONMENT, Output};
 use crate::project;
 use crate::run::Ports;
 use crate::validate::collect;
@@ -19,14 +26,17 @@ const SECRET_KEYS: [&str; 2] = ["connection", "replica"];
 /// Prints one line per secret reference the sources use, sorted by name: `<name>: <origin>`,
 /// the origin being `environment <variable>`, `keychain mergus/<name>` or `missing`
 /// (MG-REQ-1004.1). Each missing reference is returned as an `MG-1003` diagnostic, every one
-/// in the same pass (MG-REQ-1004.3). It reads the project and the keychain and writes nothing.
+/// in the same pass (MG-REQ-1004.3). With `--source`, the index warnings of that source
+/// follow (MG-REQ-0431). It reads the project, the keychain and the source, and writes
+/// nothing.
 ///
 /// # Errors
 ///
 /// Returns the diagnostics of the configuration when it is not valid; fails when the project
-/// cannot be found or read.
+/// cannot be found or read, or `--source` names no source of the project.
 pub(crate) fn doctor(
     ports: &Ports<'_>,
+    invocation: &Invocation,
     output: &mut Output<'_>,
 ) -> Result<Vec<Diagnostic>, CliError> {
     let root = project::find(ports.environment, ports.files)?;
@@ -47,7 +57,58 @@ pub(crate) fn doctor(
         report.push_str(&format!("{}: {shown}\n", reference.name()));
     }
     output.report(&report)?;
+    if let Some(name) = invocation.value(SOURCE) {
+        diagnostics.extend(indexes(ports, &root, &configuration, name)?);
+    }
     Ok(diagnostics)
+}
+
+/// The index warnings of the source `name` of `configuration` (MG-REQ-0431), or the
+/// diagnostic of why it could not be checked.
+fn indexes(
+    ports: &Ports<'_>,
+    root: &Path,
+    configuration: &Configuration,
+    name: &str,
+) -> Result<Vec<Diagnostic>, CliError> {
+    let source = configuration
+        .sources
+        .iter()
+        .find(|source| source.name == name)
+        .ok_or_else(|| CliError::UnknownName {
+            kind: "source",
+            given: name.to_owned(),
+            closest: closest_name(
+                name,
+                configuration
+                    .sources
+                    .iter()
+                    .map(|source| source.name.as_str()),
+            )
+            .map(str::to_owned),
+        })?;
+    let care = SourceCare::of(source, ENVIRONMENT);
+    let mut attached = match attach(ports, root, source, &care) {
+        Ok(Some(attached)) => attached,
+        Ok(None) => return Ok(Vec::new()),
+        Err(diagnostic) => return Ok(vec![*diagnostic]),
+    };
+    let checked = check_indexes(&mut attached, source);
+    // The warnings are what doctor reports; the detach is a best effort.
+    attached.connection.detach(&attached.alias).ok();
+    match checked {
+        Ok(warnings) => Ok(warnings
+            .iter()
+            .map(|warning| Diagnostic::of_index(warning, &source.file.path))
+            .collect()),
+        Err(error) => {
+            let error = InspectError::Unreadable {
+                source_name: name.to_owned(),
+                detail: error.to_string(),
+            };
+            Ok(vec![Diagnostic::of_code(error.code(), error.to_string())])
+        }
+    }
 }
 
 /// Every secret reference the sources of `configuration` use, once each, sorted by name.
