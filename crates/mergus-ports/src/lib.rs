@@ -38,7 +38,7 @@ pub use database::{
 };
 pub use environment::Environment;
 pub use error::PortError;
-pub use file_system::FileSystem;
+pub use file_system::{FileSystem, SeekRead};
 pub use keychain::Keychain;
 pub use network::{Connection, HttpRequest, HttpResponse, Network};
 pub use object_store::ObjectStore;
