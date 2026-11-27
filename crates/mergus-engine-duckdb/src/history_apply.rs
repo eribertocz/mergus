@@ -38,7 +38,9 @@ const SCRATCH: [&str; 5] = [
 ///
 /// Fails with [`EngineError::HistoryRepeatedKey`] (`MG-0605`) when an input that is not a
 /// changes view has a key twice, with [`EngineError::HistoryByType`] (`MG-0606`) when a
-/// `by = "<column>"` column is not a `DATE`, `TIMESTAMP` or `TIMESTAMPTZ`, and with
+/// `by = "<column>"` column is not a `DATE`, `TIMESTAMP` or `TIMESTAMPTZ`, with
+/// [`EngineError::HistoryNullKey`] (`MG-0607`) when a row it reads has a NULL key, with
+/// [`EngineError::RolledBack`] when the run failed and so did its rollback, and with
 /// [`EngineError::Port`] when DuckDB fails, for example when a column is missing. Nothing is
 /// changed then.
 pub fn apply_history(
@@ -51,10 +53,13 @@ pub fn apply_history(
             session.execute("COMMIT", &[])?;
             Ok(applied)
         }
-        Err(error) => {
-            session.execute("ROLLBACK", &[])?;
-            Err(error)
-        }
+        Err(error) => match session.execute("ROLLBACK", &[]) {
+            Ok(_) => Err(error),
+            Err(rollback) => Err(EngineError::RolledBack {
+                error: Box::new(error),
+                rollback,
+            }),
+        },
     }
 }
 
@@ -78,8 +83,9 @@ fn apply(
     session.execute(set, &[SqlValue::TimestampTz(micros)])?;
     let set = "SET VARIABLE mergus_sentinel = CAST(? AS TIMESTAMPTZ)";
     session.execute(set, &[SqlValue::TimestampTz(SENTINEL_MICROS)])?;
-    create_table(session, &names)?;
     stage(session, history, &names)?;
+    null_keys(session, history, &names)?;
+    create_table(session, &names)?;
     let rounds = scalar_i64(
         session,
         "SELECT CAST(max(_mergus_round) AS BIGINT) FROM mergus_history_rows",
@@ -186,7 +192,8 @@ fn stage(
                 "CREATE TEMP TABLE mergus_history_rows AS SELECT {columns}, \
                  COALESCE({by}CAST(\"_extracted_at\" AS TIMESTAMPTZ)) AS _mergus_from, \
                  COALESCE(\"_deleted\", false) AS _mergus_deleted, \
-                 CAST(\"_deleted_at\" AS TIMESTAMPTZ) AS _mergus_at, \
+                 COALESCE(CAST(\"_deleted_at\" AS TIMESTAMPTZ), \
+                 getvariable('mergus_detected_at')) AS _mergus_at, \
                  CAST(\"_load_id\" AS VARCHAR) AS _mergus_load, \
                  row_number() OVER (PARTITION BY {key} \
                  ORDER BY \"_extracted_at\", \"_load_id\") AS _mergus_round \
@@ -208,6 +215,26 @@ fn stage(
         }
     };
     session.execute(&create, &[])?;
+    Ok(())
+}
+
+/// Fails when a row the run reads has a NULL key: it matches no version (MG-REQ-0663.8).
+fn null_keys(
+    session: &mut dyn DatabaseConnection,
+    history: &History,
+    names: &Names,
+) -> Result<(), EngineError> {
+    let key = &names.key;
+    let sql = format!(
+        // sql: identifiers quoted by quote_identifier
+        "SELECT CAST(count(*) AS BIGINT) FROM mergus_history_rows WHERE {key} IS NULL"
+    );
+    if scalar_i64(session, &sql)?.unwrap_or(0) > 0 {
+        return Err(EngineError::HistoryNullKey {
+            table: history.table.clone(),
+            key: history.key.clone(),
+        });
+    }
     Ok(())
 }
 

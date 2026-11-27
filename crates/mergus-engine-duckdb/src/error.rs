@@ -83,6 +83,23 @@ pub enum EngineError {
         /// Its DuckDB type, as `DESCRIBE` writes it.
         data_type: String,
     },
+    /// A row the run of the history table `table` reads has a NULL in its key column `key`,
+    /// so it matches no version (MG-REQ-0663.8). Nothing was written.
+    #[error("the input of the history table `{table}` has a NULL in its key column `{key}`")]
+    HistoryNullKey {
+        /// The history table.
+        table: String,
+        /// The key column.
+        key: String,
+    },
+    /// A history run failed with `error`, and its `ROLLBACK` failed too with `rollback`.
+    #[error("{error}; the rollback failed too: {rollback}")]
+    RolledBack {
+        /// Why the run failed.
+        error: Box<EngineError>,
+        /// Why the rollback failed.
+        rollback: PortError,
+    },
     /// DuckDB or the file system failed.
     #[error(transparent)]
     Port(#[from] PortError),
@@ -100,6 +117,8 @@ impl EngineError {
             Self::HistoryRebuild { .. } => Some("MG-0604"),
             Self::HistoryRepeatedKey { .. } => Some("MG-0605"),
             Self::HistoryByType { .. } => Some("MG-0606"),
+            Self::HistoryNullKey { .. } => Some("MG-0607"),
+            Self::RolledBack { error, .. } => error.code(),
             Self::Boundary { .. } | Self::Scratch { .. } | Self::Hash { .. } | Self::Port(_) => {
                 None
             }

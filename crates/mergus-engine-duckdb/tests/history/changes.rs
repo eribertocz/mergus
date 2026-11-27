@@ -98,3 +98,18 @@ fn mg_req_0667_history_reads_changes_view() {
     assert_eq!(applied, Some("L4".to_owned()));
     assert_eq!(versions(session.as_mut()).len(), 5);
 }
+
+#[test]
+fn mg_req_0663_delete_without_time_uses_the_detection_time() {
+    let mut session = session();
+    changes(
+        session.as_mut(),
+        "(1, 'a', 'L1', '2026-01-10 00:00:00+00', false, NULL), \
+         (1, 'a', 'L2', '2026-01-20 00:00:00+00', true, NULL)",
+    );
+    let run = history(segment(), Deletes::Close, read(&["L1", "L2"], None), MARCH);
+    apply_history(session.as_mut(), &run).unwrap();
+    let jan10 = "2026-01-10 00:00:00+00";
+    let closed = version(1, Some("a"), jan10, "2026-03-01 00:00:00+00", CLOSED);
+    assert_eq!(versions(session.as_mut()), vec![closed]);
+}

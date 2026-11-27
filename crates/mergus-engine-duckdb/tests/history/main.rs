@@ -3,6 +3,7 @@
 //! macro (MG-REQ-0666) and reading the changes view (MG-REQ-0667).
 
 mod changes;
+mod keys;
 
 use std::path::PathBuf;
 
@@ -347,15 +348,27 @@ fn mg_req_0666_as_of_returns_valid_versions() {
 }
 
 #[test]
-fn mg_req_0662_repeated_key_fails_and_changes_nothing() {
+fn mg_req_0662_detection_time_keeps_microseconds() {
     let mut session = session();
-    input(session.as_mut(), "(1, NULL, 'a', 'x')");
-    let run = |at| history(segment_city(), Deletes::Close, HistoryInput::Other, at);
-    apply_history(session.as_mut(), &run(MARCH)).unwrap();
-    input(session.as_mut(), "(1, NULL, 'b', 'x'), (1, NULL, 'c', 'x')");
-    let error = apply_history(session.as_mut(), &run(APRIL)).unwrap_err();
-    assert!(matches!(&error, EngineError::HistoryRepeatedKey { key, .. } if key == "1"));
-    assert_eq!(error.code(), Some("MG-0605"));
-    let unchanged = vec![version(1, Some("a"), ON_MARCH, END, CURRENT)];
-    assert_eq!(versions(session.as_mut()), unchanged);
+    let at = |seconds: i128| Timestamp::from_unix_nanos(seconds * 1_000_000_000 + 123_456_789);
+    for (values, seconds) in [
+        ("(1, NULL, 'a', 'x')", MARCH),
+        ("(1, NULL, 'b', 'x')", APRIL),
+    ] {
+        input(session.as_mut(), values);
+        let mut run = history(segment_city(), Deletes::Ignore, HistoryInput::Other, 0);
+        run.detected_at = at(seconds);
+        apply_history(session.as_mut(), &run).unwrap();
+    }
+    let (march, april) = (
+        "2026-03-01 00:00:00.123456+00",
+        "2026-04-01 00:00:00.123456+00",
+    );
+    assert_eq!(
+        versions(session.as_mut()),
+        vec![
+            version(1, Some("a"), march, april, CLOSED),
+            version(1, Some("b"), april, END, CURRENT),
+        ]
+    );
 }
