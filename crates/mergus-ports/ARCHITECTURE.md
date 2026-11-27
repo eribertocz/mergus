@@ -5,7 +5,7 @@
 | Type | Role |
 |---|---|
 | `Clock` | Wall-clock `Timestamp`, monotonic `MonotonicTime`, sleeping |
-| `FileSystem` | Read, write, remove, create and list local files and directories |
+| `FileSystem` | Read, write, remove, create and list local files and directories; stream a file with `open` (a `SeekRead`) and `create` |
 | `ObjectStore` | Get, put, delete and list objects by key |
 | `Network` | HTTP requests (`HttpRequest`, `HttpResponse`) and TCP `Connection`s |
 | `SourceConnector` | Opens a source as a `SourceReader` that yields batches of bytes |

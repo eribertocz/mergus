@@ -6,7 +6,7 @@
 |---|---|
 | `Rate` | A fault probability in parts per million, from `Rate::NEVER` to `Rate::ALWAYS` |
 | `SimClock`, `ClockFaults` | Virtual wall and monotonic time; jumps and skew |
-| `SimFileSystem` | Files and directories in memory, keyed by path components |
+| `SimFileSystem` | Files and directories in memory, keyed by path components; `open` reads a cursor over the stored bytes, `create` stores a stream on flush and on drop |
 | `SimObjectStore`, `ObjectStoreFaults` | Objects in memory; errors, latency, partial, lost writes |
 | `SimNetwork`, `NetworkFaults`, `TcpHandler` | HTTP routes and TCP peers set by the test |
 | `SimSourceConnector`, `SourceFaults` | Sources of batches, with a changed version |
