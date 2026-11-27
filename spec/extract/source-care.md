@@ -71,20 +71,29 @@ identify itself as `mergus` (for example `application_name` in PostgreSQL).
 1. MG-REQ-0429.1: the lock timeout is 5 seconds;
 2. MG-REQ-0429.2: for PostgreSQL, read-only is the `READ_ONLY` attach and the statement
    timeout is `pg_statement_timeout_millis` (MG-REQ-0196.2, MG-REQ-0196.3); the
-   identification and the lock timeout are libpq connection options of the temporary secret,
-   `APPLICATION_NAME 'mergus'` and `OPTIONS '-c lock_timeout=5000'`.
+   identification and the lock timeout are the libpq parameters `application_name=mergus`
+   and `options=-c lock_timeout=5000`, added in memory to the connection value before it
+   goes into the temporary secret: as percent-encoded query parameters of a URI, or as
+   keywords of a keyword/value string;
+3. MG-REQ-0429.3: a connection value that already sets `application_name` or `options` is
+   refused with a typed error (`MG-04xx`) naming the source and the parameter, never its
+   value.
 
 - Kind: behavior
 - Verify: test `mg_req_0429_session_is_read_only_and_identified`
-- Decision: 0045
+- Decision: 0045, 0046
 
 ### MG-REQ-0430 · Time window
 
 When `window` is set, full loads and backfills of the source MUST start only inside the
 window; incremental loads are not restricted.
 
+1. MG-REQ-0430.1: the window's times are UTC; a window whose end is before its start spans
+   midnight, and one whose start equals its end is open all day.
+
 - Kind: behavior
 - Verify: test `mg_req_0430_full_loads_wait_for_window`
+- Decision: 0046
 
 ### MG-REQ-0431 · Index check
 
@@ -97,7 +106,10 @@ has no index in the source, with the suggested index.
    `CREATE INDEX ON "<schema>"."<table>" ("<column>", …);`, with the key columns in key
    order, or the incremental column alone;
 3. MG-REQ-0431.3: in phase 0.3 only PostgreSQL sources are checked, reading `pg_index`
-   through `postgres_query`; a DuckDB file source is not checked.
+   through `postgres_query`; a DuckDB file source is not checked;
+4. MG-REQ-0431.4: a key is indexed when an index's leading columns are the key columns in key
+   order, since keyset chunks order by them (MG-REQ-0417); an incremental column is indexed
+   when it leads an index.
 
 - Kind: behavior
 - Verify: test `mg_req_0431_doctor_reports_missing_index`
@@ -108,5 +120,11 @@ has no index in the source, with the suggested index.
 `mergus plan` MUST show, per source table: estimated rows to read, the index used when known,
 the window, and the load budget.
 
+1. MG-REQ-0432.1: the estimated rows are the source's own table estimate (`reltuples` in
+   PostgreSQL), an upper bound for an incremental load, shown as "up to N";
+2. MG-REQ-0432.2: when a source cannot be reached or read, `plan` still succeeds, shows
+   `unknown` for what it could not read, and prints the reason as a warning with its code.
+
 - Kind: behavior
 - Verify: test `mg_req_0432_plan_shows_source_impact`
+- Decision: 0046
