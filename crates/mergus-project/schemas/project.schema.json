@@ -87,7 +87,7 @@
       ]
     },
     "seed": {
-      "description": "A seed: its column types, delimiter and header (MG-REQ-0645.1). Other keys are reported as MG-0608.",
+      "description": "A seed: its column types, delimiter and header (MG-REQ-0645.1). Other keys are reported as MG-0615.",
       "type": "object",
       "additionalProperties": false,
       "required": ["columns"],

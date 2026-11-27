@@ -35,12 +35,12 @@ Read and validate the project: files, `project.toml`, folder `mergus.toml`.
 - Returns the resolved references of each `.sql` model, lowercase, a model bare and a raw
   table as `raw.<table>`, sorted (`read_sql_references`, MG-REQ-0373).
 - Runs each `macros/*.sql` through the `Database` port in a sandboxed session: a refused
-  statement or any object other than a macro is `MG-0604` (MG-REQ-0641); two macros of one name
-  or a macro named like a DuckDB built-in, without case, is `MG-0605` (MG-REQ-0642). Gives each
+  statement or any object other than a macro is `MG-0611` (MG-REQ-0641); two macros of one name
+  or a macro named like a DuckDB built-in, without case, is `MG-0612` (MG-REQ-0642). Gives each
   model the macros it calls, directly or through another macro, as fingerprint inputs
   `macro:<name>` = `sha256:<hex>` (MG-REQ-0644).
-- Checks each `seeds/<name>.csv` against its `[seeds.<name>]`: `MG-0606` to `MG-0609`
-  (MG-REQ-0645); hashes it for the fingerprints of its readers, and warns with `MG-0610` above
+- Checks each `seeds/<name>.csv` against its `[seeds.<name>]`: `MG-0613` to `MG-0616`
+  (MG-REQ-0645); hashes it for the fingerprints of its readers, and warns with `MG-0617` above
   10,000,000 bytes (MG-REQ-0646).
 - Collects every problem, not only the first, each file's problems ordered by line, code and
   key.

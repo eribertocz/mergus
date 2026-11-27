@@ -21,7 +21,7 @@ impl ProjectWarning {
     #[must_use]
     pub fn code(&self) -> &'static str {
         match self {
-            Self::LargeSeed { .. } => "MG-0610",
+            Self::LargeSeed { .. } => "MG-0617",
         }
     }
 

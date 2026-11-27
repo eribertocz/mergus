@@ -10,7 +10,7 @@ use arrow::ipc::reader::FileReader;
 use arrow::ipc::writer::FileWriter;
 use arrow::record_batch::RecordBatch;
 use mergus_engine_duckdb::{
-    Boundary, EngineError, MEMORY_BUDGET, Segment, Table, Transport, run_segment, table_hash,
+    AS_OF, Boundary, EngineError, MEMORY_BUDGET, Segment, Table, Transport, run_segment, table_hash,
 };
 use mergus_ports::{FileSystem, SqlValue};
 use mergus_sim::{DatabaseFaults, SimDatabase, SimFileSystem};
@@ -79,6 +79,7 @@ fn segment(output: Boundary, inputs: Vec<Table>) -> Segment {
 #[cfg(test)]
 fn database() -> SimDatabase {
     let database = SimDatabase::new(7, DatabaseFaults::default());
+    database.record_execute(AS_OF, vec![], 0);
     database.record_query(LOADED_ICU, vec![SqlValue::Text("icu".to_owned())], vec![]);
     for text in MACROS {
         database.record_execute(text, vec![], 0);

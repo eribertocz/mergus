@@ -151,3 +151,54 @@ fn mg_req_0517_plan_shows_raw_off_sources() {
     let json = mergus(&files, &["plan", "--json"]);
     assert!(!json.stdout.contains("raw = false"), "{}", json.stdout);
 }
+
+#[test]
+fn mg_req_0654_0661_plan_reports_refresh_errors() {
+    let files = super::project(&[
+        ("project.toml", super::PROJECT),
+        ("models/orders.sql", "select 1 as id\n"),
+        ("models/customers.sql", "select 1 as id\n"),
+        (
+            "models/mergus.toml",
+            "[orders]\nrefresh = \"incremental\"\n[customers]\nrefresh = \"history\"\nkey = \"id\"\n",
+        ),
+    ]);
+    let outcome = mergus(&files, &["plan", "--json"]);
+    assert_eq!(outcome.exit, 1, "{outcome:?}");
+    assert!(outcome.of("plan_ready").is_empty());
+    assert!(!files.exists(&Path::new(ROOT).join(".mergus")).unwrap());
+    let diagnostics = outcome.of("diagnostic");
+    let codes: Vec<&str> = diagnostics
+        .iter()
+        .map(|diagnostic| diagnostic["code"].as_str().unwrap())
+        .collect();
+    assert_eq!(codes, ["MG-0605", "MG-0604"], "{outcome:?}");
+    assert_eq!(diagnostics[0]["severity"], "error");
+    assert!(
+        diagnostics[0]["message"]
+            .as_str()
+            .unwrap()
+            .contains("does not declare `by`"),
+        "{}",
+        diagnostics[0]
+    );
+    assert!(
+        diagnostics[1]["message"]
+            .as_str()
+            .unwrap()
+            .contains("neither `partition_by` nor `key`"),
+        "{}",
+        diagnostics[1]
+    );
+    assert_eq!(outcome.of("run_finished")[0]["exit_code"], 1);
+    // The human output names the file of each model.
+    let human = mergus(&files, &["plan"]);
+    assert_eq!(human.exit, 1);
+    for (code, file) in [
+        ("MG-0605", "models/customers.sql"),
+        ("MG-0604", "models/orders.sql"),
+    ] {
+        assert!(human.stderr.contains(code), "{}", human.stderr);
+        assert!(human.stderr.contains(file), "{}", human.stderr);
+    }
+}

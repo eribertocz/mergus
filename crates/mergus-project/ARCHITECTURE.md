@@ -74,8 +74,8 @@ Functions: `read_layout`, `read_configuration`, `read_model_options`, `is_valid_
 
 1. `read_macros` lists `macros/*.sql`, sorted, and gives each file's text to
    `Database::run_macros`, one fresh sandboxed session per file. A refusal or a changed
-   catalog row is `MG-0604`; the file's macros are grouped by lowercase name, overloads
-   together, and checked against that session's built-ins and the earlier files (`MG-0605`).
+   catalog row is `MG-0611`; the file's macros are grouped by lowercase name, overloads
+   together, and checked against that session's built-ins and the earlier files (`MG-0612`).
 2. With no problem, the calls of each macro are the function names of the `SqlParser` tree of
    `SELECT <definition>` (scalar) or `<definition>` (table) that name a macro.
 3. `Macros::fingerprint_inputs` takes the calls of a model, from `sql_calls` on its text, and
@@ -83,7 +83,7 @@ Functions: `read_layout`, `read_configuration`, `read_model_options`, `is_valid_
 4. `read_seeds` reads the valid configuration's `[seeds.*]` and the `seeds/*.csv` stems:
    undeclared files, declarations without files and unknown types are problems; each declared
    file is hashed and warns above `LARGE_SEED_BYTES`. Unknown seed keys are found by the
-   schema and reported as `MG-0608`.
+   schema and reported as `MG-0615`.
 
 ## Dependencies
 

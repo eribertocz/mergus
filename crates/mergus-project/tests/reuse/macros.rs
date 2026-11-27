@@ -124,7 +124,7 @@ fn mg_req_0641_macros_only_create_macro() {
         .map(|problem| (problem.code(), problem.path(), problem.to_string()))
         .collect();
     assert_eq!(shown.len(), 3, "{shown:#?}");
-    assert!(shown.iter().all(|(code, _, _)| *code == "MG-0604"));
+    assert!(shown.iter().all(|(code, _, _)| *code == "MG-0611"));
     assert_eq!(shown[0].1, "macros/a_table.sql");
     assert!(shown[0].2.contains("`duckdb_tables()`"), "{}", shown[0].2);
     assert_eq!(shown[1].1, "macros/b_templated.sql");
@@ -172,7 +172,7 @@ fn mg_req_0642_macro_name_clash_rejected() {
             },
         ]
     );
-    assert!(found.iter().all(|problem| problem.code() == "MG-0605"));
+    assert!(found.iter().all(|problem| problem.code() == "MG-0612"));
     assert!(found[0].to_string().contains("`macros/a.sql`"));
     assert!(found[0].to_string().contains("`macros/b.sql`"));
 }

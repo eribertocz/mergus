@@ -89,7 +89,7 @@ fn assert_declaration_problems(read: &Seeds) {
         .map(|problem| (problem.code(), problem.line(), problem.to_string()))
         .collect();
     assert_eq!(shown.len(), 3, "{shown:#?}");
-    assert_eq!((shown[0].0, shown[0].1), ("MG-0609", Some(11)));
+    assert_eq!((shown[0].0, shown[0].1), ("MG-0616", Some(11)));
     assert!(shown[0].2.contains("`decimal(18,3)`"), "{}", shown[0].2);
     assert_eq!(
         read.problems[1],
@@ -98,7 +98,7 @@ fn assert_declaration_problems(read: &Seeds) {
             path: "seeds/regions.csv".to_owned(),
         }
     );
-    assert_eq!(shown[1].0, "MG-0606");
+    assert_eq!(shown[1].0, "MG-0613");
     assert_eq!(
         read.problems[2],
         ProjectError::SeedWithoutFile {
@@ -107,7 +107,7 @@ fn assert_declaration_problems(read: &Seeds) {
             line: 3,
         }
     );
-    assert_eq!(shown[2].0, "MG-0607");
+    assert_eq!(shown[2].0, "MG-0614");
 }
 
 #[test]
@@ -126,7 +126,7 @@ fn mg_req_0645_unknown_seed_key_rejected() {
             suggestion: None,
         }]
     );
-    assert_eq!(problems[0].code(), "MG-0608");
+    assert_eq!(problems[0].code(), "MG-0615");
     let missing = "name = \"sales\"\n[seeds.countries]\nheader = false\n";
     let Err(LayoutError::Invalid(problems)) = read(missing, &[]) else {
         panic!("expected problems");
@@ -156,7 +156,7 @@ fn mg_req_0646_large_seed_warns() {
             bytes: 10_000_001,
         }]
     );
-    assert_eq!(read.warnings[0].code(), "MG-0610");
+    assert_eq!(read.warnings[0].code(), "MG-0617");
     assert_eq!(read.warnings[0].path(), "seeds/big.csv");
     assert!(read.warnings[0].to_string().contains("source"));
 }

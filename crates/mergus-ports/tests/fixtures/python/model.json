@@ -1,0 +1,264 @@
+{
+  "calls": [
+    {
+      "column": 7,
+      "keywords": [],
+      "line": 6,
+      "name": "SystemExit",
+      "receiver": []
+    },
+    {
+      "column": 12,
+      "keywords": [
+        "subset",
+        null
+      ],
+      "line": 20,
+      "name": "unique",
+      "receiver": [
+        {
+          "kind": "name",
+          "name": "joined"
+        },
+        {
+          "kind": "attribute",
+          "name": "sort"
+        },
+        {
+          "kind": "call"
+        },
+        {
+          "kind": "attribute",
+          "name": "first"
+        },
+        {
+          "kind": "call"
+        },
+        {
+          "kind": "attribute",
+          "name": "with_columns"
+        },
+        {
+          "kind": "call"
+        }
+      ]
+    },
+    {
+      "column": 12,
+      "keywords": [],
+      "line": 20,
+      "name": "with_columns",
+      "receiver": [
+        {
+          "kind": "name",
+          "name": "joined"
+        },
+        {
+          "kind": "attribute",
+          "name": "sort"
+        },
+        {
+          "kind": "call"
+        },
+        {
+          "kind": "attribute",
+          "name": "first"
+        },
+        {
+          "kind": "call"
+        }
+      ]
+    },
+    {
+      "column": 12,
+      "keywords": [],
+      "line": 20,
+      "name": "first",
+      "receiver": [
+        {
+          "kind": "name",
+          "name": "joined"
+        },
+        {
+          "kind": "attribute",
+          "name": "sort"
+        },
+        {
+          "kind": "call"
+        }
+      ]
+    },
+    {
+      "column": 12,
+      "keywords": [],
+      "line": 20,
+      "name": "sort",
+      "receiver": [
+        {
+          "kind": "name",
+          "name": "joined"
+        }
+      ]
+    },
+    {
+      "column": 9,
+      "keywords": [],
+      "line": 21,
+      "name": "alias",
+      "receiver": [
+        {
+          "kind": "other",
+          "node": "BinOp"
+        }
+      ]
+    },
+    {
+      "column": 10,
+      "keywords": [],
+      "line": 21,
+      "name": "col",
+      "receiver": [
+        {
+          "kind": "name",
+          "name": "pl"
+        }
+      ]
+    },
+    {
+      "column": 29,
+      "keywords": [],
+      "line": 21,
+      "name": "col",
+      "receiver": [
+        {
+          "kind": "name",
+          "name": "pl"
+        }
+      ]
+    }
+  ],
+  "functions": [
+    {
+      "async": false,
+      "column": 1,
+      "line": 9,
+      "name": "joined",
+      "parameters": [
+        {
+          "column": 12,
+          "kind": "positional",
+          "line": 9,
+          "name": "fact_sales"
+        },
+        {
+          "column": 24,
+          "kind": "positional",
+          "line": 9,
+          "name": "exchange_rates"
+        }
+      ],
+      "returns": [
+        {
+          "column": 5,
+          "kind": "string",
+          "line": 10,
+          "value": "\n        SELECT f.*, r.rate FROM fact_sales f JOIN exchange_rates r USING (date)\n    "
+        }
+      ]
+    },
+    {
+      "async": false,
+      "column": 1,
+      "line": 15,
+      "name": "in_usd",
+      "parameters": [
+        {
+          "column": 12,
+          "kind": "positional_only",
+          "line": 15,
+          "name": "joined"
+        },
+        {
+          "column": 26,
+          "kind": "keyword_only",
+          "line": 15,
+          "name": "scale"
+        },
+        {
+          "column": 37,
+          "kind": "var_keyword",
+          "line": 15,
+          "name": "options"
+        }
+      ],
+      "returns": [
+        {
+          "column": 9,
+          "kind": "none",
+          "line": 19
+        },
+        {
+          "column": 5,
+          "kind": "expression",
+          "line": 20,
+          "node": "Call"
+        }
+      ]
+    },
+    {
+      "async": true,
+      "column": 1,
+      "line": 25,
+      "name": "latest",
+      "parameters": [
+        {
+          "column": 18,
+          "kind": "positional",
+          "line": 25,
+          "name": "in_usd"
+        },
+        {
+          "column": 27,
+          "kind": "var_positional",
+          "line": 25,
+          "name": "rest"
+        }
+      ],
+      "returns": [
+        {
+          "column": 5,
+          "kind": "expression",
+          "line": 26,
+          "node": "JoinedStr"
+        }
+      ]
+    }
+  ],
+  "imports": [
+    {
+      "alias": "pl",
+      "column": 1,
+      "level": 0,
+      "line": 2,
+      "module": "polars",
+      "name": null
+    },
+    {
+      "alias": "tidy",
+      "column": 1,
+      "level": 1,
+      "line": 3,
+      "module": "helpers",
+      "name": "clean"
+    },
+    {
+      "alias": null,
+      "column": 1,
+      "level": 0,
+      "line": 4,
+      "module": "mergus_module_that_does_not_exist",
+      "name": null
+    }
+  ],
+  "version": 1
+}

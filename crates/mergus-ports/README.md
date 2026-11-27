@@ -5,12 +5,17 @@ I/O traits and their real implementations.
 ## What it does
 
 - Defines one trait per port: `Clock`, `FileSystem`, `ObjectStore`, `Network`,
-  `SourceConnector`, `Random`, `Process`, `Environment`, `SqlParser`, `Database` and
+  `SourceConnector`, `Random`, `Process`, `Environment`, `SqlParser`, `Python`, `Database` and
   `Keychain`, and the `PortError` they return.
+- Defines `PythonTree`, the tree of a Python file the `Python` port returns: top-level
+  functions with their parameters and returns, imports and calls, each with line and column
+  (MG-REQ-0611).
 - Holds, under the non-default feature `real`, the real implementations that wrap the
   operating system: `RealClock`, `RealEnvironment`, `RealFileSystem`, `RealKeychain`, `RealProcess`
   and `RealRandom`, and `RealSqlParser`, DuckDB's parser in an in-memory DuckDB without external
-  access that never executes the text (MG-REQ-0193).
+  access that never executes the text (MG-REQ-0193), and `RealPython`, which runs a Python
+  interpreter as a child process with `-I -S` and exactly the environment its caller gives,
+  and reads a file's tree with a bundled `ast` script, never importing it (MG-REQ-0611).
 - Holds `RealDatabase`, in-process DuckDB that runs SQL with bound parameters, reads and
   writes Arrow, attaches DuckLake catalogs, and attaches database sources read-only: DuckDB
   files with no extension, and PostgreSQL with the `postgres` extension, its pool and
@@ -34,5 +39,8 @@ I/O traits and their real implementations.
 - It has no real `ObjectStore`, `Network` or `SourceConnector` yet; they come with the crates
   that need them.
 - `RealRandom` is fit for identifiers, not for secrets.
+- It never embeds Python, and does not build the Python environment: the caller builds it
+  with `mergus_security::python_command`. Its port errors carry no `MG-####` code; the
+  caller maps them.
 - Its errors never carry a keychain value: `RealKeychain` keeps only the kind of a `keyring`
   error (MG-REQ-1002).

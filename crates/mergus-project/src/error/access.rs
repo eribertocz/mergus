@@ -25,12 +25,12 @@ impl ProjectError {
             Self::UnpreparableSql { .. } => "MG-0601",
             Self::UnknownParameter { .. } => "MG-0602",
             Self::PositionalParameter { .. } => "MG-0603",
-            Self::ForbiddenMacroFile { .. } => "MG-0604",
-            Self::DuplicateMacro { .. } | Self::MacroShadowsBuiltin { .. } => "MG-0605",
-            Self::UndeclaredSeed { .. } => "MG-0606",
-            Self::SeedWithoutFile { .. } => "MG-0607",
-            Self::UnknownSeedKey { .. } => "MG-0608",
-            Self::UnknownSeedType { .. } => "MG-0609",
+            Self::ForbiddenMacroFile { .. } => "MG-0611",
+            Self::DuplicateMacro { .. } | Self::MacroShadowsBuiltin { .. } => "MG-0612",
+            Self::UndeclaredSeed { .. } => "MG-0613",
+            Self::SeedWithoutFile { .. } => "MG-0614",
+            Self::UnknownSeedKey { .. } => "MG-0615",
+            Self::UnknownSeedType { .. } => "MG-0616",
         }
     }
 

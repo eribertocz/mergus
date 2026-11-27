@@ -58,7 +58,7 @@ key, using the adapter's merge mode:
 
 An `incremental` model without `partition_by` and without `key` MUST be a validation error:
 
-1. MG-REQ-0654.1: the error is raised when the plan is built, with the next free `MG-07xx` code
+1. MG-REQ-0654.1: the error is raised when the plan is built, with the next free `MG-06xx` code
    and exit code 1. With both `partition_by` and `key`, the model is by period.
 
 - Kind: behavior
@@ -77,7 +77,10 @@ affected ones. A recomputed period whose content did not change keeps its token.
 ### MG-REQ-0656 · Intermediates are computed on the fly
 
 Intermediate models MUST NOT be stored unless `materialize = true`; materialized
-intermediates live in a private internal zone, never in gold.
+intermediates live in a private internal zone, never in gold:
+
+1. MG-REQ-0656.1: the plan exposes, in its Rust API, which models produce stored output. The
+   plan contract carries no field for it in 1.1.0.
 
 - Kind: behavior
 - Verify: test `mg_req_0656_intermediates_not_stored_by_default`
@@ -91,7 +94,14 @@ and publish them atomically with the rest of the run:
    the period holding `--from`, to the end of the period holding `--to`. Without `--to`, it
    ends at the end of the period holding the run's start.
 2. MG-REQ-0657.2: the plan writes those periods as for MG-REQ-0652.3, whatever the changes.
-   A model with no `partition_by` cannot be backfilled, which is a typed `MG-07xx` error.
+   A model with no `partition_by` cannot be backfilled, which is a typed error
+   with the next free `MG-06xx` code and exit code 1, raised when the plan is built.
+3. MG-REQ-0657.3: a backfilled model's available result does not count, so its step is
+   `compute` with reason `no_result`. Its periods are the backfill range merged with the
+   affected periods the caller gives.
+4. MG-REQ-0657.4: a `full` model with `partition_by` is backfilled whole: its step is `compute`
+   and has no `periods`. A `history` model cannot be backfilled unless the request carries the
+   rebuild confirmation of MG-REQ-0665; without it the backfill is the same typed error.
 
 - Kind: behavior
 - Verify: test `mg_req_0657_backfill_recomputes_range`

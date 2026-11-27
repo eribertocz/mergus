@@ -14,11 +14,18 @@ mod checks;
 mod error;
 mod exact;
 mod hash;
+mod history;
+mod history_apply;
+mod history_sql;
 mod output;
 mod segment;
 mod transport;
 
 pub use error::EngineError;
 pub use hash::table_hash;
+pub use history::{
+    AS_OF, ChangeDetection, Deletes, History, HistoryInput, RebuildHistory, rebuild_history,
+};
+pub use history_apply::apply_history;
 pub use segment::{Segment, Table, run_segment};
 pub use transport::{Boundary, MEMORY_BUDGET, Transport};
