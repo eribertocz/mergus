@@ -9,7 +9,8 @@
 //! [`origin`] follows the same chain and returns which link answered, a [`SecretOrigin`],
 //! without the value, for `mergus doctor` (MG-REQ-1004).
 //!
-//! [`python_environment`] builds the environment of the Python process from an allowlist, so
+//! [`python_command`] builds the command of the Python process, with only an allowlisted
+//! environment, so
 //! no `MERGUS_SECRET_*` variable or cloud SDK credential is in it (MG-REQ-1003) and no secret
 //! reaches Python (MG-REQ-0006).
 //!
@@ -25,7 +26,7 @@ mod resolve;
 mod store;
 
 pub use error::SecretError;
-pub use python::python_environment;
+pub use python::python_command;
 pub use reference::SecretRef;
 pub use resolve::{KEYCHAIN_SERVICE, SecretOrigin, origin, resolve};
 pub use secrecy::{ExposeSecret, SecretString};

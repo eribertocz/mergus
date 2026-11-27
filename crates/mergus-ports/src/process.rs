@@ -13,10 +13,12 @@ pub struct ProcessCommand {
     pub args: Vec<String>,
     /// The working directory, or `None` for the current one.
     pub current_dir: Option<PathBuf>,
-    /// Environment variables set for the child, in order.
+    /// Environment variables set for the child, in order; a later one replaces an earlier one
+    /// of the same name. With `clear_env`, they are the child's whole environment; without
+    /// it, they are set over the variables the child inherits from this process.
     pub env: Vec<(String, String)>,
-    /// When `true`, the child starts with only the variables of `env`; otherwise it inherits
-    /// the variables of this process, then `env` is set over them.
+    /// When `true`, the child inherits no variable from this process and starts with only
+    /// `env`; when `false`, it inherits them all, then `env` is set over them.
     pub clear_env: bool,
 }
 

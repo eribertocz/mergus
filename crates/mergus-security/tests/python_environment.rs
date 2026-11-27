@@ -3,7 +3,7 @@
 
 use mergus_ports::real::{RealEnvironment, RealProcess};
 use mergus_ports::{Environment, PortError, Process, ProcessCommand, ProcessOutput};
-use mergus_security::python_environment;
+use mergus_security::python_command;
 use mergus_sim::{SimEnvironment, SimProcess};
 
 /// The cloud SDK credential variables of MG-REQ-1003, as the specifier listed them on #241:
@@ -113,13 +113,24 @@ fn mg_req_1003_python_env_has_no_credentials() {
         ("TMPDIR", WORK_DIR),
     ]));
     expected.sort();
-    let env = python_environment(&environment, WORK_DIR);
-    assert_eq!(env, expected);
-    assert_denylist_holds(&env);
-    // A variable of the allowlist that is not set is not added.
-    let empty = python_environment(&SimEnvironment::default(), WORK_DIR);
+    let args = ["-c".to_owned(), "pass".to_owned()];
+    let command = python_command("python3", &args, WORK_DIR, &environment);
     assert_eq!(
-        empty,
+        command,
+        ProcessCommand {
+            program: "python3".to_owned(),
+            args: args.to_vec(),
+            current_dir: None,
+            env: expected,
+            clear_env: true,
+        }
+    );
+    assert_denylist_holds(&command.env);
+    // A variable of the allowlist that is not set is not added.
+    let empty = python_command("python3", &[], WORK_DIR, &SimEnvironment::default());
+    assert!(empty.clear_env);
+    assert_eq!(
+        empty.env,
         owned(&[
             ("PYTHONHASHSEED", "0"),
             ("PYTHONNOUSERSITE", "1"),
@@ -142,16 +153,13 @@ fn mg_req_0006_python_sees_no_secret() {
     let environment = with_secrets(owned(&PASSED).into_iter().chain(owned(&DROPPED)));
     let process = SimProcess::new();
     process.register("python3", ProcessOutput::default());
-    let command = ProcessCommand {
-        program: "python3".to_owned(),
-        args: vec!["-c".to_owned(), "pass".to_owned()],
-        env: python_environment(&environment, WORK_DIR),
-        clear_env: true,
-        ..ProcessCommand::default()
-    };
-    process.run(&command).unwrap();
+    let args = ["-c".to_owned(), "pass".to_owned()];
+    process
+        .run(&python_command("python3", &args, WORK_DIR, &environment))
+        .unwrap();
     let runs = process.runs();
-    assert_eq!(runs, [command]);
+    assert_eq!(runs.len(), 1);
+    assert_eq!(runs[0].program, "python3");
     assert!(
         runs[0].clear_env,
         "the child must not inherit the environment"
@@ -193,17 +201,12 @@ fn run_real_python() -> (Vec<(String, String)>, Result<ProcessOutput, PortError>
     let passed = ["PATH", "SYSTEMROOT"]
         .into_iter()
         .filter_map(|name| Some((name.to_owned(), real.var(name)?)));
-    let env = python_environment(&with_secrets(passed), env!("CARGO_TARGET_TMPDIR"));
-    let command = ProcessCommand {
-        program: "python3".to_owned(),
-        args: vec![
-            "-I".to_owned(),
-            "-c".to_owned(),
-            PRINT_ENVIRONMENT.to_owned(),
-        ],
-        env: env.clone(),
-        clear_env: true,
-        ..ProcessCommand::default()
-    };
-    (env, RealProcess.run(&command))
+    let args = [
+        "-I".to_owned(),
+        "-c".to_owned(),
+        PRINT_ENVIRONMENT.to_owned(),
+    ];
+    let work_dir = env!("CARGO_TARGET_TMPDIR");
+    let command = python_command("python3", &args, work_dir, &with_secrets(passed));
+    (command.env.clone(), RealProcess.run(&command))
 }
