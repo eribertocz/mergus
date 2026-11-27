@@ -16,6 +16,7 @@ mod exact;
 mod hash;
 mod history;
 mod history_apply;
+mod history_sql;
 mod output;
 mod segment;
 mod transport;

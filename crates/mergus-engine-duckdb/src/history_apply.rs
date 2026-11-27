@@ -5,14 +5,11 @@
 //! among the rows of its key, in `_extracted_at` then `_load_id` order. Each round applies at
 //! most one row per key, so a key's rows go through change detection one after another.
 
-use arrow::array::{Array, AsArray};
-use arrow::compute::cast;
-use arrow::datatypes::{DataType, Int64Type};
-use arrow::record_batch::RecordBatch;
 use mergus_ports::{DatabaseConnection, SqlValue};
 
 use crate::EngineError;
 use crate::history::{ChangeDetection, Deletes, History, HistoryInput};
+use crate::history_sql::{BY_TYPES, changed, first_text, scalar_i64, scalar_text, valid_from};
 use crate::segment::quote_identifier;
 
 /// The raw metadata columns of a changes view, never columns of a history table
@@ -40,8 +37,9 @@ const SCRATCH: [&str; 5] = [
 /// # Errors
 ///
 /// Fails with [`EngineError::HistoryRepeatedKey`] (`MG-0605`) when an input that is not a
-/// changes view has a key twice, and with [`EngineError::Port`] when DuckDB fails, for
-/// example when a column is missing or `by` is not a date or a timestamp. Nothing is
+/// changes view has a key twice, with [`EngineError::HistoryByType`] (`MG-0606`) when a
+/// `by = "<column>"` column is not a `DATE`, `TIMESTAMP` or `TIMESTAMPTZ`, and with
+/// [`EngineError::Port`] when DuckDB fails, for example when a column is missing. Nothing is
 /// changed then.
 pub fn apply_history(
     session: &mut dyn DatabaseConnection,
@@ -120,6 +118,17 @@ fn names(session: &mut dyn DatabaseConnection, history: &History) -> Result<Name
     let input = quote_identifier(&history.input);
     // sql: identifiers quoted by quote_identifier
     let described = session.describe(&format!("SELECT * FROM {input}"), &[])?;
+    if let ChangeDetection::Increases(by) = &history.by {
+        let found = described.iter().find(|column| &column.name == by);
+        if let Some(column) = found.filter(|column| !BY_TYPES.contains(&column.data_type.as_str()))
+        {
+            return Err(EngineError::HistoryByType {
+                table: history.table.clone(),
+                column: by.clone(),
+                data_type: column.data_type.clone(),
+            });
+        }
+    }
     let raw = matches!(history.input_kind, HistoryInput::Changes { .. });
     let columns = described
         .iter()
@@ -139,8 +148,8 @@ fn names(session: &mut dyn DatabaseConnection, history: &History) -> Result<Name
 fn create_table(session: &mut dyn DatabaseConnection, names: &Names) -> Result<(), EngineError> {
     let Names { table, input, .. } = names;
     let columns = names.columns.join(", ");
-    // sql: identifiers quoted by quote_identifier
     let create = format!(
+        // sql: identifiers quoted by quote_identifier
         "CREATE TABLE IF NOT EXISTS {table} AS SELECT {columns}, \
          CAST(NULL AS TIMESTAMPTZ) AS \"_valid_from\", CAST(NULL AS TIMESTAMPTZ) AS \"_valid_to\", \
          CAST(NULL AS BOOLEAN) AS \"_is_current\", CAST(NULL AS BOOLEAN) AS \"_is_deleted\" \
@@ -172,8 +181,8 @@ fn stage(
             let set = "SET VARIABLE mergus_after = CAST(? AS VARCHAR)";
             let after = after.clone().map_or(SqlValue::Null, SqlValue::Text);
             session.execute(set, &[after])?;
-            // sql: identifiers quoted by quote_identifier
             format!(
+                // sql: identifiers quoted by quote_identifier
                 "CREATE TEMP TABLE mergus_history_rows AS SELECT {columns}, \
                  COALESCE({by}CAST(\"_extracted_at\" AS TIMESTAMPTZ)) AS _mergus_from, \
                  COALESCE(\"_deleted\", false) AS _mergus_deleted, \
@@ -188,8 +197,8 @@ fn stage(
         }
         HistoryInput::Other => {
             unique_keys(session, history, names)?;
-            // sql: identifiers quoted by quote_identifier
             format!(
+                // sql: identifiers quoted by quote_identifier
                 "CREATE TEMP TABLE mergus_history_rows AS SELECT {columns}, \
                  COALESCE({by}getvariable('mergus_detected_at')) AS _mergus_from, \
                  false AS _mergus_deleted, getvariable('mergus_detected_at') AS _mergus_at, \
@@ -220,8 +229,8 @@ fn unique_keys(
     names: &Names,
 ) -> Result<(), EngineError> {
     let Names { input, key, .. } = names;
-    // sql: identifiers quoted by quote_identifier
     let sql = format!(
+        // sql: identifiers quoted by quote_identifier
         "SELECT CAST({key} AS VARCHAR) FROM {input} GROUP BY {key} HAVING count(*) > 1 \
          ORDER BY {key} LIMIT 1"
     );
@@ -247,25 +256,28 @@ fn open_versions(
 ) -> Result<(), EngineError> {
     let Names { table, key, .. } = names;
     let changed = changed(&history.by);
-    // sql: identifiers quoted by quote_identifier
+    let from = valid_from(&history.by);
     let open = format!(
-        "CREATE OR REPLACE TEMP TABLE mergus_history_open AS SELECT incoming.* \
+        // sql: identifiers quoted by quote_identifier
+        "CREATE OR REPLACE TEMP TABLE mergus_history_open AS \
+         SELECT incoming.* REPLACE ({from} AS _mergus_from) \
          FROM mergus_history_step AS incoming LEFT JOIN {table} AS current \
          ON incoming.{key} = current.{key} AND current.\"_is_current\" \
          AND NOT current.\"_is_deleted\" \
+         LEFT JOIN {table} AS latest ON incoming.{key} = latest.{key} AND latest.\"_is_current\" \
          WHERE NOT incoming._mergus_deleted AND (current.{key} IS NULL OR {changed})"
     );
     session.execute(&open, &[])?;
-    // sql: identifiers quoted by quote_identifier
     let close = format!(
+        // sql: identifiers quoted by quote_identifier
         "UPDATE {table} SET \"_valid_to\" = opened._mergus_from, \"_is_current\" = false \
          FROM mergus_history_open AS opened \
          WHERE {table}.{key} = opened.{key} AND {table}.\"_is_current\""
     );
     session.execute(&close, &[])?;
     let columns = names.columns.join(", ");
-    // sql: identifiers quoted by quote_identifier
     let insert = format!(
+        // sql: identifiers quoted by quote_identifier
         "INSERT INTO {table} BY NAME SELECT {columns}, _mergus_from AS \"_valid_from\", \
          getvariable('mergus_sentinel') AS \"_valid_to\", true AS \"_is_current\", \
          false AS \"_is_deleted\" FROM mergus_history_open"
@@ -274,36 +286,12 @@ fn open_versions(
     Ok(())
 }
 
-/// The SQL condition under which the row `incoming` is a new version of `current`
-/// (MG-REQ-0662.2, MG-REQ-0662.3).
-fn changed(by: &ChangeDetection) -> String {
-    match by {
-        ChangeDetection::Increases(column) => {
-            let column = quote_identifier(column);
-            format!(
-                "(incoming.{column} IS NOT NULL AND (current.{column} IS NULL \
-                 OR incoming.{column} > current.{column}))"
-            )
-        }
-        ChangeDetection::Differs(columns) => {
-            let tests: Vec<String> = columns
-                .iter()
-                .map(|column| {
-                    let column = quote_identifier(column);
-                    format!("incoming.{column} IS DISTINCT FROM current.{column}")
-                })
-                .collect();
-            format!("({})", tests.join(" OR "))
-        }
-    }
-}
-
 /// Stages in `mergus_history_gone` the keys whose row of the round is a delete and whose
 /// current version is not a tombstone, with the row's `_deleted_at` (MG-REQ-0664.1).
 fn deleted_rows(session: &mut dyn DatabaseConnection, names: &Names) -> Result<(), EngineError> {
     let Names { table, key, .. } = names;
-    // sql: identifiers quoted by quote_identifier
     let gone = format!(
+        // sql: identifiers quoted by quote_identifier
         "CREATE OR REPLACE TEMP TABLE mergus_history_gone AS \
          SELECT incoming.{key}, incoming._mergus_at FROM mergus_history_step AS incoming \
          JOIN {table} AS current ON incoming.{key} = current.{key} \
@@ -320,8 +308,8 @@ fn missing_keys(session: &mut dyn DatabaseConnection, names: &Names) -> Result<(
     let Names {
         table, input, key, ..
     } = names;
-    // sql: identifiers quoted by quote_identifier
     let gone = format!(
+        // sql: identifiers quoted by quote_identifier
         "CREATE OR REPLACE TEMP TABLE mergus_history_gone AS \
          SELECT current.{key}, getvariable('mergus_detected_at') AS _mergus_at \
          FROM {table} AS current WHERE current.\"_is_current\" AND NOT current.\"_is_deleted\" \
@@ -341,16 +329,16 @@ fn remove_keys(
         return Ok(());
     }
     let Names { table, key, .. } = names;
-    // sql: identifiers quoted by quote_identifier
     let close = format!(
+        // sql: identifiers quoted by quote_identifier
         "UPDATE {table} SET \"_valid_to\" = gone._mergus_at, \"_is_current\" = false \
          FROM mergus_history_gone AS gone WHERE {table}.{key} = gone.{key} \
          AND {table}.\"_is_current\""
     );
     session.execute(&close, &[])?;
     if deletes == Deletes::Tombstone {
-        // sql: identifiers quoted by quote_identifier
         let tombstone = format!(
+            // sql: identifiers quoted by quote_identifier
             "INSERT INTO {table} BY NAME SELECT {key}, _mergus_at AS \"_valid_from\", \
              getvariable('mergus_sentinel') AS \"_valid_to\", true AS \"_is_current\", \
              true AS \"_is_deleted\" FROM mergus_history_gone"
@@ -358,33 +346,4 @@ fn remove_keys(
         session.execute(&tombstone, &[])?;
     }
     Ok(())
-}
-
-/// The single integer `sql` returns, `None` when it is NULL.
-fn scalar_i64(session: &mut dyn DatabaseConnection, sql: &str) -> Result<Option<i64>, EngineError> {
-    let batches = session.query_arrow(sql, &[])?;
-    let Some(batch) = batches.iter().find(|batch| batch.num_rows() > 0) else {
-        return Ok(None);
-    };
-    let Some(value) = batch.column(0).as_primitive_opt::<Int64Type>() else {
-        return Ok(None);
-    };
-    Ok((!value.is_null(0)).then(|| value.value(0)))
-}
-
-/// The single text `sql` returns, `None` when it is NULL.
-fn scalar_text(
-    session: &mut dyn DatabaseConnection,
-    sql: &str,
-) -> Result<Option<String>, EngineError> {
-    Ok(first_text(&session.query_arrow(sql, &[])?))
-}
-
-/// The first value of the first column of `batches`, as text; `None` when it is NULL or
-/// there is no row.
-fn first_text(batches: &[RecordBatch]) -> Option<String> {
-    let batch = batches.iter().find(|batch| batch.num_rows() > 0)?;
-    let value = cast(batch.column(0), &DataType::Utf8).ok()?;
-    let value = value.as_string::<i32>();
-    (!value.is_null(0)).then(|| value.value(0).to_owned())
 }

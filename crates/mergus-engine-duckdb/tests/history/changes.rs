@@ -18,17 +18,25 @@ fn changes(session: &mut dyn DatabaseConnection, values: &str) {
     session.execute(&insert, &[]).unwrap();
 }
 
-#[test]
-fn mg_req_0667_history_reads_changes_view() {
-    let mut session = session();
-    let by = ChangeDetection::Differs(vec!["segment".to_owned()]);
-    let read = |ok: &[&str], after: Option<&str>| HistoryInput::Changes {
+#[cfg(test)]
+fn read(ok: &[&str], after: Option<&str>) -> HistoryInput {
+    HistoryInput::Changes {
         ok_loads: ok.iter().map(|load| (*load).to_owned()).collect(),
         after: after.map(str::to_owned),
-    };
-    // Two loads between runs keep the intermediate version of 1; load L3 is not `ok`.
+    }
+}
+
+#[cfg(test)]
+fn segment() -> ChangeDetection {
+    ChangeDetection::Differs(vec!["segment".to_owned()])
+}
+
+/// The first run: two loads between runs keep the intermediate version of 1, a deleted row
+/// tombstones 2 at its `_deleted_at`, and load L3, not `ok`, is not read.
+#[cfg(test)]
+fn first_run(session: &mut dyn DatabaseConnection) {
     changes(
-        session.as_mut(),
+        session,
         "(1, 'b', 'L2', '2026-01-20 00:00:00+00', false, NULL), \
          (1, 'a', 'L1', '2026-01-10 00:00:00+00', false, NULL), \
          (2, 'x', 'L1', '2026-01-10 00:00:00+00', false, NULL), \
@@ -36,12 +44,12 @@ fn mg_req_0667_history_reads_changes_view() {
          (1, 'z', 'L3', '2026-01-25 00:00:00+00', false, NULL)",
     );
     let first = history(
-        by.clone(),
+        segment(),
         Deletes::Tombstone,
         read(&["L1", "L2"], None),
         MARCH,
     );
-    let applied = apply_history(session.as_mut(), &first).unwrap();
+    let applied = apply_history(session, &first).unwrap();
     assert_eq!(applied, Some("L2".to_owned()));
     let (jan10, jan20, jan21) = (
         "2026-01-10 00:00:00+00",
@@ -49,7 +57,7 @@ fn mg_req_0667_history_reads_changes_view() {
         "2026-01-21 00:00:00+00",
     );
     assert_eq!(
-        versions(session.as_mut()),
+        versions(session),
         vec![
             version(1, Some("a"), jan10, jan20, CLOSED),
             version(1, Some("b"), jan20, END, CURRENT),
@@ -57,13 +65,15 @@ fn mg_req_0667_history_reads_changes_view() {
             version(2, None, jan21, END, TOMBSTONE),
         ]
     );
+}
+
+#[test]
+fn mg_req_0667_history_reads_changes_view() {
+    let mut session = session();
+    first_run(session.as_mut());
     // A later run reads only loads past the last applied one.
-    let second = history(
-        by,
-        Deletes::Tombstone,
-        read(&["L1", "L2", "L4"], Some("L2")),
-        APRIL,
-    );
+    let ok = read(&["L1", "L2", "L4"], Some("L2"));
+    let second = history(segment(), Deletes::Tombstone, ok, APRIL);
     changes(
         session.as_mut(),
         "(1, 'a', 'L1', '2026-01-10 00:00:00+00', false, NULL), \
@@ -73,18 +83,16 @@ fn mg_req_0667_history_reads_changes_view() {
     assert_eq!(applied, Some("L4".to_owned()));
     let rows = versions(session.as_mut());
     assert_eq!(rows.len(), 5);
-    assert_eq!(
-        rows[2],
-        version(1, Some("c"), "2026-02-01 00:00:00+00", END, CURRENT)
-    );
+    let feb1 = "2026-02-01 00:00:00+00";
+    assert_eq!(rows[2], version(1, Some("c"), feb1, END, CURRENT));
     // The raw metadata columns are not columns of the history table.
     let described = session.describe("SELECT * FROM dim", &[]).unwrap();
-    assert!(
-        described
-            .iter()
-            .all(|column| !column.name.starts_with("_load"))
-    );
-    assert!(!described.iter().any(|column| column.name == "_deleted"));
+    let names: Vec<&str> = described
+        .iter()
+        .map(|column| column.name.as_str())
+        .collect();
+    assert_eq!(names[..2], ["id", "segment"]);
+    assert_eq!(names.len(), 6);
     // Nothing new: the last applied load stays.
     let applied = apply_history(session.as_mut(), &second).unwrap();
     assert_eq!(applied, Some("L4".to_owned()));

@@ -69,6 +69,20 @@ pub enum EngineError {
         /// The repeated key, as text.
         key: String,
     },
+    /// The `by = "<column>"` column `column` of the input of the history table `table` has
+    /// the DuckDB type `data_type`, not `DATE`, `TIMESTAMP` or `TIMESTAMPTZ`, so its value
+    /// cannot be a version's `_valid_from` (MG-REQ-0663.6). Nothing was written.
+    #[error(
+        "the `by` column `{column}` of the history table `{table}` is `{data_type}`, not DATE, TIMESTAMP or TIMESTAMPTZ"
+    )]
+    HistoryByType {
+        /// The history table.
+        table: String,
+        /// The `by` column.
+        column: String,
+        /// Its DuckDB type, as `DESCRIBE` writes it.
+        data_type: String,
+    },
     /// DuckDB or the file system failed.
     #[error(transparent)]
     Port(#[from] PortError),
@@ -85,6 +99,7 @@ impl EngineError {
             Self::ZoneExtensionLoaded => Some("MG-0102"),
             Self::HistoryRebuild { .. } => Some("MG-0604"),
             Self::HistoryRepeatedKey { .. } => Some("MG-0605"),
+            Self::HistoryByType { .. } => Some("MG-0606"),
             Self::Boundary { .. } | Self::Scratch { .. } | Self::Hash { .. } | Self::Port(_) => {
                 None
             }

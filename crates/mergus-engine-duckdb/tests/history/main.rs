@@ -121,22 +121,25 @@ const CURRENT: (bool, bool) = (true, false);
 const CLOSED: (bool, bool) = (false, false);
 const TOMBSTONE: (bool, bool) = (true, true);
 
-#[test]
-fn mg_req_0662_change_detection_modes() {
+/// Applies a run of `by` with no deletes for each of `runs`: its input `VALUES` and its time.
+#[cfg(test)]
+fn apply_runs(session: &mut dyn DatabaseConnection, by: &ChangeDetection, runs: &[(&str, i128)]) {
+    for (values, at) in runs {
+        input(session, values);
+        let run = history(by.clone(), Deletes::Ignore, HistoryInput::Other, *at);
+        apply_history(session, &run).unwrap();
+    }
+}
+
+/// `by = [columns]`: a new version when any column differs, NULL to NULL being no change.
+#[cfg(test)]
+fn list_mode() {
     let mut session = session();
-    let other = HistoryInput::Other;
-    // by = [columns]: a new version when any column differs, NULL to NULL being no change.
-    input(
-        session.as_mut(),
-        "(1, NULL, 'a', NULL), (2, NULL, 'b', 'y')",
-    );
-    let lists = |at| history(segment_city(), Deletes::Ignore, other.clone(), at);
-    apply_history(session.as_mut(), &lists(MARCH)).unwrap();
-    input(
-        session.as_mut(),
-        "(1, NULL, 'a', NULL), (2, NULL, 'b', 'w')",
-    );
-    apply_history(session.as_mut(), &lists(APRIL)).unwrap();
+    let runs = [
+        ("(1, NULL, 'a', NULL), (2, NULL, 'b', 'y')", MARCH),
+        ("(1, NULL, 'a', NULL), (2, NULL, 'b', 'w')", APRIL),
+    ];
+    apply_runs(session.as_mut(), &segment_city(), &runs);
     assert_eq!(
         versions(session.as_mut()),
         vec![
@@ -145,42 +148,69 @@ fn mg_req_0662_change_detection_modes() {
             version(2, Some("b"), ON_APRIL, END, CURRENT),
         ]
     );
-    // by = "<column>": a new version only when the value is strictly greater; an incoming
-    // NULL never opens one, a value over a current NULL does.
-    session.execute("DROP TABLE dim", &[]).unwrap();
-    let increases = ChangeDetection::Increases("updated_at".to_owned());
-    let column = |at| history(increases.clone(), Deletes::Ignore, other.clone(), at);
-    input(
-        session.as_mut(),
-        "(1, '2026-01-10', 'a', 'x'), (2, '2026-01-10', 'b', 'y'), (3, NULL, 'c', 'z')",
-    );
-    apply_history(session.as_mut(), &column(MARCH)).unwrap();
-    input(
-        session.as_mut(),
-        "(1, '2026-01-20', 'a', 'x'), (2, '2026-01-10', 'B', 'y'), (3, '2026-01-15', 'c', 'z')",
-    );
-    apply_history(session.as_mut(), &column(APRIL)).unwrap();
-    input(
-        session.as_mut(),
-        "(1, NULL, 'n', 'x'), (2, '2026-01-05', 'B', 'y'), (3, NULL, 'c', 'z')",
-    );
-    apply_history(session.as_mut(), &column(APRIL)).unwrap();
-    let (jan10, jan15, jan20) = (
-        "2026-01-10 00:00:00+00",
-        "2026-01-15 00:00:00+00",
-        "2026-01-20 00:00:00+00",
-    );
+}
+
+/// `by = "<column>"`: a new version only when the value is strictly greater; an incoming NULL
+/// never opens one, a value over a current NULL does.
+#[cfg(test)]
+fn column_mode() {
+    let mut session = session();
+    let runs = [
+        (
+            "(1, '2026-01-10', 'a', 'x'), (2, '2026-01-10', 'b', 'y'), (3, NULL, 'c', 'z')",
+            MARCH,
+        ),
+        (
+            "(1, '2026-01-20', 'a', 'x'), (2, '2026-01-10', 'B', 'y'), (3, '2026-01-15', 'c', 'z')",
+            APRIL,
+        ),
+        (
+            "(1, NULL, 'n', 'x'), (2, '2026-01-05', 'B', 'y'), (3, NULL, 'c', 'z')",
+            APRIL,
+        ),
+    ];
+    let by = ChangeDetection::Increases("updated_at".to_owned());
+    apply_runs(session.as_mut(), &by, &runs);
+    let (jan10, jan20) = ("2026-01-10 00:00:00+00", "2026-01-20 00:00:00+00");
     assert_eq!(
         versions(session.as_mut()),
         vec![
             version(1, Some("a"), jan10, jan20, CLOSED),
             version(1, Some("a"), jan20, END, CURRENT),
             version(2, Some("b"), jan10, END, CURRENT),
-            // The first version took the detection time, the next one its `by` value.
-            version(3, Some("c"), jan15, END, CURRENT),
-            version(3, Some("c"), ON_MARCH, jan15, CLOSED),
+            // The first version took the detection time; the next `by` value, 2026-01-15, is
+            // not later than it, so the new version takes the detection time too.
+            version(3, Some("c"), ON_MARCH, ON_APRIL, CLOSED),
+            version(3, Some("c"), ON_APRIL, END, CURRENT),
         ]
     );
+}
+
+#[test]
+fn mg_req_0662_change_detection_modes() {
+    list_mode();
+    column_mode();
+}
+
+#[test]
+fn mg_req_0663_by_column_must_be_a_time() {
+    let mut session = session();
+    session
+        .execute(
+            "CREATE TABLE src AS SELECT 1 AS id, CAST(7 AS BIGINT) AS version",
+            &[],
+        )
+        .unwrap();
+    let by = ChangeDetection::Increases("version".to_owned());
+    let run = history(by, Deletes::Ignore, HistoryInput::Other, MARCH);
+    let error = apply_history(session.as_mut(), &run).unwrap_err();
+    assert!(matches!(
+        &error,
+        EngineError::HistoryByType { column, data_type, .. }
+            if column == "version" && data_type == "BIGINT"
+    ));
+    assert_eq!(error.code(), Some("MG-0606"));
+    assert!(session.query_arrow("SELECT * FROM dim", &[]).is_err());
 }
 
 #[test]
