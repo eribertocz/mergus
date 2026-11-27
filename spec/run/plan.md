@@ -152,7 +152,26 @@ again (MG-REQ-0704), as minor version 1.1.0 of the contract (MG-REQ-0205):
    (MG-REQ-0635);
 2. MG-REQ-0747.2: per incremental model, the `periods` it recomputes (MG-REQ-0652);
 3. MG-REQ-0747.3: the `gates` of stage 4 with their status (`pass`, `block` or
-   `not_applicable` with the phase it is due in) and their errors (MG-REQ-0720, MG-REQ-0722).
+   `not_applicable` with the phase it is due in) and their errors (MG-REQ-0720, MG-REQ-0722);
+4. MG-REQ-0747.4: the shapes, all new properties optional at their parent and closed
+   (`additionalProperties: false`):
+   - `step.refresh` gains the values `period` and `key` (MG-REQ-0652, MG-REQ-0653);
+   - `step.segments`: an array in execution order of `{index, engine, steps, polars_level,
+     polars_reason}`; `index` an integer from 0; `engine` `duckdb` or `polars`; `steps` the
+     model's step names in order; `polars_level` (`native`, `in_process` or `subprocess`) and
+     `polars_reason` (`qualified`, `version_mismatch` or `not_available`) present only when
+     `engine` is `polars`; `index`, `engine` and `steps` required;
+   - `step.boundaries`: an array sorted by `from`, then `to`, of `{from, to, columns,
+     transport}`, all required; `from` and `to` segment indexes; `columns` the names crossing,
+     in their output order; `transport` `arrow` or `parquet`;
+   - `step.periods`: present only for `refresh = period`; an array sorted by `start` of
+     `{start, end}`, both required, RFC 3339 timestamps in UTC; empty when nothing is
+     recomputed;
+   - top-level `gates`: an array in the order of the gate table of `run/gates.md`, of `{gate,
+     status, phase, errors}`; `gate` the gate's name in that table; `gate` and `status`
+     required; `phase`, a string such as `"0.5"`, present only when `status` is
+     `not_applicable`; `errors` present only when `status` is `block`, each `{code, message,
+     model, step, fix}` with `code` and `message` required.
 
 - Kind: behavior
 - Verify: test `mg_req_0747_plan_carries_execution_fields`

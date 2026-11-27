@@ -45,6 +45,19 @@
   - "Small" means at most 10,000,000 bytes; a larger seed is a warning.
   - A seed's hash is the SHA-256 of its file bytes.
 
+- **Schemas of steps with run parameters (MG-REQ-0603, 0604):** DuckDB cannot type a query
+  whose parameters are unbound.
+  - Each run parameter has a fixed type: `$run_date` is a DATE, and `$period_start` and
+    `$period_end` are TIMESTAMPTZ.
+  - The schema is obtained by binding a typed placeholder for each parameter and running the
+    query against empty tables with the input schemas. No data exists, so none is read.
+- **SQL model errors (MG-REQ-0601-0604):** each is a validation error with its own `MG-06xx`
+  code:
+  - a model that parses but that DuckDB refuses to prepare (an unknown column, a type mismatch,
+    a binder error);
+  - an unknown parameter name;
+  - a positional parameter (`?`, `$1`).
+
 ## Engines (MG-REQ-0180, 0631-0638)
 
 - **Fusion (MG-REQ-0631):** steps are fused only inside one model. Each `.sql` model is one
@@ -113,6 +126,12 @@
     `mv`, `run` and `backfill`.
 - **Error codes:** each error takes the next free code of its area when its pull request
   merges.
+
+## Phase 0.3 follow-up (spec-defect #231)
+
+- **`delete_window` (MG-REQ-0415.3):** it counts back from the load's `_extracted_at`.
+- **The late-row warning (MG-REQ-0420.2):** `<since>` and `<oldest>` are written as DuckDB's
+  `CAST(value AS VARCHAR)` text, the same text as `watermark_after` (MG-REQ-0413).
 
 ## Consequences
 
