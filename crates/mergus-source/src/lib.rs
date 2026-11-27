@@ -28,25 +28,47 @@
 //! find a dropped or renamed column or a type change since the last load, a [`SchemaChange`]
 //! that stops the table (MG-REQ-0407). [`extract_source_timed`] reads a source with both, and
 //! records the start and the end of each table's read and their spread (MG-REQ-0419).
+//!
+//! [`SourceCare`] holds the care options of a source (`extract/source-care.md`): every
+//! extraction query goes through the `replica` when it is set
+//! ([`SourceCare::extraction_reference`], MG-REQ-0426), and `load` and `max_connections` set
+//! the [`Budget`] of [`Load::table`] (MG-REQ-0427). [`read_with_brake`] reads a table at the
+//! pace of a [`Brake`] and stops after three consecutive failures with a [`SourceIncident`]
+//! (MG-REQ-0428). [`wait_for_window`] holds a full load or a backfill until the [`Window`]
+//! opens (MG-REQ-0430). [`check_indexes`] returns an [`IndexWarning`] for each key or
+//! incremental column without an index (MG-REQ-0431), and [`source_impact`] the
+//! [`TableImpact`] `mergus plan` shows (MG-REQ-0432). A source that cannot be reached or read
+//! is an [`InspectError`] for `doctor` and an [`ImpactUnknown`] warning for `plan`.
 
 #![forbid(unsafe_code)]
 
+mod brake;
+mod care;
 mod check;
 mod copied;
 mod engine;
+mod impact;
+mod index;
+mod inspect;
 mod kind;
 mod problem;
 mod read;
 mod schema_change;
 mod snapshot;
 mod table;
+mod window;
 
+pub use brake::{AfterFailure, Brake, SourceIncident, read_with_brake};
+pub use care::{Budget, Load, SourceCare};
 pub use check::check_sources;
 pub use copied::copied_tables;
 pub use engine::{
     AttachedSource, ConnectError, DatabaseEngine, EngineIdentity, attach_duckdb_file,
     attach_postgres,
 };
+pub use impact::{PG_ESTIMATES, SCHEMA_ESTIMATES, TableImpact, source_impact};
+pub use index::{IndexWarning, PG_INDEXES, SCHEMA_INDEXES, Unindexed, check_indexes};
+pub use inspect::{ImpactUnknown, InspectError};
 pub use kind::{Mode, SourceKind};
 pub use problem::{Severity, SourceProblem};
 pub use read::{Projection, ReadOptions, TableExtraction, TableReader, extract_source, read_table};
@@ -55,3 +77,4 @@ pub use schema_change::{
 };
 pub use snapshot::{SourceExtraction, TableRead, extract_source_timed};
 pub use table::{DeclaredTable, RawTables, declared_tables};
+pub use window::{LoadKind, Window, wait_for_window};
