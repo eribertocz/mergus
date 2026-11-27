@@ -1441,7 +1441,9 @@ name = "mergus-plan"
 version = "0.2.0"
 dependencies = [
  "mergus-contracts",
+ "mergus-ports",
  "mergus-project",
+ "mergus-sim",
  "serde_json",
  "thiserror",
 ]

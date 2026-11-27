@@ -13,6 +13,12 @@
 //! MG-REQ-0745). Only ordered collections are used, so the same inputs give the same bytes
 //! (MG-REQ-0005, MG-REQ-0715).
 //!
+//! [`evaluate`] runs every [`Gate`] of stage 4 and returns a [`GateReport`]; stage 5 needs the
+//! [`Cleared`] that [`GateReport::clear`] refuses, with every error of every gate, when any
+//! gate blocks (MG-REQ-0720, MG-REQ-0722). The credentials gate reads, for each
+//! [`RequiredSecret`], the [`Existence`] the caller found, and never sees a value
+//! (MG-REQ-0721).
+//!
 //! The crate is pure: it performs no I/O (MG-REQ-0004).
 
 #![forbid(unsafe_code)]
@@ -20,10 +26,15 @@
 mod build;
 mod error;
 mod fingerprint;
+mod gate;
 mod graph;
 mod input;
 
 pub use build::{Plan, plan};
 pub use error::PlanError;
 pub use fingerprint::{FingerprintInputs, fingerprint};
+pub use gate::{
+    Blocked, Cleared, Existence, Gate, GateCheck, GateError, GateInput, GateReport, GateResult,
+    RequiredSecret, evaluate,
+};
 pub use input::{DEFAULT_MAX_PARALLEL, PlanModel, PlanRequest, effective_config, lf_text};
