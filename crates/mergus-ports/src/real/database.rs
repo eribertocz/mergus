@@ -9,7 +9,7 @@ use duckdb::{Config, Connection};
 use crate::database::quote_identifier;
 use crate::{
     Database, DatabaseConnection, DatabaseLocation, DuckLakeCatalog, Extension, LoadedExtension,
-    PortError, SqlValue,
+    PortError, ResultColumn, SqlValue,
 };
 
 #[cfg(test)]
@@ -144,6 +144,29 @@ impl DatabaseConnection for RealConnection {
             .map_err(failed)?
             .collect();
         Ok(batches)
+    }
+
+    /// Prepares `sql`, which binds it, then reads the names and types of its result with
+    /// `DESCRIBE`, which binds the query and runs none of it.
+    fn prepare(&mut self, sql: &str) -> Result<Vec<ResultColumn>, PortError> {
+        let statement = self.connection.prepare(sql).map_err(failed)?;
+        if statement.parameter_count() > 0 {
+            return Err(PortError::Failed(format!(
+                "DuckDB types the result of `{sql}` only once its parameters are bound"
+            )));
+        }
+        // The text is a query, never a value: values are only ever bound (MG-REQ-0007).
+        let describe = format!("DESCRIBE {sql}");
+        let mut statement = self.connection.prepare(&describe).map_err(failed)?;
+        statement
+            .query_map([], |row| {
+                Ok(ResultColumn {
+                    name: row.get(0)?,
+                    data_type: row.get(1)?,
+                })
+            })
+            .and_then(Iterator::collect)
+            .map_err(failed)
     }
 
     fn append_arrow(&mut self, table: &str, batch: &RecordBatch) -> Result<(), PortError> {

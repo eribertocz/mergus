@@ -32,7 +32,7 @@ pub mod real;
 pub use clock::{Clock, MonotonicTime, Timestamp};
 pub use database::{
     Database, DatabaseConnection, DatabaseLocation, DuckLakeCatalog, Extension, LoadedExtension,
-    PostgresSource, SqlValue,
+    PostgresSource, ResultColumn, SqlValue,
 };
 pub use environment::Environment;
 pub use error::PortError;

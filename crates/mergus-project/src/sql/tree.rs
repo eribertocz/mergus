@@ -23,6 +23,9 @@ pub(crate) struct Checked {
     /// The references that resolve, lowercase: a model bare, a raw table as `raw.<table>`;
     /// each with the position of its first occurrence in the text.
     pub(crate) references: BTreeMap<String, Position>,
+    /// The named parameters of its statements, in the order DuckDB numbers them
+    /// (MG-REQ-0603).
+    pub(crate) parameters: Vec<String>,
 }
 
 /// Returns the problems and the resolved references of the tree `tree` of the text `text` of
@@ -55,7 +58,28 @@ pub(crate) fn check(path: &str, text: &str, tree: &Value, known: &KnownTables) -
     for statement in statements {
         walk.value(statement, None);
     }
-    walk.finish()
+    let mut checked = walk.finish();
+    checked.parameters = parameters(statements);
+    checked
+}
+
+/// The named parameters of `statements`, from DuckDB's `named_param_map`, ordered by the
+/// number DuckDB gives each.
+fn parameters(statements: &[Value]) -> Vec<String> {
+    let mut numbered: Vec<(u64, &str)> = statements
+        .iter()
+        .filter_map(|statement| statement.get("named_param_map").and_then(Value::as_array))
+        .flatten()
+        .filter_map(|entry| {
+            let name = entry.get("key").and_then(Value::as_str)?;
+            Some((entry.get("value").and_then(Value::as_u64)?, name))
+        })
+        .collect();
+    numbered.sort_unstable();
+    numbered
+        .into_iter()
+        .map(|(_, name)| name.to_owned())
+        .collect()
 }
 
 /// The state of one walk: the CTEs visible at the current node, lowercase.
@@ -74,6 +98,7 @@ impl Walk<'_> {
         Checked {
             problems: self.problems,
             references: self.references,
+            parameters: Vec::new(),
         }
     }
 

@@ -7,7 +7,7 @@ use std::sync::{Arc, Mutex};
 use arrow::record_batch::RecordBatch;
 use mergus_ports::{
     Database, DatabaseConnection, DatabaseLocation, DuckLakeCatalog, Extension, LoadedExtension,
-    PortError, SqlValue,
+    PortError, ResultColumn, SqlValue,
 };
 
 use crate::rng::{Rate, SimRng, lock};
@@ -39,6 +39,9 @@ struct Shared {
     unencrypted: Mutex<Vec<String>>,
     extensions: Mutex<BTreeMap<Extension, String>>,
     executed: Mutex<Vec<(String, Vec<SqlValue>)>>,
+    queried: Mutex<Vec<(String, Vec<SqlValue>)>>,
+    schemas: Mutex<BTreeMap<String, Vec<ResultColumn>>>,
+    prepared: Mutex<Vec<String>>,
 }
 
 impl Shared {
@@ -88,6 +91,9 @@ impl SimDatabase {
                 unencrypted: Mutex::new(Vec::new()),
                 extensions: Mutex::new(BTreeMap::new()),
                 executed: Mutex::new(Vec::new()),
+                queried: Mutex::new(Vec::new()),
+                schemas: Mutex::new(BTreeMap::new()),
+                prepared: Mutex::new(Vec::new()),
             }),
         }
     }
@@ -107,6 +113,12 @@ impl SimDatabase {
         self.record(sql.into(), params, Answer::Rows(rows));
     }
 
+    /// Records the columns the real database gave when it prepared `sql` (MG-REQ-0604),
+    /// replacing earlier ones.
+    pub fn record_prepare(&self, sql: impl Into<String>, columns: Vec<ResultColumn>) {
+        lock(&self.shared.schemas).insert(sql.into(), columns);
+    }
+
     /// Records that the real database reported `version` for `extension` once loaded.
     pub fn record_extension(&self, extension: Extension, version: impl Into<String>) {
         lock(&self.shared.extensions).insert(extension, version.into());
@@ -117,6 +129,20 @@ impl SimDatabase {
     #[must_use]
     pub fn executed(&self) -> Vec<(String, Vec<SqlValue>)> {
         lock(&self.shared.executed).clone()
+    }
+
+    /// Returns every query run with [`DatabaseConnection::query_arrow`], with its
+    /// parameters, in order, whether it succeeded or not.
+    #[must_use]
+    pub fn queried(&self) -> Vec<(String, Vec<SqlValue>)> {
+        lock(&self.shared.queried).clone()
+    }
+
+    /// Returns every query given to [`DatabaseConnection::prepare`], in order, whether it
+    /// succeeded or not.
+    #[must_use]
+    pub fn prepared(&self) -> Vec<String> {
+        lock(&self.shared.prepared).clone()
     }
 
     /// Returns the batches appended to `table`, in order.
@@ -189,10 +215,21 @@ impl DatabaseConnection for SimConnection {
         sql: &str,
         params: &[SqlValue],
     ) -> Result<Vec<RecordBatch>, PortError> {
+        lock(&self.shared.queried).push((sql.to_owned(), params.to_vec()));
         match self.shared.answer(sql, params)? {
             Answer::Rows(rows) => Ok(rows),
             Answer::Changed(_) => Err(PortError::NotFound(format!("recorded rows for `{sql}`"))),
         }
+    }
+
+    /// Fails with [`PortError::NotFound`] when no columns were recorded for `sql`.
+    fn prepare(&mut self, sql: &str) -> Result<Vec<ResultColumn>, PortError> {
+        lock(&self.shared.prepared).push(sql.to_owned());
+        self.shared.enter(sql)?;
+        lock(&self.shared.schemas)
+            .get(sql)
+            .cloned()
+            .ok_or_else(|| PortError::NotFound(format!("a recorded schema for `{sql}`")))
     }
 
     fn append_arrow(&mut self, table: &str, batch: &RecordBatch) -> Result<(), PortError> {

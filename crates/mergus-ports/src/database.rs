@@ -27,6 +27,15 @@ pub enum SqlValue {
     Text(String),
 }
 
+/// A column of the result of a query, as DuckDB types it (MG-REQ-0604).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ResultColumn {
+    /// The name of the column.
+    pub name: String,
+    /// The DuckDB type of the column, as DuckDB writes it, such as `DECIMAL(18,3)`.
+    pub data_type: String,
+}
+
 /// A DuckLake catalog to attach to a connection.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct DuckLakeCatalog {
@@ -141,6 +150,19 @@ pub trait DatabaseConnection: Send {
         sql: &str,
         params: &[SqlValue],
     ) -> Result<Vec<RecordBatch>, PortError>;
+
+    /// Prepares the query `sql` without running it, reading no data, and returns the columns
+    /// of its result, in order (MG-REQ-0604).
+    ///
+    /// # Errors
+    ///
+    /// Fails with [`PortError::Failed`] when DuckDB cannot prepare the query, when it cannot
+    /// type its result before values are bound, or when the connection cannot prepare.
+    fn prepare(&mut self, sql: &str) -> Result<Vec<ResultColumn>, PortError> {
+        Err(PortError::Failed(format!(
+            "this connection cannot prepare `{sql}`"
+        )))
+    }
 
     /// Appends the rows of `batch` to the existing table `table` of the main schema.
     ///

@@ -14,7 +14,7 @@ use super::RealDatabase;
 use crate::real::RealEnvironment;
 use crate::{
     Database, DatabaseConnection, DatabaseLocation, DuckLakeCatalog, Environment, Extension,
-    LoadedExtension, PortError, PostgresSource, SqlValue,
+    LoadedExtension, PortError, PostgresSource, ResultColumn, SqlValue,
 };
 
 /// A repository no extension can be downloaded from: nothing listens on port 1.
@@ -343,4 +343,44 @@ fn real_database_writes_parquet_with_no_network() {
     let read = "SELECT id::VARCHAR FROM read_parquet(?)";
     assert_eq!(text_with(connection.as_mut(), read, &[path]), "42");
     assert!(connection.loaded_extensions().is_empty());
+}
+
+#[test]
+fn mg_req_0604_prepare_without_execution() {
+    let database = RealDatabase::new(&scratch("prepare"));
+    let mut connection = database.connect(&DatabaseLocation::InMemory).unwrap();
+    // The schema recorded in `crates/mergus-project/tests/models.rs` for its fixture `typed`.
+    let typed = include_str!("../../../../mergus-project/tests/sql/typed.sql");
+    let column = |name: &str, data_type: &str| ResultColumn {
+        name: name.to_owned(),
+        data_type: data_type.to_owned(),
+    };
+    assert_eq!(
+        connection.prepare(typed).unwrap(),
+        [
+            column("order_id", "INTEGER"),
+            column("amount", "DECIMAL(18,3)"),
+            column("note", "VARCHAR"),
+        ]
+    );
+    // Preparing runs nothing: the sequence does not advance.
+    connection.execute("CREATE SEQUENCE seq", &[]).unwrap();
+    assert_eq!(
+        connection.prepare("SELECT nextval('seq') AS n").unwrap(),
+        [column("n", "BIGINT")]
+    );
+    assert_eq!(
+        text(connection.as_mut(), "SELECT nextval('seq')::VARCHAR"),
+        "1"
+    );
+    // A query DuckDB cannot bind, and one whose types wait for bound parameters, fail.
+    assert!(matches!(
+        connection.prepare("SELECT * FROM missing"),
+        Err(PortError::Failed(_))
+    ));
+    let parameters = connection.prepare("SELECT $run_date AS d");
+    assert!(
+        matches!(parameters, Err(PortError::Failed(_))),
+        "{parameters:?}"
+    );
 }

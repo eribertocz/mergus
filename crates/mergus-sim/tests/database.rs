@@ -10,7 +10,7 @@ use arrow::error::ArrowError;
 use arrow::record_batch::RecordBatch;
 use mergus_ports::{
     Database, DatabaseLocation, DuckLakeCatalog, Extension, LoadedExtension, PortError,
-    PostgresSource, SqlValue,
+    PostgresSource, ResultColumn, SqlValue,
 };
 use mergus_sim::{DatabaseFaults, Rate, SimDatabase};
 
@@ -337,4 +337,24 @@ fn mg_req_0429_session_parameter_already_set_is_refused() {
         );
         assert!(database.executed().is_empty());
     }
+}
+
+#[test]
+fn simulated_database_replays_prepared_schemas() {
+    let database = SimDatabase::new(1, DatabaseFaults::default());
+    let columns = vec![ResultColumn {
+        name: "id".to_owned(),
+        data_type: "BIGINT".to_owned(),
+    }];
+    database.record_prepare("SELECT id FROM items", columns.clone());
+    let mut connection = database.connect(&DatabaseLocation::InMemory).unwrap();
+    assert_eq!(connection.prepare("SELECT id FROM items").unwrap(), columns);
+    assert!(matches!(
+        connection.prepare("SELECT 2"),
+        Err(PortError::NotFound(_))
+    ));
+    assert_eq!(database.prepared(), ["SELECT id FROM items", "SELECT 2"]);
+    assert!(connection.query_arrow("SELECT 3", &[]).is_err());
+    assert_eq!(database.queried(), [("SELECT 3".to_owned(), Vec::new())]);
+    assert!(database.executed().is_empty());
 }
