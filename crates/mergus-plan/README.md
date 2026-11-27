@@ -24,9 +24,12 @@ Resolve, order and fingerprint the work; produce the plan.
   - `history` needs `key` and `by` (`MG-0705` otherwise), and `deletes` defaults to `ignore`.
     Its step stays `full`.
   Every model's refresh errors come back together, in model name order.
-- Adds a backfill's range, widened to whole periods of the grain, to the model's periods, and
-  computes the step even when its result is available (MG-REQ-0657). Backfilling a model that
-  is not incremental by period gives `MG-0706`.
+- Plans a backfill (MG-REQ-0657). The backfilled step is `compute` with `no_result` even when
+  its result is available. A model incremental by period adds the backfill range, widened to
+  whole periods of its grain, to its affected periods. A `full` model with `partition_by` is
+  computed whole, with no periods. A `history` model with `partition_by` needs
+  `history_rebuild_confirmed`. Any other case is `MG-0706`: a model with no `partition_by`,
+  or a history model whose rebuild is not confirmed.
 - Tells, through `Plan::storage` and `Plan::stored`, whether each step's result is stored: a
   published model where it is published, an intermediate with `materialize = true` in the
   internal zone, any other intermediate not at all (MG-REQ-0656).

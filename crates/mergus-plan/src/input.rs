@@ -124,6 +124,9 @@ pub struct PlanRequest {
     pub affected: BTreeMap<String, Vec<Range>>,
     /// The backfills of the run, by model name (MG-REQ-0657).
     pub backfill: BTreeMap<String, Backfill>,
+    /// Whether the run confirms the rebuild of history tables (MG-REQ-0665), which a backfill
+    /// of a `history` model needs (MG-REQ-0657.4).
+    pub history_rebuild_confirmed: bool,
 }
 
 /// The range of `mergus backfill <model> --from <date> [--to <date>]` (MG-REQ-0657.1). The
@@ -138,7 +141,8 @@ pub struct Backfill {
 
 impl PlanRequest {
     /// A request for `selected` with the default `max_parallel`, no available result, no
-    /// input version, no engine version, no row estimate, no affected period and no backfill.
+    /// input version, no engine version, no row estimate, no affected period, no backfill,
+    /// and no history rebuild confirmed.
     #[must_use]
     pub fn new(mergus_version: &str, environment: &str, selected: BTreeSet<String>) -> Self {
         Self {
@@ -152,6 +156,7 @@ impl PlanRequest {
             rows: BTreeMap::new(),
             affected: BTreeMap::new(),
             backfill: BTreeMap::new(),
+            history_rebuild_confirmed: false,
         }
     }
 }

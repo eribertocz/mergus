@@ -53,8 +53,9 @@ Functions: `plan`, `refresh`, `storage`, `segment`, `type_passport`, `detect_sql
 7. Each step gets its refresh fields. A model incremental by period gets `{mode: period}` and
    its periods: the caller's `PlanRequest::affected` ranges, plus a backfill's range from the
    start of the period holding `from` to the end of the period holding `to`, merged when they
-   overlap or touch. A backfilled step is `compute` even when its result is available. A model
-   by key gets `{mode: key}`, and the others get neither field.
+   overlap or touch. A backfilled step is `compute` even when its result is available, and a
+   backfilled `full` or `history` model is computed whole. A model by key gets `{mode: key}`,
+   and the others get neither field.
 8. The document is validated, `plan_id` is the SHA-256 of its canonical JSON without
    `plan_id`, and the document with `plan_id` is validated again. `Plan::bytes` is its
    canonical JSON.

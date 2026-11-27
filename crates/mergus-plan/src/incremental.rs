@@ -7,7 +7,7 @@ use mergus_contracts::generated::mergus_plan_v1::{Incremental, IncrementalMode, 
 
 use crate::graph::Graph;
 use crate::period::{Range, merge};
-use crate::{PlanError, PlanRequest, Refresh, RefreshError, Storage, refresh, storage};
+use crate::{PlanError, PlanModel, PlanRequest, Refresh, RefreshError, Storage, refresh, storage};
 
 /// The refresh and storage of every model.
 pub(crate) struct Refreshes<'a> {
@@ -23,7 +23,7 @@ pub(crate) struct Fields {
     pub(crate) incremental: Option<Incremental>,
     /// `step.periods`.
     pub(crate) periods: Option<Vec<Period>>,
-    /// Whether the step is backfilled, so computed whatever the changes (MG-REQ-0657.2).
+    /// Whether the step is backfilled, so computed whatever the changes (MG-REQ-0657.3).
     pub(crate) backfilled: bool,
 }
 
@@ -63,12 +63,7 @@ pub(crate) fn resolve<'a>(
         found.storage.insert(name, storage(model)?);
         match refresh(model) {
             Ok(refresh) => {
-                let by_period = matches!(refresh, Refresh::Period { .. });
-                if request.backfill.contains_key(*name) && !by_period {
-                    errors.push(RefreshError::BackfillWithoutPeriods {
-                        model: model.name.clone(),
-                    });
-                }
+                errors.extend(backfill_error(model, &refresh, request));
                 found.refresh.insert(name, refresh);
             }
             Err(PlanError::Refresh(more)) => errors.extend(more),
@@ -82,8 +77,36 @@ pub(crate) fn resolve<'a>(
     }
 }
 
-/// The refresh fields of the step of `name`, refreshed as `refresh`, for `request`.
+/// Why `model`, refreshed as `refresh`, cannot be backfilled, when `request` backfills it:
+/// it has no `partition_by` (MG-REQ-0657.2), or it is a `history` model and the request does
+/// not confirm the rebuild of its history (MG-REQ-0657.4).
+fn backfill_error(
+    model: &PlanModel,
+    refresh: &Refresh,
+    request: &PlanRequest,
+) -> Option<RefreshError> {
+    if !request.backfill.contains_key(&model.name) {
+        return None;
+    }
+    let partitioned = model
+        .config
+        .get("partition_by")
+        .is_some_and(|value| !value.is_null());
+    if !partitioned {
+        return Some(RefreshError::BackfillWithoutPartition {
+            model: model.name.clone(),
+        });
+    }
+    let history = matches!(refresh, Refresh::History { .. });
+    (history && !request.history_rebuild_confirmed).then(|| RefreshError::BackfillWithoutRebuild {
+        model: model.name.clone(),
+    })
+}
+
+/// The refresh fields of the step of `name`, refreshed as `refresh`, for `request`. A
+/// backfilled `full` or `history` model is computed whole, with no periods (MG-REQ-0657.4).
 pub(crate) fn fields(name: &str, refresh: Option<&Refresh>, request: &PlanRequest) -> Fields {
+    let backfilled = request.backfill.contains_key(name);
     match refresh {
         Some(Refresh::Period { grain, .. }) => {
             let mut ranges: Vec<Range> = request.affected.get(name).cloned().unwrap_or_default();
@@ -101,7 +124,7 @@ pub(crate) fn fields(name: &str, refresh: Option<&Refresh>, request: &PlanReques
                     mode: IncrementalMode::Period,
                 }),
                 periods: Some(merge(ranges).into_iter().map(period).collect()),
-                backfilled: backfill.is_some(),
+                backfilled,
             }
         }
         Some(Refresh::Key) => Fields {
@@ -109,12 +132,12 @@ pub(crate) fn fields(name: &str, refresh: Option<&Refresh>, request: &PlanReques
                 mode: IncrementalMode::Key,
             }),
             periods: None,
-            backfilled: false,
+            backfilled,
         },
         Some(Refresh::Full | Refresh::History { .. }) | None => Fields {
             incremental: None,
             periods: None,
-            backfilled: false,
+            backfilled,
         },
     }
 }

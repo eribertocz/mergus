@@ -100,12 +100,21 @@ pub enum RefreshError {
         /// The options it lacks, `key` before `by`.
         missing: Vec<&'static str>,
     },
-    /// A backfilled model is not incremental by period (MG-REQ-0657.2).
+    /// A backfilled model has no `partition_by` (MG-REQ-0657.2).
     #[error(
-        "model `{model}` cannot be backfilled: it is not incremental by period; give it \
-         `refresh = \"incremental\"` and `partition_by = \"<column>:<grain>\"`"
+        "model `{model}` cannot be backfilled: it has no `partition_by`; give it \
+         `partition_by = \"<column>:<grain>\"`"
     )]
-    BackfillWithoutPeriods {
+    BackfillWithoutPartition {
+        /// The model.
+        model: String,
+    },
+    /// A backfilled `history` model's rebuild is not confirmed (MG-REQ-0657.4).
+    #[error(
+        "history model `{model}` cannot be backfilled without confirming the rebuild of its \
+         history; a backfill rebuilds every version it holds"
+    )]
+    BackfillWithoutRebuild {
         /// The model.
         model: String,
     },
@@ -118,7 +127,9 @@ impl RefreshError {
         match self {
             Self::IncrementalWithoutPeriodOrKey { .. } => "MG-0704",
             Self::HistoryWithout { .. } => "MG-0705",
-            Self::BackfillWithoutPeriods { .. } => "MG-0706",
+            Self::BackfillWithoutPartition { .. } | Self::BackfillWithoutRebuild { .. } => {
+                "MG-0706"
+            }
         }
     }
 }

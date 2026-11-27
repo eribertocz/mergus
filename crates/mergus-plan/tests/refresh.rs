@@ -3,7 +3,9 @@
 mod common;
 
 use common::{model, names, planned, request};
-use mergus_contracts::generated::mergus_plan_v1::{IncrementalMode, Step, StepAction, StepRefresh};
+use mergus_contracts::generated::mergus_plan_v1::{
+    IncrementalMode, Step, StepAction, StepReason, StepRefresh,
+};
 use mergus_plan::{
     Backfill, By, Deletes, Grain, Instant, PlanError, PlanModel, Range, Refresh, RefreshError,
     Storage, plan, refresh,
@@ -335,9 +337,60 @@ fn mg_req_0657_backfill_recomputes_range() {
     assert_eq!(errors[0].code(), "MG-0706");
     assert_eq!(
         errors[0].to_string(),
-        "model `fact_sales` cannot be backfilled: it is not incremental by period; give it \
-         `refresh = \"incremental\"` and `partition_by = \"<column>:<grain>\"`"
+        "model `fact_sales` cannot be backfilled: it has no `partition_by`; give it \
+         `partition_by = \"<column>:<grain>\"`"
     );
+}
+
+#[test]
+fn mg_req_0657_full_and_history_backfilled_whole() {
+    let mut request = request(&["fact_sales"]);
+    request.backfill.insert(
+        "fact_sales".to_owned(),
+        Backfill {
+            from: day(2026, 3, 4),
+            to: day(2026, 3, 18),
+        },
+    );
+    let full = configured(
+        "fact_sales",
+        &[],
+        &[("partition_by", json!("sold_at:month"))],
+    );
+    let first = planned(std::slice::from_ref(&full), &request);
+    request
+        .available
+        .insert(step_of(&first, "fact_sales").fingerprint.clone());
+    let backfilled = planned(std::slice::from_ref(&full), &request);
+    let step = step_of(&backfilled, "fact_sales");
+    assert_eq!(step.action, StepAction::Compute);
+    assert_eq!(step.reason, StepReason::NoResult);
+    assert_eq!(step.refresh, StepRefresh::Full);
+    assert_eq!(step.periods, None);
+
+    let history = configured(
+        "fact_sales",
+        &[],
+        &[
+            ("refresh", json!("history")),
+            ("key", json!("order_id")),
+            ("by", json!("updated_at")),
+            ("partition_by", json!("sold_at:month")),
+        ],
+    );
+    let errors = refresh_errors(plan(std::slice::from_ref(&history), &request).unwrap_err());
+    assert_eq!(errors.len(), 1);
+    assert_eq!(errors[0].code(), "MG-0706");
+    assert_eq!(
+        errors[0].to_string(),
+        "history model `fact_sales` cannot be backfilled without confirming the rebuild of its \
+         history; a backfill rebuilds every version it holds"
+    );
+    request.history_rebuild_confirmed = true;
+    let rebuilt = planned(&[history], &request);
+    let step = step_of(&rebuilt, "fact_sales");
+    assert_eq!(step.action, StepAction::Compute);
+    assert_eq!(step.periods, None);
 }
 
 #[test]
