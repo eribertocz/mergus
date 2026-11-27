@@ -125,8 +125,8 @@ fn mg_req_0747_transport_by_estimated_size() {
             .map(|boundary| boundary["transport"].as_str().unwrap().to_owned())
             .collect::<Vec<_>>()
     };
-    // 0 -> 1 carries INTEGER, DOUBLE and DATE: 16 bytes a row; 0 -> 2 a DATE: 4 bytes;
-    // 1 -> 2 an INTEGER and a DOUBLE: 12 bytes.
+    // The first boundary carries an integer, a double and a date, so 16 bytes a row; the
+    // second a date, 4 bytes; the third an integer and a double, 12 bytes.
     assert_eq!(transports(None), owned(&["parquet", "parquet", "parquet"]));
     assert_eq!(
         transports(Some((1 << 30) / 16)),
