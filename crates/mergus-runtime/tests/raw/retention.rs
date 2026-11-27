@@ -69,8 +69,14 @@ fn mg_req_0513_loads_are_immutable_versions() {
         &marks,
     )
     .unwrap();
+    versions_unchanged(&raw);
+    assert!(raw.expired.is_empty() && ops.expired.is_empty());
+    expired_by_maintenance(&mut raw);
+}
 
-    // Each load is a version of its own; a later load leaves the earlier versions as they were.
+/// Each load is a version of its own; a later load leaves the earlier versions as they were.
+#[cfg(test)]
+fn versions_unchanged(raw: &Memory) {
     assert_eq!(raw.commits(), 3);
     assert_eq!(ints(&raw.at("erp__sales", 1), "sale_id"), [1]);
     assert_eq!(ints(&raw.at("erp__sales", 2), "sale_id"), [1, 2]);
@@ -88,12 +94,14 @@ fn mg_req_0513_loads_are_immutable_versions() {
         WriteMode::Append => table == "erp__sales__changes",
         _ => table == "erp__sales",
     }));
-    assert!(raw.expired.is_empty() && ops.expired.is_empty());
+}
 
-    // Versions are expired by maintenance only.
+/// Versions are expired by maintenance only, with the default retention.
+#[cfg(test)]
+fn expired_by_maintenance(raw: &mut Memory) {
     let configuration = configuration(&[("erp", json!({"kind": "database"}))]);
     let live = vec![VersionRef::new("3")];
-    expire_raw(&mut raw, &configuration, live.clone()).unwrap();
+    expire_raw(raw, &configuration, live.clone()).unwrap();
     assert_eq!(
         raw.expired,
         [Retention {

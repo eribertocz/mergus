@@ -87,19 +87,22 @@ fn mg_req_0514_every_load_registered() {
     );
     assert_eq!(raw.commits(), 2);
     assert_eq!(ops.commits(), 3);
+    assert_three_loads(&ops.latest("loads"));
+    registry_after_raw(&mut raw, &mut ops, &version);
+}
 
-    let loads = ops.latest("loads");
-    assert_loads_schema(&loads);
-    assert_eq!(texts(&loads, "load_id"), ["l1", "l2", "l3"]);
-    assert_eq!(texts(&loads, "source"), ["erp", "erp", "erp"]);
-    assert_eq!(texts(&loads, "table"), ["sales", "sales", "sales"]);
+/// The rows of `ops.loads` after a full load, an incremental one and one refused with
+/// MG-0504.
+#[cfg(test)]
+fn assert_three_loads(loads: &RecordBatch) {
+    assert_loads_schema(loads);
+    assert_eq!(texts(loads, "load_id"), ["l1", "l2", "l3"]);
+    assert_eq!(texts(loads, "source"), ["erp", "erp", "erp"]);
+    assert_eq!(texts(loads, "table"), ["sales", "sales", "sales"]);
+    assert_eq!(texts(loads, "mode"), ["full", "incremental", "incremental"]);
+    assert_eq!(ints(loads, "rows"), [2, 1, 0]);
     assert_eq!(
-        texts(&loads, "mode"),
-        ["full", "incremental", "incremental"]
-    );
-    assert_eq!(ints(&loads, "rows"), [2, 1, 0]);
-    assert_eq!(
-        optional_texts(&loads, "watermark_before"),
+        optional_texts(loads, "watermark_before"),
         [
             None,
             Some("2026-01-01 00:00:00.000002".to_owned()),
@@ -107,7 +110,7 @@ fn mg_req_0514_every_load_registered() {
         ]
     );
     assert_eq!(
-        optional_texts(&loads, "watermark_after"),
+        optional_texts(loads, "watermark_after"),
         [
             Some("2026-01-01 00:00:00.000002".to_owned()),
             Some("2026-01-01 00:00:00.000003".to_owned()),
@@ -115,16 +118,15 @@ fn mg_req_0514_every_load_registered() {
         ]
     );
     assert_eq!(
-        times(&loads, "started_at"),
+        times(loads, "started_at"),
         [Some(FIRST_AT), Some(SECOND_AT), Some(SECOND_AT)]
     );
-    assert_eq!(ints(&loads, "duration_ms"), [1_250, 1_250, 1_250]);
-    assert_eq!(texts(&loads, "result"), ["ok", "ok", "failed"]);
+    assert_eq!(ints(loads, "duration_ms"), [1_250, 1_250, 1_250]);
+    assert_eq!(texts(loads, "result"), ["ok", "ok", "failed"]);
     assert_eq!(
-        optional_texts(&loads, "error_code"),
+        optional_texts(loads, "error_code"),
         [None, None, Some("MG-0504".to_owned())]
     );
-    registry_after_raw(&mut raw, &mut ops, &version);
 }
 
 /// MG-REQ-0514: the columns of `ops.loads`, in order, with their types.
