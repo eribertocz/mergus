@@ -1,26 +1,27 @@
 //! MG-REQ-0747: the `mergus_plan` contract 1.1.0 carries the execution fields, and its 1.0.0
 //! documents stay valid (MG-REQ-0206).
 
-#[cfg(test)]
-mod common;
-
 use mergus_contracts::generated::mergus_plan_v1::{
     BoundaryTransport, GateStatus, MergusPlan, SegmentEngine, StepRefresh,
 };
 use mergus_contracts::{Schema, read};
+use std::path::Path;
+
 use mergus_ports::FileSystem;
 use mergus_ports::real::RealFileSystem;
 use serde_json::Value;
 
 /// Reads a file of the `mergus_plan` v1 folder.
+#[cfg(test)]
 fn plan_file(name: &str) -> String {
-    let path = ["schemas", "mergus_plan", "v1"]
-        .iter()
-        .fold(common::workspace_root(), |path, part| path.join(part))
+    let path = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../schemas/mergus_plan/v1")
         .join(name);
     String::from_utf8(RealFileSystem.read(&path).unwrap()).unwrap()
 }
 
+/// Reads a JSON document of the `mergus_plan` v1 folder.
+#[cfg(test)]
 fn document(name: &str) -> Value {
     serde_json::from_str(&plan_file(name)).unwrap()
 }
