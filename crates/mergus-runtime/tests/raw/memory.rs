@@ -22,6 +22,10 @@ pub struct Memory {
     staged: Vec<(String, WriteMode, RecordBatch)>,
     /// The tables of every `write`, in order.
     pub writes: Vec<(String, WriteMode)>,
+    /// The retention of every `expire`, in order.
+    pub expired: Vec<Retention>,
+    /// Whether `commit` fails, dropping what was staged.
+    pub fail_commits: bool,
 }
 
 #[cfg(test)]
@@ -29,6 +33,11 @@ impl Memory {
     /// The rows of `table` at the newest version.
     pub fn latest(&self, table: &str) -> RecordBatch {
         self.versions.last().unwrap()[table].clone()
+    }
+
+    /// The rows of `table` at version `version`, counted from 1.
+    pub fn at(&self, table: &str, version: usize) -> RecordBatch {
+        self.versions[version - 1][table].clone()
     }
 
     /// The number of commits.
@@ -64,6 +73,10 @@ impl StorageAdapter for Memory {
     }
 
     fn commit(&mut self) -> Result<VersionRef, AdapterError> {
+        if self.fail_commits {
+            self.staged.clear();
+            return Err(AdapterError::Storage("commit refused".into()));
+        }
         let mut tables = self.versions.last().cloned().unwrap_or_default();
         for (table, mode, rows) in std::mem::take(&mut self.staged) {
             let rows = match (mode, tables.get(&table)) {
@@ -98,7 +111,8 @@ impl StorageAdapter for Memory {
         Ok(Box::new(RecordBatchIterator::new([Ok(rows)], schema)))
     }
 
-    fn expire(&mut self, _retention: &Retention) -> Result<(), AdapterError> {
+    fn expire(&mut self, retention: &Retention) -> Result<(), AdapterError> {
+        self.expired.push(retention.clone());
         Ok(())
     }
 }
