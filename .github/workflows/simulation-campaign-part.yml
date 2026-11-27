@@ -1,0 +1,78 @@
+# One job of the simulation campaign (MG-REQ-0198.2): new seeds from `first` for 288 minutes
+# of simulation, the build not counted, then the next seed for the following job.
+name: simulation-campaign-part
+
+on:
+  workflow_call:
+    inputs:
+      part:
+        type: number
+        required: true
+      first:
+        type: string
+        required: true
+    outputs:
+      next:
+        description: The first seed this job did not run.
+        value: ${{ jobs.simulate.outputs.next }}
+      seconds:
+        description: The seconds this job simulated, its build not counted.
+        value: ${{ jobs.simulate.outputs.seconds }}
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: never
+  CARGO_INCREMENTAL: 0
+
+jobs:
+  simulate:
+    name: simulate (part ${{ inputs.part }} of 5)
+    runs-on: ubuntu-latest
+    # The longest job GitHub runs: the build, 288 minutes of seeds and the last batch fit.
+    timeout-minutes: 360
+    outputs:
+      next: ${{ steps.simulate.outputs.next }}
+      seconds: ${{ steps.simulate.outputs.seconds }}
+    steps:
+      - name: Start on main only
+        run: |
+          if [ "$REF" != "refs/heads/main" ]; then
+            echo "::error::The campaign runs on main, not $REF (MG-REQ-0198.2)."
+            exit 1
+          fi
+        env:
+          REF: ${{ github.ref }}
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install the toolchain
+        run: rustup toolchain install
+      - name: Cache the build
+        uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+        with:
+          shared-key: simulation-campaign
+      - name: Build the scenarios
+        run: cargo test --locked --package mergus-runtime --test incremental --no-run
+      - name: Run new seeds for 288 minutes
+        id: simulate
+        shell: bash
+        run: |
+          cargo xtask simulation --first "$FIRST" --minutes 288 | tee simulation.log
+          next="$(sed -n 's/^next seed: //p' simulation.log)"
+          seconds="$(sed -n 's/^simulated seconds: //p' simulation.log)"
+          echo "next=$next" >> "$GITHUB_OUTPUT"
+          echo "seconds=$seconds" >> "$GITHUB_OUTPUT"
+          {
+            echo "## Simulation campaign, part $PART of 5"
+            echo
+            echo "- Commit: \`$COMMIT\`"
+            echo "- Seeds: $FIRST..$next, all passed"
+            echo "- Time simulated: $seconds seconds"
+          } >> "$GITHUB_STEP_SUMMARY"
+        env:
+          COMMIT: ${{ github.sha }}
+          FIRST: ${{ inputs.first }}
+          PART: ${{ inputs.part }}

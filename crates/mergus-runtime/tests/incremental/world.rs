@@ -32,15 +32,20 @@ pub struct World {
 #[cfg(test)]
 impl World {
     pub fn new() -> Self {
+        Self::seeded(1, 7)
+    }
+
+    /// A world whose clock and random numbers take the seeds `clock` and `random`.
+    pub fn seeded(clock: u64, random: u64) -> Self {
         Self {
             raw: Memory::default(),
             ops: Memory::default(),
             clock: SimClock::new(
-                1,
+                clock,
                 Timestamp::from_unix_nanos(i128::from(DAY_ONE + 12 * HOUR) * 1_000),
                 ClockFaults::default(),
             ),
-            random: SimRandom::new(7),
+            random: SimRandom::new(random),
         }
     }
 

@@ -138,19 +138,33 @@ pub fn attach_with(
     describe: &[&str],
     first: Vec<Answer>,
 ) -> AttachedSource {
+    attach_after(rows, &[], chunk, overlap, window, describe, first)
+}
+
+#[cfg(test)]
+/// [`attach_with`], also answering the reads from the watermarks that the `earlier` hours,
+/// those of rows that earlier loads read, give.
+pub fn attach_after(
+    rows: &[Row],
+    earlier: &[i64],
+    chunk: Option<u32>,
+    overlap: Duration,
+    window: Option<(Duration, i64)>,
+    describe: &[&str],
+    first: Vec<Answer>,
+) -> AttachedSource {
     let database = SimDatabase::new(1, DatabaseFaults::default());
     record_describe(&database, describe);
     record_texts(&database, rows);
     let mut sorted = rows.to_vec();
     sorted.sort_by_key(|row| row.id);
     let mut sinces = vec![None];
-    for row in &sorted {
-        if let Some(hour) = row.hour {
-            let since = Temporal::Timestamp.minus(&at(hour), overlap).unwrap();
-            sinces.push(Some(since));
-            // A read from the watermark itself, which a test sees if the overlap is dropped.
-            sinces.push(Some(at(hour)));
-        }
+    let hours = sorted.iter().filter_map(|row| row.hour);
+    for hour in hours.chain(earlier.iter().copied()) {
+        let since = Temporal::Timestamp.minus(&at(hour), overlap).unwrap();
+        sinces.push(Some(since));
+        // A read from the watermark itself, which a test sees if the overlap is dropped.
+        sinces.push(Some(at(hour)));
     }
     for since in &sinces {
         let kept: Vec<Row> = sorted

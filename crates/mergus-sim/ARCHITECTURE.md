@@ -36,6 +36,9 @@
    failure step by step.
 6. `Simulator::shrink` removes runs of steps, halving their length down to one, and keeps
    each removal after which the case still fails, until no single step can be removed.
+7. Scenarios live with the code they drive, as tests: INV-04 in the tests of
+   `mergus-runtime`. `cargo xtask simulation` gives them their seeds through the environment
+   and runs them (MG-REQ-0198).
 
 ## Dependencies
 

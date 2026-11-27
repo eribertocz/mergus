@@ -38,6 +38,9 @@
 //!   the rules whose test fails (MG-REQ-0165, MG-REQ-0167).
 //! - `owner-queue`: lists the pull requests ready to merge, the `needs-owner` issues and the
 //!   merged releases without a tag, through the GitHub REST API (MG-REQ-1713).
+//! - `simulation`: runs the invariants under `mergus-sim` over the seeds it is given: 1,000
+//!   per pull request, one to replay a failure, or batches for a set time in the release
+//!   campaign (MG-REQ-0198).
 //! - `ci`: runs, in order, every blocking check that needs no GitHub API (MG-REQ-0166).
 
 #![forbid(unsafe_code)]
@@ -66,6 +69,7 @@ mod release_trigger;
 mod reproducible;
 #[cfg(test)]
 mod secrets_door;
+mod simulation;
 mod traceability;
 mod unsafe_code;
 mod workspace;
@@ -81,7 +85,7 @@ const USAGE: &str = "usage: cargo xtask <clippy|unsafe|missing-docs|reproducible
      license-headers|governance-files|release-trigger|contracts-generate|\
      contracts-generated|scope|commit-format|contract-compatibility|\
      session-identity|independent-review|issue-format|pr-format|deny-rules|repository-settings|\
-     traceability|owner-queue|ci>";
+     traceability|owner-queue|simulation|ci>";
 
 fn main() -> Result<ExitCode, Failure> {
     let args: Vec<String> = std::env::args().skip(1).collect();
@@ -100,6 +104,7 @@ fn main() -> Result<ExitCode, Failure> {
         "owner-queue" => guards::run_owner_queue(rest),
         "repository-settings" => guards::run_repository_settings(rest),
         "traceability" => traceability::run(rest),
+        "simulation" => simulation::run(rest).map(|()| ExitCode::SUCCESS),
         "ci" => ci::run(rest),
         _ => check(command).map(|()| ExitCode::SUCCESS),
     }

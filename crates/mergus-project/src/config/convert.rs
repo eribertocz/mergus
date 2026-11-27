@@ -255,3 +255,24 @@ fn rfc3339(datetime: &Datetime) -> String {
     }
     out
 }
+
+/// Returns the keys of the table at `keys`, a path of table keys from the root of `text`, in
+/// the order the text writes them. `None` when `text` is not TOML 1.0 or holds no table at
+/// `keys`.
+pub(crate) fn key_order(text: &str, keys: &[&str]) -> Option<Vec<String>> {
+    let root = DeTable::parse(text).ok()?;
+    let mut table = root.get_ref();
+    for key in keys {
+        let (_, value) = table.iter().find(|(found, _)| found.get_ref() == key)?;
+        let DeValue::Table(next) = value.get_ref() else {
+            return None;
+        };
+        table = next;
+    }
+    let mut found: Vec<(usize, String)> = table
+        .iter()
+        .map(|(key, _)| (key.span().start, key.get_ref().to_string()))
+        .collect();
+    found.sort_unstable();
+    Some(found.into_iter().map(|(_, key)| key).collect())
+}
