@@ -6,7 +6,7 @@ use std::num::NonZeroU32;
 use mergus_project::{Effective, Identifier, ModelOptions, Publication};
 use serde_json::Value;
 
-use crate::{Engine, ModelStep};
+use crate::{Engine, Instant, ModelStep, Range};
 
 /// The `max_parallel` the planner uses when the caller sets none (MG-REQ-0744.1).
 pub const DEFAULT_MAX_PARALLEL: NonZeroU32 = NonZeroU32::MIN.saturating_add(3);
@@ -117,11 +117,32 @@ pub struct PlanRequest {
     /// The estimated rows each model's boundaries carry, by model name, when the caller has
     /// an estimate (MG-REQ-0633).
     pub rows: BTreeMap<String, u64>,
+    /// The affected periods of each model incremental by period, by model name
+    /// (MG-REQ-0652.2): the periods of the partition values of the input rows read since the
+    /// last run, and every period as one range for a changed input without the partition
+    /// column. A model with none recomputes no period.
+    pub affected: BTreeMap<String, Vec<Range>>,
+    /// The backfills of the run, by model name (MG-REQ-0657).
+    pub backfill: BTreeMap<String, Backfill>,
+    /// Whether the run confirms the rebuild of history tables (MG-REQ-0665), which a backfill
+    /// of a `history` model needs (MG-REQ-0657.4).
+    pub history_rebuild_confirmed: bool,
+}
+
+/// The range of `mergus backfill <model> --from <date> [--to <date>]` (MG-REQ-0657.1). The
+/// plan widens it to whole periods of the model's grain.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Backfill {
+    /// `--from`.
+    pub from: Instant,
+    /// `--to`, or the run's start without `--to`. Not before `from`.
+    pub to: Instant,
 }
 
 impl PlanRequest {
     /// A request for `selected` with the default `max_parallel`, no available result, no
-    /// input version, no engine version and no row estimate.
+    /// input version, no engine version, no row estimate, no affected period, no backfill,
+    /// and no history rebuild confirmed.
     #[must_use]
     pub fn new(mergus_version: &str, environment: &str, selected: BTreeSet<String>) -> Self {
         Self {
@@ -133,6 +154,9 @@ impl PlanRequest {
             versions: BTreeMap::new(),
             engines: BTreeMap::new(),
             rows: BTreeMap::new(),
+            affected: BTreeMap::new(),
+            backfill: BTreeMap::new(),
+            history_rebuild_confirmed: false,
         }
     }
 }

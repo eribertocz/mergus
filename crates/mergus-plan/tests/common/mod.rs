@@ -6,6 +6,8 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::num::NonZeroU32;
 
+pub mod refresh;
+
 use mergus_plan::{Plan, PlanModel, PlanRequest, plan};
 use serde_json::Value;
 

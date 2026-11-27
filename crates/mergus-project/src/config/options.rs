@@ -70,8 +70,10 @@ enum Rule {
 }
 
 /// The options of the phase and their defaults (section 1, MG-REQ-0366).
-const OPTIONS: [(&str, Rule); 13] = [
+const OPTIONS: [(&str, Rule); 15] = [
+    ("by", Rule::First(|| Value::Null)),
     ("checks", Rule::Union),
+    ("deletes", Rule::First(|| Value::from("ignore"))),
     ("fresh", Rule::First(|| Value::Null)),
     ("inherit", Rule::First(|| Value::Bool(true))),
     ("key", Rule::First(|| Value::Null)),
