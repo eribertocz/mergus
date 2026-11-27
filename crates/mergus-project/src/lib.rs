@@ -21,6 +21,12 @@
 //! [`SqlParser`](mergus_ports::SqlParser) port (MG-REQ-0193): it reads only models, declared
 //! source tables and seeds (MG-REQ-0373) and is one read-only `SELECT` (MG-REQ-0374).
 //! [`read_sql_references`] returns the references of each `.sql` model that resolve.
+//!
+//! [`read_sql_step`] reads one `.sql` model as a [`SqlStep`]: its text, unchanged, and its
+//! run parameters (MG-REQ-0603), bound by [`SqlStep::bind`], never substituted.
+//! [`sql_schema`] gives the columns of a step through the
+//! [`Database`](mergus_ports::Database) port, with typed placeholders against empty input
+//! tables, so no data is read (MG-REQ-0604).
 
 #![forbid(unsafe_code)]
 
@@ -39,4 +45,7 @@ pub use error::{LayoutError, NameKind, ProjectError};
 pub use ids::{IdKind, Identifier, Identifiers, Renames, derive_identifier, read_renames};
 pub use layout::{Layout, Model, ModelLanguage, Publication, read_layout};
 pub use names::{closest_name, is_valid_name, suggest_valid_name};
-pub use sql::{KnownTables, check_sql, check_sql_models, read_sql_references};
+pub use sql::{
+    KnownTables, RunParameters, SqlStep, check_sql, check_sql_models, read_sql_references,
+    read_sql_step, sql_schema,
+};

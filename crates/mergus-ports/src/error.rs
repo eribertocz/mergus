@@ -11,6 +11,13 @@ pub enum PortError {
     /// The operation failed.
     #[error("{0}")]
     Failed(String),
+    /// DuckDB refused a statement: a parser, catalog or binder error in its text, which the
+    /// user can fix. The message is DuckDB's.
+    #[error("{0}")]
+    Refused(String),
+    /// A column type that is not a DuckDB scalar type Mergus writes into DDL.
+    #[error("`{0}` is not a DuckDB column type Mergus can create")]
+    UnsupportedType(String),
     /// A DuckDB extension is not in its cache directory and cannot be downloaded from its
     /// host (MG-REQ-0194.3).
     #[error(
@@ -55,6 +62,8 @@ impl PortError {
             Self::SessionParameterSet { .. } => Some("MG-0410"),
             Self::NotFound(_)
             | Self::Failed(_)
+            | Self::Refused(_)
+            | Self::UnsupportedType(_)
             | Self::ExtensionUnavailable { .. }
             | Self::UnencryptedCatalog { .. } => None,
         }

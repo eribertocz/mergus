@@ -7,7 +7,7 @@ use std::sync::{Arc, Mutex};
 use arrow::record_batch::RecordBatch;
 use mergus_ports::{
     Database, DatabaseConnection, DatabaseLocation, DuckLakeCatalog, Extension, LoadedExtension,
-    PortError, SqlValue,
+    PortError, ResultColumn, SqlValue,
 };
 
 use crate::rng::{Rate, SimRng, lock};
@@ -39,7 +39,18 @@ struct Shared {
     unencrypted: Mutex<Vec<String>>,
     extensions: Mutex<BTreeMap<Extension, String>>,
     executed: Mutex<Vec<(String, Vec<SqlValue>)>>,
+    queried: Mutex<Vec<(String, Vec<SqlValue>)>>,
+    schemas: Mutex<Vec<(String, Vec<SqlValue>, Described)>>,
+    described: Mutex<Vec<(String, Vec<SqlValue>)>>,
+    created: Mutex<Vec<CreatedTable>>,
 }
+
+/// What the real database answered when it described a query: its columns, or its refusal.
+type Described = Result<Vec<ResultColumn>, String>;
+
+/// An empty table created with [`DatabaseConnection::create_empty_table`]: its schema, name
+/// and columns.
+pub type CreatedTable = (Option<String>, String, Vec<ResultColumn>);
 
 impl Shared {
     /// Draws the error fault of one call on `what`.
@@ -88,6 +99,10 @@ impl SimDatabase {
                 unencrypted: Mutex::new(Vec::new()),
                 extensions: Mutex::new(BTreeMap::new()),
                 executed: Mutex::new(Vec::new()),
+                queried: Mutex::new(Vec::new()),
+                schemas: Mutex::new(Vec::new()),
+                described: Mutex::new(Vec::new()),
+                created: Mutex::new(Vec::new()),
             }),
         }
     }
@@ -107,6 +122,34 @@ impl SimDatabase {
         self.record(sql.into(), params, Answer::Rows(rows));
     }
 
+    /// Records the columns the real database gave when it described `sql` with `params`
+    /// (MG-REQ-0604), replacing earlier ones.
+    pub fn record_describe(
+        &self,
+        sql: impl Into<String>,
+        params: Vec<SqlValue>,
+        columns: Vec<ResultColumn>,
+    ) {
+        self.record_described(sql.into(), params, Ok(columns));
+    }
+
+    /// Records that the real database refused `sql` with `params` ([`PortError::Refused`]),
+    /// with `message`, when it described it, replacing an earlier answer.
+    pub fn record_describe_failure(
+        &self,
+        sql: impl Into<String>,
+        params: Vec<SqlValue>,
+        message: impl Into<String>,
+    ) {
+        self.record_described(sql.into(), params, Err(message.into()));
+    }
+
+    fn record_described(&self, sql: String, params: Vec<SqlValue>, answer: Described) {
+        let mut schemas = lock(&self.shared.schemas);
+        schemas.retain(|(recorded, bound, _)| *recorded != sql || *bound != params);
+        schemas.push((sql, params, answer));
+    }
+
     /// Records that the real database reported `version` for `extension` once loaded.
     pub fn record_extension(&self, extension: Extension, version: impl Into<String>) {
         lock(&self.shared.extensions).insert(extension, version.into());
@@ -117,6 +160,26 @@ impl SimDatabase {
     #[must_use]
     pub fn executed(&self) -> Vec<(String, Vec<SqlValue>)> {
         lock(&self.shared.executed).clone()
+    }
+
+    /// Returns every query run with [`DatabaseConnection::query_arrow`], with its
+    /// parameters, in order, whether it succeeded or not.
+    #[must_use]
+    pub fn queried(&self) -> Vec<(String, Vec<SqlValue>)> {
+        lock(&self.shared.queried).clone()
+    }
+
+    /// Returns every query given to [`DatabaseConnection::describe`], with its parameters,
+    /// in order, whether it succeeded or not.
+    #[must_use]
+    pub fn described(&self) -> Vec<(String, Vec<SqlValue>)> {
+        lock(&self.shared.described).clone()
+    }
+
+    /// Returns every table created with [`DatabaseConnection::create_empty_table`], in order.
+    #[must_use]
+    pub fn created(&self) -> Vec<CreatedTable> {
+        lock(&self.shared.created).clone()
     }
 
     /// Returns the batches appended to `table`, in order.
@@ -189,6 +252,7 @@ impl DatabaseConnection for SimConnection {
         sql: &str,
         params: &[SqlValue],
     ) -> Result<Vec<RecordBatch>, PortError> {
+        lock(&self.shared.queried).push((sql.to_owned(), params.to_vec()));
         match self.shared.answer(sql, params)? {
             Answer::Rows(rows) => Ok(rows),
             Answer::Changed(_) => Err(PortError::NotFound(format!("recorded rows for `{sql}`"))),
@@ -205,6 +269,37 @@ impl DatabaseConnection for SimConnection {
         for batch in self.query_arrow(sql, params)? {
             each(batch)?;
         }
+        Ok(())
+    }
+
+    /// Fails with [`PortError::NotFound`] when nothing was recorded for `sql` with `params`,
+    /// and with [`PortError::Refused`] when a refusal was.
+    fn describe(&mut self, sql: &str, params: &[SqlValue]) -> Result<Vec<ResultColumn>, PortError> {
+        lock(&self.shared.described).push((sql.to_owned(), params.to_vec()));
+        self.shared.enter(sql)?;
+        lock(&self.shared.schemas)
+            .iter()
+            .find(|(recorded, bound, _)| recorded == sql && bound.as_slice() == params)
+            .map(|(_, _, answer)| answer.clone().map_err(PortError::Refused))
+            .unwrap_or_else(|| {
+                Err(PortError::NotFound(format!(
+                    "a recorded schema for `{sql}`"
+                )))
+            })
+    }
+
+    fn create_empty_table(
+        &mut self,
+        schema: Option<&str>,
+        table: &str,
+        columns: &[ResultColumn],
+    ) -> Result<(), PortError> {
+        self.shared.enter(table)?;
+        lock(&self.shared.created).push((
+            schema.map(str::to_owned),
+            table.to_owned(),
+            columns.to_vec(),
+        ));
         Ok(())
     }
 
