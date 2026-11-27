@@ -26,6 +26,8 @@
         "publish": { "description": "The published name, or false to stop publishing.", "$ref": "#/$defs/publish" },
         "refresh": { "description": "How the table is rebuilt.", "$ref": "#/$defs/refresh" },
         "key": { "description": "The business key.", "$ref": "#/$defs/key" },
+        "by": { "description": "What detects a change of a history model.", "$ref": "#/$defs/key" },
+        "deletes": { "description": "How a history model treats deleted keys.", "$ref": "#/$defs/deletes" },
         "partition_by": { "description": "The period column and grain.", "$ref": "#/$defs/partition_by" },
         "lookback": { "description": "The periods recomputed each run.", "$ref": "#/$defs/lookback" },
         "fresh": { "description": "The freshness target.", "$ref": "#/$defs/fresh" },
@@ -45,6 +47,8 @@
         "publish": { "description": "The published name, or false to stop publishing.", "$ref": "#/$defs/publish" },
         "refresh": { "description": "How the table is rebuilt.", "$ref": "#/$defs/refresh" },
         "key": { "description": "The business key.", "$ref": "#/$defs/key" },
+        "by": { "description": "What detects a change of a history model.", "$ref": "#/$defs/key" },
+        "deletes": { "description": "How a history model treats deleted keys.", "$ref": "#/$defs/deletes" },
         "partition_by": { "description": "The period column and grain.", "$ref": "#/$defs/partition_by" },
         "lookback": { "description": "The periods recomputed each run.", "$ref": "#/$defs/lookback" },
         "fresh": { "description": "The freshness target.", "$ref": "#/$defs/fresh" },
@@ -100,6 +104,11 @@
         { "description": "Several columns.", "$ref": "#/$defs/names" },
         { "description": "The empty list, which also matches the list above, so oneOf rejects it.", "const": [] }
       ]
+    },
+    "deletes": {
+      "description": "ignore, close or tombstone (MG-REQ-0661).",
+      "type": "string",
+      "enum": ["ignore", "close", "tombstone"]
     },
     "partition_by": {
       "description": "<column>:<grain>, the grain day, week, month, quarter or year (MG-REQ-0366.4).",
