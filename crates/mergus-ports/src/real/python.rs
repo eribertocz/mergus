@@ -266,6 +266,21 @@ mod tests {
         std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o755)).unwrap();
     }
 
+    /// Parses `source`, retrying while the program is "Text file busy": a test running in
+    /// parallel may fork while another one still holds a script it just wrote open, and the
+    /// forked child keeps that descriptor until it runs its own program.
+    fn parse(python: &RealPython, source: &str) -> Result<PythonTree, PortError> {
+        for _ in 0..100 {
+            match python.parse(source) {
+                Err(PortError::Failed(message)) if message.contains("os error 26") => {
+                    std::thread::sleep(Duration::from_millis(10));
+                }
+                result => return result,
+            }
+        }
+        python.parse(source)
+    }
+
     fn search_path() -> Vec<(String, String)> {
         std::env::var("PATH")
             .map(|path| vec![("PATH".to_owned(), path)])
@@ -314,7 +329,7 @@ mod tests {
             .with_timeout(Duration::from_millis(200));
         let started = Instant::now();
         assert_eq!(
-            python.parse("x = 1\n"),
+            parse(&python, "x = 1\n"),
             Err(PortError::TimedOut {
                 program: hung.display().to_string(),
                 after: Duration::from_millis(200),
@@ -348,9 +363,19 @@ mod tests {
         );
         let env = vec![("MERGUS_GIVEN".to_owned(), "1".to_owned())];
         let python = RealPython::locate(Some(&fake), &root, env).unwrap();
-        assert_eq!(python.parse("x = 1\n").unwrap(), PythonTree::default());
-        let seen: serde_json::Value =
+        assert_eq!(parse(&python, "x = 1\n").unwrap(), PythonTree::default());
+        #[cfg_attr(
+            not(target_os = "macos"),
+            expect(unused_mut, reason = "changed on macOS only")
+        )]
+        let mut seen: serde_json::Value =
             serde_json::from_slice(&std::fs::read(&seen).unwrap()).unwrap();
+        // On macOS, the child's own CoreFoundation runtime adds this variable at startup.
+        #[cfg(target_os = "macos")]
+        seen[1]
+            .as_object_mut()
+            .unwrap()
+            .remove("__CF_USER_TEXT_ENCODING");
         assert_eq!(seen[0], serde_json::json!(["-I", "-S", "-c"]));
         assert_eq!(seen[1], serde_json::json!({"MERGUS_GIVEN": "1"}));
     }
