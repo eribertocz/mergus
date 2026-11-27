@@ -128,18 +128,7 @@ fn apply(worlds: &mut Worlds, load: &Load) -> Result<(), Violation> {
         crashed,
         earlier,
     } = worlds;
-    let source_of = || {
-        let chunk = Some(load.chunk);
-        attach_after(
-            &load.rows,
-            earlier,
-            chunk,
-            DEFAULT_OVERLAP,
-            None,
-            &ALL,
-            Vec::new(),
-        )
-    };
+    let source_of = || attached(load, earlier);
     let before = commits(whole);
     let mut attached = source_of();
     whole
@@ -170,6 +159,22 @@ fn apply(worlds: &mut Worlds, load: &Load) -> Result<(), Violation> {
             "{options}: after a crash the world shows {seen:?}, an uninterrupted one {expected:?}"
         )))
     }
+}
+
+#[cfg(test)]
+/// The source holding the rows of `load`, which also answers reads from the watermarks of
+/// the `earlier` hours.
+fn attached(load: &Load, earlier: &[i64]) -> mergus_source::AttachedSource {
+    let chunk = Some(load.chunk);
+    attach_after(
+        &load.rows,
+        earlier,
+        chunk,
+        DEFAULT_OVERLAP,
+        None,
+        &ALL,
+        Vec::new(),
+    )
 }
 
 #[cfg(test)]
