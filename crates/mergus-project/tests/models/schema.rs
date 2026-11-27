@@ -5,8 +5,9 @@ use std::collections::BTreeMap;
 
 use mergus_ports::{ResultColumn, SqlValue};
 use mergus_project::{LayoutError, ProjectError, read_sql_step, sql_schema};
-use mergus_sim::{DatabaseFaults, SimDatabase};
+use mergus_sim::{DatabaseFaults, Rate, SimDatabase};
 
+use super::parameters::{PARAMETERS_SQL, PERIOD_OUTPUT_SQL};
 use super::{PATH, known, parser, sql};
 
 /// A column named `name` of DuckDB type `data_type`.
@@ -41,7 +42,7 @@ fn mg_req_0604_sql_schema_by_prepare() {
         SqlValue::TimestampTz(0),
     ];
     let database = SimDatabase::new(0, DatabaseFaults::default());
-    database.record_describe(text, placeholders.clone(), columns.clone());
+    database.record_describe(PARAMETERS_SQL, placeholders.clone(), columns.clone());
     let inputs = BTreeMap::from([("raw.erp__orders".to_owned(), orders())]);
 
     assert_eq!(sql_schema(&database, &step, &inputs), Ok(columns));
@@ -51,7 +52,10 @@ fn mg_req_0604_sql_schema_by_prepare() {
         database.created(),
         [(Some("raw".to_owned()), "erp__orders".to_owned(), orders())]
     );
-    assert_eq!(database.described(), [(text.to_owned(), placeholders)]);
+    assert_eq!(
+        database.described(),
+        [(PARAMETERS_SQL.to_owned(), placeholders)]
+    );
     assert!(database.queried().is_empty());
     assert!(database.executed().is_empty());
     assert!(database.appended("erp__orders").is_empty());
@@ -76,4 +80,37 @@ fn mg_req_0604_step_duckdb_refuses_is_mg_0601() {
     );
     assert_eq!(problems[0].code(), "MG-0601");
     assert!(problems[0].to_string().contains(refusal), "{}", problems[0]);
+}
+
+#[test]
+fn mg_req_0604_period_parameters_are_timestamptz() {
+    let step = read_sql_step(PATH, sql("period_output").as_bytes(), &known(), &parser()).unwrap();
+    assert_eq!(step.sql, PERIOD_OUTPUT_SQL);
+    assert_eq!(step.parameters, ["period_start", "period_end", "run_date"]);
+    // Recorded from the real database: the instants are TIMESTAMPTZ, the run date a DATE.
+    let columns = vec![
+        column("period_start", "TIMESTAMP WITH TIME ZONE"),
+        column("period_end", "TIMESTAMP WITH TIME ZONE"),
+        column("run_date", "DATE"),
+    ];
+    let placeholders = vec![
+        SqlValue::TimestampTz(0),
+        SqlValue::TimestampTz(0),
+        SqlValue::Date(0),
+    ];
+    let database = SimDatabase::new(0, DatabaseFaults::default());
+    database.record_describe(PERIOD_OUTPUT_SQL, placeholders, columns.clone());
+    assert_eq!(sql_schema(&database, &step, &BTreeMap::new()), Ok(columns));
+}
+
+#[test]
+fn mg_req_0604_database_fault_is_not_mg_0601() {
+    let step = read_sql_step(PATH, sql("typed").as_bytes(), &known(), &parser()).unwrap();
+    let faults = DatabaseFaults {
+        error: Rate::ALWAYS,
+    };
+    let database = SimDatabase::new(0, faults);
+    database.record_describe(step.sql.clone(), Vec::new(), Vec::new());
+    let found = sql_schema(&database, &step, &BTreeMap::new());
+    assert!(matches!(found, Err(LayoutError::Port(_))), "{found:?}");
 }

@@ -8,6 +8,7 @@
 #![forbid(unsafe_code)]
 
 mod clock;
+mod column;
 mod database;
 mod environment;
 mod error;
@@ -30,9 +31,10 @@ mod sql_parser;
 pub mod real;
 
 pub use clock::{Clock, MonotonicTime, Timestamp};
+pub use column::{ResultColumn, is_column_type};
 pub use database::{
     Database, DatabaseConnection, DatabaseLocation, DuckLakeCatalog, Extension, LoadedExtension,
-    PostgresSource, ResultColumn, SqlValue,
+    PostgresSource, SqlValue,
 };
 pub use environment::Environment;
 pub use error::PortError;

@@ -115,6 +115,7 @@ fn walk_sql(
             problems: vec![forbidden(path, at, "text that is not UTF-8".to_owned())],
             references: std::collections::BTreeMap::new(),
             parameters: Vec::new(),
+            instants: Vec::new(),
         });
     };
     let tree = parser.parse(text)?;

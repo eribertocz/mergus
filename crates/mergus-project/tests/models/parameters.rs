@@ -6,6 +6,17 @@ use mergus_sim::{DatabaseFaults, SimDatabase};
 
 use super::{PATH, known, parser, sql};
 
+/// The statement of the fixture `parameters`, as `mergus-ports` describes it in
+/// `mg_req_0604_schema_without_data`.
+pub(super) const PARAMETERS_SQL: &str = "SELECT *, $run_date AS run_date\nFROM raw.erp__orders\n\
+     WHERE updated_at >= CAST($period_start AS TIMESTAMPTZ) AND updated_at < \
+     CAST($period_end AS TIMESTAMPTZ)\n";
+
+/// The statement of the fixture `period_output`, as `mergus-ports` describes it in
+/// `mg_req_0604_period_parameters_are_timestamptz`.
+pub(super) const PERIOD_OUTPUT_SQL: &str = "SELECT CAST($period_start AS TIMESTAMPTZ) AS period_start, \
+     CAST($period_end AS TIMESTAMPTZ) AS period_end, $run_date AS run_date\n";
+
 /// The `(code, line, column)` of each problem of the fixture `name`, read as a step.
 fn problems(name: &str) -> Vec<(&'static str, Option<usize>, Option<usize>)> {
     match read_sql_step(PATH, sql(name).as_bytes(), &known(), &parser()) {
@@ -26,8 +37,10 @@ fn mg_req_0603_parameters_bound_not_substituted() {
     let text = sql("parameters");
     let step = read_sql_step(PATH, text.as_bytes(), &known(), &parser()).unwrap();
     // The text is the file, unchanged; the parameters are named by the parser, in the order
-    // DuckDB numbers them.
+    // DuckDB numbers them. The statement reads each instant with `CAST(… AS TIMESTAMPTZ)`, the
+    // parameter still named and bound.
     assert_eq!(step.text, text);
+    assert_eq!(step.sql, PARAMETERS_SQL);
     assert_eq!(step.parameters, ["run_date", "period_start", "period_end"]);
 
     // Each run parameter has its fixed type: `$run_date` a DATE, the periods TIMESTAMPTZ.
@@ -46,17 +59,19 @@ fn mg_req_0603_parameters_bound_not_substituted() {
         ]
     );
 
-    // At execution the database receives the text with `$run_date` and the values apart.
+    // At execution the database receives the statement with `$run_date` and the values
+    // apart.
     let database = SimDatabase::new(0, DatabaseFaults::default());
-    database.record_query(text, bound.clone(), Vec::new());
+    database.record_query(PARAMETERS_SQL, bound.clone(), Vec::new());
     let mut connection = database.connect(&DatabaseLocation::InMemory).unwrap();
-    connection.query_arrow(&step.text, &bound).unwrap();
+    connection.query_arrow(&step.sql, &bound).unwrap();
     let queried = database.queried();
-    assert_eq!(queried, [(text.to_owned(), bound)]);
+    assert_eq!(queried, [(PARAMETERS_SQL.to_owned(), bound)]);
     for name in ["$run_date", "$period_start", "$period_end"] {
         assert!(queried[0].0.contains(name), "{}", queried[0].0);
     }
     assert!(!queried[0].0.contains("20419"), "{}", queried[0].0);
+    assert!(!queried[0].0.contains("1764201600"), "{}", queried[0].0);
 }
 
 #[test]

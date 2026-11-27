@@ -41,6 +41,7 @@ const FIXTURES: &[(&str, &str, &str)] = &[
     fixture!("model"),
     fixture!("numbered"),
     fixture!("parameters"),
+    fixture!("period_output"),
     fixture!("positional"),
     fixture!("pragma"),
     fixture!("set"),

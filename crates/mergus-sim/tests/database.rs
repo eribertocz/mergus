@@ -357,7 +357,7 @@ fn simulated_database_replays_described_schemas() {
     assert_eq!(described.unwrap(), columns);
     assert_eq!(
         connection.describe("SELECT nope", &[]),
-        Err(PortError::Failed("Binder Error".to_owned()))
+        Err(PortError::Refused("Binder Error".to_owned()))
     );
     assert!(matches!(
         connection.describe("SELECT id FROM items", &[]),

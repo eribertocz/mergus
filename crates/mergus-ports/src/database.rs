@@ -9,6 +9,7 @@ use std::time::Duration;
 use arrow::record_batch::RecordBatch;
 
 use crate::PortError;
+use crate::column::{ResultColumn, is_column_type};
 use crate::session::protected_connection;
 
 /// A value bound to a parameter of a SQL statement. Values are always bound, never
@@ -27,17 +28,11 @@ pub enum SqlValue {
     Text(String),
     /// A `DATE`: days since 1970-01-01.
     Date(i32),
-    /// A `TIMESTAMPTZ`: microseconds since 1970-01-01 00:00:00 UTC.
+    /// A `TIMESTAMPTZ`: microseconds since 1970-01-01 00:00:00 UTC. The `duckdb` crate binds
+    /// no `TIMESTAMPTZ`, so it is bound as the `TIMESTAMP` of that UTC instant, which the SQL
+    /// reads with `CAST(<parameter> AS TIMESTAMPTZ)`. Without the `icu` extension, which
+    /// MG-REQ-0194 does not load, DuckDB casts it as UTC: the instant is kept.
     TimestampTz(i64),
-}
-
-/// A column of the result of a query, as DuckDB types it (MG-REQ-0604).
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct ResultColumn {
-    /// The name of the column.
-    pub name: String,
-    /// The DuckDB type of the column, as DuckDB writes it, such as `DECIMAL(18,3)`.
-    pub data_type: String,
 }
 
 /// A DuckLake catalog to attach to a connection.
@@ -159,9 +154,12 @@ pub trait DatabaseConnection: Send {
     /// parameters, as DuckDB binds it, without running it, so no data is read
     /// (MG-REQ-0604).
     ///
+    /// A connection that wraps another MUST forward this method: the default fails.
+    ///
     /// # Errors
     ///
-    /// Fails with [`PortError::Failed`] when DuckDB refuses the query, and when the
+    /// Fails with [`PortError::Refused`] when DuckDB refuses the query (a parser, catalog or
+    /// binder error), and with [`PortError::Failed`] when DuckDB fails otherwise or the
     /// connection cannot describe queries.
     fn describe(&mut self, sql: &str, params: &[SqlValue]) -> Result<Vec<ResultColumn>, PortError> {
         let _ = params;
@@ -171,17 +169,25 @@ pub trait DatabaseConnection: Send {
     }
 
     /// Creates the empty table `table`, in the schema `schema` (created when missing) or in
-    /// the main schema, with `columns`: their names quoted, their DuckDB types as written.
+    /// the main schema, with `columns`: their names quoted, their DuckDB types as written
+    /// when each is a scalar type of [`is_column_type`].
     ///
     /// # Errors
     ///
-    /// Fails with [`PortError::Failed`] when a statement fails.
+    /// Fails with [`PortError::UnsupportedType`] for a type that is not, before any
+    /// statement, and with [`PortError::Failed`] when a statement fails.
     fn create_empty_table(
         &mut self,
         schema: Option<&str>,
         table: &str,
         columns: &[ResultColumn],
     ) -> Result<(), PortError> {
+        if let Some(column) = columns
+            .iter()
+            .find(|column| !is_column_type(&column.data_type))
+        {
+            return Err(PortError::UnsupportedType(column.data_type.clone()));
+        }
         let mut name = quote_identifier(table);
         if let Some(schema) = schema {
             let schema = quote_identifier(schema);
@@ -189,7 +195,7 @@ pub trait DatabaseConnection: Send {
             self.execute(&format!("CREATE SCHEMA IF NOT EXISTS {schema}"), &[])?;
             name = format!("{schema}.{name}");
         }
-        // Types are DuckDB's own text for a column type, as `describe` gives it.
+        // Every type is one of `is_column_type`, never other text.
         let columns: Vec<String> = columns
             .iter()
             .map(|column| format!("{} {}", quote_identifier(&column.name), column.data_type))

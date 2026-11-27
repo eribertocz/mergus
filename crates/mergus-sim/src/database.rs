@@ -133,8 +133,8 @@ impl SimDatabase {
         self.record_described(sql.into(), params, Ok(columns));
     }
 
-    /// Records that the real database refused `sql` with `params`, with `message`, when it
-    /// described it, replacing an earlier answer.
+    /// Records that the real database refused `sql` with `params` ([`PortError::Refused`]),
+    /// with `message`, when it described it, replacing an earlier answer.
     pub fn record_describe_failure(
         &self,
         sql: impl Into<String>,
@@ -260,14 +260,14 @@ impl DatabaseConnection for SimConnection {
     }
 
     /// Fails with [`PortError::NotFound`] when nothing was recorded for `sql` with `params`,
-    /// and with [`PortError::Failed`] when a refusal was.
+    /// and with [`PortError::Refused`] when a refusal was.
     fn describe(&mut self, sql: &str, params: &[SqlValue]) -> Result<Vec<ResultColumn>, PortError> {
         lock(&self.shared.described).push((sql.to_owned(), params.to_vec()));
         self.shared.enter(sql)?;
         lock(&self.shared.schemas)
             .iter()
             .find(|(recorded, bound, _)| recorded == sql && bound.as_slice() == params)
-            .map(|(_, _, answer)| answer.clone().map_err(PortError::Failed))
+            .map(|(_, _, answer)| answer.clone().map_err(PortError::Refused))
             .unwrap_or_else(|| {
                 Err(PortError::NotFound(format!(
                     "a recorded schema for `{sql}`"

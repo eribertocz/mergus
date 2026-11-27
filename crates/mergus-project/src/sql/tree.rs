@@ -16,6 +16,9 @@ const TABLE_FUNCTIONS: [&str; 3] = ["range", "generate_series", "unnest"];
 /// The run parameters, the only parameters a model may name (MG-REQ-0603).
 pub(crate) const RUN_PARAMETERS: [&str; 3] = ["run_date", "period_start", "period_end"];
 
+/// The run parameters of type `TIMESTAMPTZ`.
+const INSTANTS: [&str; 2] = ["period_start", "period_end"];
+
 /// The functions a model may not call (MG-REQ-0374.4).
 const FUNCTIONS: [&str; 4] = ["getenv", "nextval", "currval", "setseed"];
 
@@ -29,6 +32,9 @@ pub(crate) struct Checked {
     /// The named parameters of its statements, in the order DuckDB numbers them
     /// (MG-REQ-0603).
     pub(crate) parameters: Vec<String>,
+    /// The byte range in the text of each occurrence of a `TIMESTAMPTZ` run parameter, in
+    /// walking order.
+    pub(crate) instants: Vec<(usize, usize)>,
 }
 
 /// Returns the problems and the resolved references of the tree `tree` of the text `text` of
@@ -41,6 +47,7 @@ pub(crate) fn check(path: &str, text: &str, tree: &Value, known: &KnownTables) -
         ctes: Vec::new(),
         problems: Vec::new(),
         references: BTreeMap::new(),
+        instants: Vec::new(),
     };
     if tree.get("error").and_then(Value::as_bool) != Some(false) {
         walk.parse_error(tree);
@@ -93,6 +100,7 @@ struct Walk<'a> {
     ctes: Vec<String>,
     problems: Vec<ProjectError>,
     references: BTreeMap<String, Position>,
+    instants: Vec<(usize, usize)>,
 }
 
 impl Walk<'_> {
@@ -102,6 +110,7 @@ impl Walk<'_> {
             problems: self.problems,
             references: self.references,
             parameters: Vec::new(),
+            instants: self.instants,
         }
     }
 
@@ -241,17 +250,19 @@ impl Walk<'_> {
         let name = text(node, "identifier");
         let position = self.position(at);
         let (path, line, column) = (self.path.to_owned(), position.line, position.column);
-        if !name.is_empty() && name.bytes().all(|byte| byte.is_ascii_digit()) {
-            let length = node
-                .get("query_location_length")
-                .and_then(Value::as_u64)
-                .and_then(|length| usize::try_from(length).ok())
-                .unwrap_or(0);
-            let start = at.unwrap_or(0);
-            let written = start
-                .checked_add(length)
-                .and_then(|end| self.text.get(start..end))
-                .unwrap_or("?");
+        let start = at.unwrap_or(0);
+        let end = node
+            .get("query_location_length")
+            .and_then(Value::as_u64)
+            .and_then(|length| usize::try_from(length).ok())
+            .and_then(|length| start.checked_add(length));
+        let written = end.and_then(|end| self.text.get(start..end));
+        if INSTANTS.contains(&name) {
+            if let (Some(end), Some(_)) = (end, written) {
+                self.instants.push((start, end));
+            }
+        } else if !name.is_empty() && name.bytes().all(|byte| byte.is_ascii_digit()) {
+            let written = written.unwrap_or("?");
             self.problems.push(ProjectError::PositionalParameter {
                 path,
                 line,
