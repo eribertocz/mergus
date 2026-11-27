@@ -38,6 +38,14 @@ to `URI`. The DuckDB of this repository refuses that at bind time: "Options with
   (https://www.postgresql.org/docs/current/libpq-connect.html) and cites it in the pull
   request. If the page contradicts them, the implementer opens a spec-defect.
 
+- **Source care details, from the review of #227:**
+  - The window is read in UTC; a window whose start equals its end is open all day.
+  - A key counts as indexed only when the index's leading columns follow the key order,
+    because keyset chunks order by the key.
+  - The estimated rows are the source's table estimate, shown as an upper bound.
+  - `plan` never fails because a source is unreachable: it shows `unknown` and a warning with
+    its code.
+
 ## Consequences
 
 - The connection value is changed only in memory, inside the `Database` port.

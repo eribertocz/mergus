@@ -88,8 +88,12 @@ identify itself as `mergus` (for example `application_name` in PostgreSQL).
 When `window` is set, full loads and backfills of the source MUST start only inside the
 window; incremental loads are not restricted.
 
+1. MG-REQ-0430.1: the window's times are UTC; a window whose end is before its start spans
+   midnight, and one whose start equals its end is open all day.
+
 - Kind: behavior
 - Verify: test `mg_req_0430_full_loads_wait_for_window`
+- Decision: 0046
 
 ### MG-REQ-0431 · Index check
 
@@ -102,7 +106,10 @@ has no index in the source, with the suggested index.
    `CREATE INDEX ON "<schema>"."<table>" ("<column>", …);`, with the key columns in key
    order, or the incremental column alone;
 3. MG-REQ-0431.3: in phase 0.3 only PostgreSQL sources are checked, reading `pg_index`
-   through `postgres_query`; a DuckDB file source is not checked.
+   through `postgres_query`; a DuckDB file source is not checked;
+4. MG-REQ-0431.4: a key is indexed when an index's leading columns are the key columns in key
+   order, since keyset chunks order by them (MG-REQ-0417); an incremental column is indexed
+   when it leads an index.
 
 - Kind: behavior
 - Verify: test `mg_req_0431_doctor_reports_missing_index`
@@ -113,5 +120,11 @@ has no index in the source, with the suggested index.
 `mergus plan` MUST show, per source table: estimated rows to read, the index used when known,
 the window, and the load budget.
 
+1. MG-REQ-0432.1: the estimated rows are the source's own table estimate (`reltuples` in
+   PostgreSQL), an upper bound for an incremental load, shown as "up to N";
+2. MG-REQ-0432.2: when a source cannot be reached or read, `plan` still succeeds, shows
+   `unknown` for what it could not read, and prints the reason as a warning with its code.
+
 - Kind: behavior
 - Verify: test `mg_req_0432_plan_shows_source_impact`
+- Decision: 0046
