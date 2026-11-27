@@ -66,6 +66,24 @@ retention run in seconds.
 - Kind: behavior
 - Verify: test `mg_req_0163_simulated_time_is_accelerated`
 
+### MG-REQ-0198 · Invariants run under the simulator
+
+Every invariant due by the current phase MUST be checked under `mergus-sim`:
+
+1. MG-REQ-0198.1: on every pull request, over 1,000 seeds, each seed choosing where the crash
+   faults the invariant needs fall (MG-REQ-0161), with simulated time (MG-REQ-0163), inside
+   the ten minutes of MG-REQ-0166;
+2. MG-REQ-0198.2: before every release, in a campaign of 24 hours of simulation on `main`
+   with new seeds, run by a workflow started by hand that chains jobs of at most six hours;
+   its successful run is the evidence of the Invariants gate;
+3. MG-REQ-0198.3: a failing seed fails the run and is reported with the command that replays
+   it (MG-REQ-0162).
+
+- Kind: process
+- Verify: check `simulation`
+- Phase: 0.3
+- Decision: 0050
+
 ## 3. Differential tests
 
 | Path under test | Reference |
