@@ -46,17 +46,20 @@ pub struct Step {
     pub action: StepAction,
     /// Why: `result_available` for `skip`, `no_result` for `compute` (MG-REQ-0744.2).
     pub reason: StepReason,
-    /// What is computed: `full` the whole result, `period` the periods of `periods` (MG-REQ-0652), `key` the rows of changed keys (MG-REQ-0653).
+    /// What is computed: the whole result.
     pub refresh: StepRefresh,
     /// The parallel group of the step, from 1 (MG-REQ-0744.3).
     pub parallel_group: i64,
+    /// How an incremental step recomputes its result; when present, `refresh` describes nothing and readers use it (MG-REQ-0747.4, MG-REQ-0652, MG-REQ-0653).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub incremental: Option<Incremental>,
     /// The segments of the model in execution order (MG-REQ-0747.1, MG-REQ-0631).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub segments: Option<Vec<Segment>>,
     /// The boundaries between segments, sorted by `from` and then by `to` (MG-REQ-0747.1).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub boundaries: Option<Vec<Boundary>>,
-    /// The periods the model recomputes, sorted by `start`; present only when `refresh` is `period`, and empty when nothing is recomputed (MG-REQ-0747.2, MG-REQ-0652).
+    /// The periods the model recomputes, sorted by `start`; present only when `incremental.mode` is `period`, and empty when nothing is recomputed (MG-REQ-0747.2, MG-REQ-0652).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub periods: Option<Vec<Period>>,
 }
@@ -83,18 +86,12 @@ pub enum StepReason {
     ResultAvailable,
 }
 
-/// What is computed: `full` the whole result, `period` the periods of `periods` (MG-REQ-0652), `key` the rows of changed keys (MG-REQ-0653).
+/// What is computed: the whole result.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum StepRefresh {
     /// `full`.
     #[serde(rename = "full")]
     Full,
-    /// `period`.
-    #[serde(rename = "period")]
-    Period,
-    /// `key`.
-    #[serde(rename = "key")]
-    Key,
 }
 
 /// A model left out of the selection whose result is stale.
@@ -105,6 +102,25 @@ pub struct Stale {
     pub model: String,
     /// The selector that includes it: `+<model>` of the first selected model downstream of it, in name order.
     pub include: String,
+}
+
+/// The incremental refresh of a step.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Incremental {
+    /// What is recomputed: `period` the periods of `periods` (MG-REQ-0652), `key` the rows of changed keys (MG-REQ-0653).
+    pub mode: IncrementalMode,
+}
+
+/// What is recomputed: `period` the periods of `periods` (MG-REQ-0652), `key` the rows of changed keys (MG-REQ-0653).
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum IncrementalMode {
+    /// `period`.
+    #[serde(rename = "period")]
+    Period,
+    /// `key`.
+    #[serde(rename = "key")]
+    Key,
 }
 
 /// A run of the model's steps on one engine (MG-REQ-0631).

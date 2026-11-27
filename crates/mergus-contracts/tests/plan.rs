@@ -2,7 +2,7 @@
 //! documents stay valid (MG-REQ-0206).
 
 use mergus_contracts::generated::mergus_plan_v1::{
-    BoundaryTransport, GateStatus, MergusPlan, SegmentEngine, StepRefresh,
+    BoundaryTransport, GateStatus, IncrementalMode, MergusPlan, SegmentEngine, StepRefresh,
 };
 use mergus_contracts::{Schema, read};
 use std::path::Path;
@@ -33,7 +33,16 @@ fn mg_req_0747_plan_carries_execution_fields() {
     let plan = document("valid/execution_fields.json");
     assert!(schema.validate(&plan).is_empty());
     let plan: MergusPlan = read(&plan).unwrap();
-    let step = &plan.steps[0];
+    let mode = |index: usize| plan.steps[index].incremental.as_ref().map(|i| i.mode);
+    assert_eq!(mode(0), Some(IncrementalMode::Key));
+    assert_eq!(mode(1), None);
+    assert_eq!(mode(2), Some(IncrementalMode::Period));
+    assert!(
+        plan.steps
+            .iter()
+            .all(|step| step.refresh == StepRefresh::Full)
+    );
+    let step = &plan.steps[1];
     let segments = step.segments.as_ref().unwrap();
     assert_eq!(segments[1].engine, SegmentEngine::Polars);
     assert!(segments[1].polars_level.is_some());
@@ -42,11 +51,14 @@ fn mg_req_0747_plan_carries_execution_fields() {
         step.boundaries.as_ref().unwrap()[1].transport,
         BoundaryTransport::Parquet
     );
-    assert_eq!(plan.steps[1].refresh, StepRefresh::Period);
-    assert_eq!(plan.steps[1].periods.as_ref().unwrap().len(), 2);
+    assert_eq!(plan.steps[2].periods.as_ref().unwrap().len(), 2);
     let gates = plan.gates.as_ref().unwrap();
-    assert_eq!(gates[1].status, GateStatus::NotApplicable);
-    assert_eq!(gates[2].errors.as_ref().unwrap()[0].code, "MG-0401");
+    assert_eq!(gates.len(), 8);
+    assert_eq!(gates[6].gate, "Credentials");
+    assert_eq!(gates[6].status, GateStatus::Block);
+    assert_eq!(gates[6].errors.as_ref().unwrap()[0].code, "MG-0701");
+    assert_eq!(gates[7].status, GateStatus::NotApplicable);
+    assert_eq!(gates[7].phase.as_deref(), Some("0.5"));
     for older in ["valid/two_steps.json", "valid/stale_upstream.json"] {
         let older = document(older);
         assert!(schema.validate(&older).is_empty());

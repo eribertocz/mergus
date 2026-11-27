@@ -7,9 +7,25 @@
   "max_parallel": 4,
   "selected": [
     "daily_sales",
+    "dim_customer",
     "stg_orders"
   ],
   "steps": [
+    {
+      "model": "dim_customer",
+      "model_id": "mdl_234567abcdefghij",
+      "fingerprint": "5c4b3a29181706f5e4d3c2b1a09f8e7d6c5b4a39281706f5e4d3c2b1a09f8e7d",
+      "inputs": [
+        "raw.crm__customers"
+      ],
+      "action": "compute",
+      "reason": "no_result",
+      "refresh": "full",
+      "parallel_group": 1,
+      "incremental": {
+        "mode": "key"
+      }
+    },
     {
       "model": "stg_orders",
       "model_id": "mdl_abcdefghijklmnop",
@@ -78,8 +94,11 @@
       ],
       "action": "compute",
       "reason": "no_result",
-      "refresh": "period",
+      "refresh": "full",
       "parallel_group": 2,
+      "incremental": {
+        "mode": "period"
+      },
       "periods": [
         {
           "start": "2026-11-25T00:00:00Z",
@@ -95,30 +114,50 @@
   "stale_upstream": [],
   "gates": [
     {
-      "gate": "schema",
+      "gate": "Type passport",
       "status": "pass"
     },
     {
-      "gate": "tests",
-      "status": "not_applicable",
-      "phase": "0.5"
+      "gate": "SQL safety",
+      "status": "pass"
     },
     {
-      "gate": "keys",
+      "gate": "Determinism",
+      "status": "pass"
+    },
+    {
+      "gate": "Output contract",
+      "status": "pass"
+    },
+    {
+      "gate": "Schema gate",
+      "status": "pass"
+    },
+    {
+      "gate": "Storage rules",
+      "status": "pass"
+    },
+    {
+      "gate": "Credentials",
       "status": "block",
       "errors": [
         {
-          "code": "MG-0401",
-          "message": "incremental table without a key",
-          "model": "daily_sales",
-          "step": "aggregate",
-          "fix": "declare the key of the table"
+          "code": "MG-0701",
+          "message": "the secret `erp_password` is not set",
+          "model": "stg_orders",
+          "step": "load",
+          "fix": "set `MERGUS_SECRET_ERP_PASSWORD` or declare the secret in the profile"
         },
         {
-          "code": "MG-0401",
-          "message": "incremental table without a key"
+          "code": "MG-0701",
+          "message": "the secret `crm_token` is not set"
         }
       ]
+    },
+    {
+      "gate": "PII",
+      "status": "not_applicable",
+      "phase": "0.5"
     }
   ]
 }

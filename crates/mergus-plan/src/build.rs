@@ -157,6 +157,7 @@ fn step(model: &PlanModel, print: String, group: i64, available: &BTreeSet<Strin
         reason,
         refresh: StepRefresh::Full,
         parallel_group: group,
+        incremental: None,
         segments: None,
         boundaries: None,
         periods: None,

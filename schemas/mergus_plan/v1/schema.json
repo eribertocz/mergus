@@ -125,16 +125,18 @@
           ]
         },
         "refresh": {
-          "description": "What is computed: `full` the whole result, `period` the periods of `periods` (MG-REQ-0652), `key` the rows of changed keys (MG-REQ-0653).",
+          "description": "What is computed: the whole result.",
           "enum": [
-            "full",
-            "period",
-            "key"
+            "full"
           ]
         },
         "parallel_group": {
           "description": "The parallel group of the step, from 1 (MG-REQ-0744.3).",
           "type": "integer"
+        },
+        "incremental": {
+          "description": "How an incremental step recomputes its result; when present, `refresh` describes nothing and readers use it (MG-REQ-0747.4, MG-REQ-0652, MG-REQ-0653).",
+          "$ref": "#/$defs/incremental"
         },
         "segments": {
           "description": "The segments of the model in execution order (MG-REQ-0747.1, MG-REQ-0631).",
@@ -153,7 +155,7 @@
           }
         },
         "periods": {
-          "description": "The periods the model recomputes, sorted by `start`; present only when `refresh` is `period`, and empty when nothing is recomputed (MG-REQ-0747.2, MG-REQ-0652).",
+          "description": "The periods the model recomputes, sorted by `start`; present only when `incremental.mode` is `period`, and empty when nothing is recomputed (MG-REQ-0747.2, MG-REQ-0652).",
           "type": "array",
           "items": {
             "$ref": "#/$defs/period",
@@ -178,6 +180,23 @@
         "include": {
           "description": "The selector that includes it: `+<model>` of the first selected model downstream of it, in name order.",
           "type": "string"
+        }
+      }
+    },
+    "incremental": {
+      "description": "The incremental refresh of a step.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "mode"
+      ],
+      "properties": {
+        "mode": {
+          "description": "What is recomputed: `period` the periods of `periods` (MG-REQ-0652), `key` the rows of changed keys (MG-REQ-0653).",
+          "enum": [
+            "period",
+            "key"
+          ]
         }
       }
     },
