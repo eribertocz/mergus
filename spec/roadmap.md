@@ -40,7 +40,7 @@ A phase is released only when every gate passes in CI on `main`.
 |---|---|
 | Traceability | Every `behavior` rule of the phase and earlier phases has a passing test (`just spec-status` shows `tested`) |
 | Process | Every `process` rule of the phase has its check running or its review item in `review-pr` |
-| Invariants | Every invariant due by this phase holds over 1,000 simulator seeds per pull request and 24 hours of continuous simulation |
+| Invariants | Every invariant due by this phase holds over 1,000 simulator seeds per pull request and in a 24-hour simulation campaign on `main` before the release (MG-REQ-0198) |
 | Determinism | Plans and manifests byte-identical across two runs with shuffled input order (MG-REQ-0005) |
 | Compatibility | Every contract example validates; schema changes bump versions (MG-REQ-0205) |
 | Speed | Pull request CI under ten minutes (MG-REQ-0166) |
