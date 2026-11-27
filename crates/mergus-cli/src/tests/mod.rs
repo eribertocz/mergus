@@ -1,5 +1,6 @@
 //! Tests of the binary, run on the simulated ports of `mergus-sim`.
 
+mod care;
 mod contract;
 mod diagnostics;
 mod doctor;
@@ -22,8 +23,8 @@ use std::cell::RefCell;
 use std::path::Path;
 use std::sync::LazyLock;
 
-use mergus_ports::Keychain;
 use mergus_ports::real::RealSqlParser;
+use mergus_ports::{Database, Keychain};
 use mergus_ports::{FileSystem, Random, Timestamp};
 use mergus_sim::{ClockFaults, SimClock, SimEnvironment, SimFileSystem, SimKeychain, SimRandom};
 use serde_json::Value;
@@ -105,13 +106,18 @@ impl Setup<'_> {
     /// Runs the binary on simulated ports whose user configuration directory is
     /// `config_dir`.
     pub(crate) fn run_with_config_dir(&self, config_dir: Option<&str>) -> Outcome {
-        self.run_all(config_dir, &SimKeychain::new(), &NoInput)
+        self.run_all(config_dir, &SimKeychain::new(), &NoInput, None)
     }
 
     /// Runs the binary on simulated ports, `secret set` reading `stdin` and writing into
     /// `keychain`.
     pub(crate) fn run_on(&self, keychain: &dyn Keychain, stdin: &dyn SecretInput) -> Outcome {
-        self.run_all(None, keychain, stdin)
+        self.run_all(None, keychain, stdin, None)
+    }
+
+    /// Runs the binary on simulated ports, attaching database sources to `database`.
+    pub(crate) fn run_with_database(&self, database: &dyn Database) -> Outcome {
+        self.run_all(None, &SimKeychain::new(), &NoInput, Some(database))
     }
 
     fn run_all(
@@ -119,6 +125,7 @@ impl Setup<'_> {
         config_dir: Option<&str>,
         keychain: &dyn Keychain,
         stdin: &dyn SecretInput,
+        database: Option<&dyn Database>,
     ) -> Outcome {
         let environment =
             SimEnvironment::new(self.vars.iter().copied(), config_dir.map(Into::into))
@@ -140,6 +147,7 @@ impl Setup<'_> {
             input: input.as_ref().map(|typed| typed as &dyn Answers),
             secret_input: stdin,
             keychain,
+            database,
         };
         let mut stdout = Vec::new();
         let mut stderr = Vec::new();

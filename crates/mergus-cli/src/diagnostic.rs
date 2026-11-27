@@ -4,7 +4,7 @@
 use mergus_project::ProjectError;
 use mergus_runtime::StorageProblem;
 use mergus_security::{SecretError, StoreError};
-use mergus_source::{Severity, SourceProblem};
+use mergus_source::{IndexWarning, Severity, SourceProblem};
 
 use crate::catalog::{self, Entry};
 use crate::error::CliError;
@@ -142,6 +142,48 @@ impl Diagnostic {
             location: None,
             hint: Some(format!("Run `{}`.", command.join(" "))),
             next: vec![command],
+            source: None,
+        }
+    }
+
+    /// The diagnostic of the error `code` of another crate, located nowhere.
+    pub(crate) fn of_code(code: &'static str, message: String) -> Self {
+        Self {
+            code,
+            warning: false,
+            message,
+            location: None,
+            hint: None,
+            next: Vec::new(),
+            source: None,
+        }
+    }
+
+    /// The warning `code` of another crate, located nowhere: it does not fail the command.
+    pub(crate) fn warning_of_code(code: &'static str, message: String) -> Self {
+        Self {
+            warning: true,
+            ..Self::of_code(code, message)
+        }
+    }
+
+    /// The warning of a key or incremental column without an index, located at the source
+    /// file `path`, with the index to create as its hint (MG-REQ-0431).
+    pub(crate) fn of_index(warning: &IndexWarning, path: &str) -> Self {
+        Self {
+            code: warning.code(),
+            warning: true,
+            message: warning.to_string(),
+            location: Some(Location {
+                file: path.to_owned(),
+                line: None,
+                column: None,
+            }),
+            hint: Some(format!(
+                "Add the index `{}` to the source.",
+                warning.suggestion()
+            )),
+            next: Vec::new(),
             source: None,
         }
     }

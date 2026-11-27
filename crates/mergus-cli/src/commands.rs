@@ -19,6 +19,9 @@ pub(crate) const EXCLUDE: &str = "--exclude";
 /// The option that sets `max_parallel` (MG-REQ-1351).
 pub(crate) const MAX_PARALLEL: &str = "--max-parallel";
 
+/// The option that names the source whose indexes `doctor` checks (MG-REQ-0431).
+pub(crate) const SOURCE: &str = "--source";
+
 /// The positional words of a selection (MG-REQ-1305).
 pub(crate) const SELECTION: &str = "selection";
 
@@ -168,6 +171,8 @@ const ADD_SOURCE: [Argument; 5] = [
     GLOBAL[2],
 ];
 
+const DOCTOR: [Argument; 4] = [option(SOURCE, None), GLOBAL[0], GLOBAL[1], GLOBAL[2]];
+
 const EXPLAIN: [Argument; 4] = [
     positional("argument", true),
     GLOBAL[0],
@@ -268,7 +273,9 @@ impl Command {
     pub(crate) fn summary(self) -> &'static str {
         match self {
             Self::AddSource => "Create a source file that references its connection as a secret.",
-            Self::Doctor => "Show where each secret reference resolves, never its value.",
+            Self::Doctor => {
+                "Show where each secret reference resolves, never its value; with `--source`, check the indexes of that source."
+            }
             Self::Explain => "Explain an error code, or a model and its effective options.",
             Self::Init => "Create a project in the current folder.",
             Self::Ls => "List the selected models and why each one is selected.",
@@ -284,7 +291,7 @@ impl Command {
     pub(crate) fn arguments(self) -> &'static [Argument] {
         match self {
             Self::AddSource => &ADD_SOURCE,
-            Self::Doctor => &GLOBAL,
+            Self::Doctor => &DOCTOR,
             Self::Explain => &EXPLAIN,
             Self::Init => &INIT,
             Self::Ls => &LS,
