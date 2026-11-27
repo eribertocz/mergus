@@ -57,6 +57,14 @@ current version has `_valid_to = 9999-12-31 00:00:00` so that one range test fin
    key.
 4. MG-REQ-0663.4: each key has at most one version with `_is_current = true`: its latest
    version, which may be a tombstone. Every closed version has `_is_current = false`.
+5. MG-REQ-0663.5: a `by` value that is not later than the current version's `_valid_from` does
+   not give the new version's `_valid_from`, so no version has an empty or inverted range. The
+   detection time does instead.
+6. MG-REQ-0663.6: "`by` is one column" means `by = "<column>"`. A list of one column is list
+   mode. That column's type must be `DATE`, `TIMESTAMP` or `TIMESTAMPTZ`. Any other type is a
+   typed error with the next free `MG-06xx` code, raised before any row is written.
+7. MG-REQ-0663.7: a key that appears more than once in a run's input that is not a changes view
+   fails the run with a typed error. Nothing is written.
 
 - Kind: behavior
 - Verify: test `mg_req_0663_validity_columns`
