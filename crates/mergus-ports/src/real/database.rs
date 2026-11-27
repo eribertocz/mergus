@@ -9,9 +9,11 @@ use duckdb::{Config, Connection};
 use crate::database::quote_identifier;
 use crate::{
     Database, DatabaseConnection, DatabaseLocation, DuckLakeCatalog, Extension, LoadedExtension,
-    PortError, SqlValue,
+    PortError, ResultColumn, SqlValue,
 };
 
+#[cfg(test)]
+mod describe_tests;
 #[cfg(test)]
 mod tests;
 
@@ -146,6 +148,42 @@ impl DatabaseConnection for RealConnection {
         Ok(batches)
     }
 
+    /// Runs the statement with DuckDB's streaming execution (`stream_arrow`), so that DuckDB
+    /// produces each batch only when the one before it has been handled, and a fetch error is
+    /// returned, never a panic.
+    fn query_arrow_each(
+        &mut self,
+        sql: &str,
+        params: &[SqlValue],
+        each: &mut dyn FnMut(RecordBatch) -> Result<(), PortError>,
+    ) -> Result<(), PortError> {
+        let mut statement = self.connection.prepare(sql).map_err(failed)?;
+        let batches = statement
+            .stream_arrow(duckdb::params_from_iter(params.iter().map(value)))
+            .map_err(failed)?;
+        for batch in batches {
+            each(batch.map_err(failed)?)?;
+        }
+        Ok(())
+    }
+
+    /// Binds `sql` with `params` under `DESCRIBE`, which gives the names and types of its
+    /// result and runs none of it.
+    fn describe(&mut self, sql: &str, params: &[SqlValue]) -> Result<Vec<ResultColumn>, PortError> {
+        // The text is a query, never a value: values are only ever bound (MG-REQ-0007).
+        let describe = format!("DESCRIBE {sql}");
+        let mut statement = self.connection.prepare(&describe).map_err(refused)?;
+        statement
+            .query_map(duckdb::params_from_iter(params.iter().map(value)), |row| {
+                Ok(ResultColumn {
+                    name: row.get(0)?,
+                    data_type: row.get(1)?,
+                })
+            })
+            .and_then(Iterator::collect)
+            .map_err(refused)
+    }
+
     fn append_arrow(&mut self, table: &str, batch: &RecordBatch) -> Result<(), PortError> {
         let mut appender = self.connection.appender(table).map_err(failed)?;
         appender
@@ -228,6 +266,26 @@ fn value(value: &SqlValue) -> duckdb::types::Value {
         SqlValue::Integer(value) => duckdb::types::Value::BigInt(*value),
         SqlValue::Double(value) => duckdb::types::Value::Double(*value),
         SqlValue::Text(value) => duckdb::types::Value::Text(value.clone()),
+        SqlValue::Date(days) => duckdb::types::Value::Date32(*days),
+        // The SQL reads it with `CAST(<parameter> AS TIMESTAMPTZ)`, as UTC (no `icu`).
+        SqlValue::TimestampTz(micros) => {
+            duckdb::types::Value::Timestamp(duckdb::types::TimeUnit::Microsecond, *micros)
+        }
+    }
+}
+
+/// The kinds of DuckDB error a statement's text causes, as DuckDB starts their message.
+const REFUSALS: [&str; 3] = ["Parser Error: ", "Catalog Error: ", "Binder Error: "];
+
+/// Converts a DuckDB error into [`PortError::Refused`] when the statement's text caused it,
+/// keeping DuckDB's message without the statement it quotes, else into [`PortError::Failed`].
+fn refused(error: duckdb::Error) -> PortError {
+    let text = error.to_string();
+    if REFUSALS.iter().any(|kind| text.starts_with(kind)) {
+        let message = text.split("\n\nLINE ").next().unwrap_or(&text);
+        PortError::Refused(message.trim_end().to_owned())
+    } else {
+        failed(error)
     }
 }
 

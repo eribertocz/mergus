@@ -1,6 +1,7 @@
 //! The error every port returns.
 
 use std::path::PathBuf;
+use std::time::Duration;
 
 /// A failure reported by a port.
 #[derive(Clone, Debug, PartialEq, Eq, thiserror::Error)]
@@ -11,6 +12,13 @@ pub enum PortError {
     /// The operation failed.
     #[error("{0}")]
     Failed(String),
+    /// DuckDB refused a statement: a parser, catalog or binder error in its text, which the
+    /// user can fix. The message is DuckDB's.
+    #[error("{0}")]
+    Refused(String),
+    /// A column type that is not a DuckDB scalar type Mergus writes into DDL.
+    #[error("`{0}` is not a DuckDB column type Mergus can create")]
+    UnsupportedType(String),
     /// A DuckDB extension is not in its cache directory and cannot be downloaded from its
     /// host (MG-REQ-0194.3).
     #[error(
@@ -44,6 +52,32 @@ pub enum PortError {
         /// The parameter, `application_name` or `options`.
         parameter: String,
     },
+    /// No Python interpreter was found: neither the configured one, nor one in the project's
+    /// `.venv`, nor one on the search path. `searched` lists what was tried, in order.
+    #[error("no Python interpreter was found; tried {}", .searched.join(", "))]
+    PythonNotFound {
+        /// The interpreters tried, in order.
+        searched: Vec<String>,
+    },
+    /// A program did not finish in time and was killed.
+    #[error("`{program}` did not finish within {after:?} and was stopped")]
+    TimedOut {
+        /// The program.
+        program: String,
+        /// The limit it reached.
+        after: Duration,
+    },
+    /// A Python file is not valid Python. The message is the interpreter's; lines and columns
+    /// start at 1, and a column counts characters.
+    #[error("{message}")]
+    PythonSyntax {
+        /// The interpreter's message.
+        message: String,
+        /// The line of the error, when the interpreter gives one.
+        line: Option<u32>,
+        /// The column of the error, when the interpreter gives one.
+        column: Option<u32>,
+    },
 }
 
 impl PortError {
@@ -55,8 +89,13 @@ impl PortError {
             Self::SessionParameterSet { .. } => Some("MG-0410"),
             Self::NotFound(_)
             | Self::Failed(_)
+            | Self::Refused(_)
+            | Self::UnsupportedType(_)
             | Self::ExtensionUnavailable { .. }
-            | Self::UnencryptedCatalog { .. } => None,
+            | Self::UnencryptedCatalog { .. }
+            | Self::PythonNotFound { .. }
+            | Self::TimedOut { .. }
+            | Self::PythonSyntax { .. } => None,
         }
     }
 }

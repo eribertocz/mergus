@@ -79,7 +79,24 @@ reject it with the fix ("return the LazyFrame").
 
 Mergus MUST obtain a Polars step's plan and output schema by calling the function once with
 empty LazyFrames that carry the input schemas. In server mode this call runs inside the
-same isolation as execution.
+same isolation as execution:
+
+1. MG-REQ-0617.1: at the `subprocess` level (MG-REQ-0635.3), the call runs in a Python child
+   process started through the Python port. Its environment is only the allowlisted one of
+   MG-REQ-0006, and its working directory is the step's own directory under the run's work
+   directory. The child imports the model file by its path, with the project's `lib`
+   directory first on `sys.path`, and calls the step with one keyword argument per
+   parameter.
+2. MG-REQ-0617.2: for planning, each argument is an empty LazyFrame with its input's schema.
+   The child writes the schema of the returned LazyFrame as a zero-row Arrow IPC file in its
+   working directory, and Mergus reads the output schema from that file.
+3. MG-REQ-0617.3: for execution, Mergus writes each input as an Arrow IPC file in that
+   directory, and the child passes it as `pl.scan_ipc(<file>)`. The child collects the
+   result once and writes it as an Arrow IPC file, which Mergus reads.
+4. MG-REQ-0617.4: an exception in the call, or a return value that is not a LazyFrame, is a
+   typed error with the next free `MG-06xx` code and exit code 1. It names the model, the step,
+   and the exception's type and message. A child that cannot import `polars` gets its own
+   next free `MG-06xx` code, with the fix "install polars in the project's Python".
 
 - Kind: behavior
 - Verify: test `mg_req_0617_polars_planned_with_empty_frames`
@@ -95,7 +112,11 @@ imported `lib` modules in the fingerprint of the models that import them.
 ### MG-REQ-0619 · Testable as plain functions
 
 A Polars step MUST be callable from a normal Python test with a hand-made LazyFrame, without
-Mergus running. `mergus preview <model> --step <step>` shows the output of any step.
+Mergus running. `mergus preview <model> --step <step>` shows the output of any step.:
+
+1. MG-REQ-0619.1: Mergus adds nothing to the model's module, and the step needs no Mergus
+   package. Imported from a test and called with LazyFrames built by hand, the step returns
+   the same LazyFrame as when Mergus runs it on the same data.
 
 - Kind: behavior
 - Verify: test `mg_req_0619_step_callable_in_pytest`

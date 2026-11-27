@@ -99,7 +99,9 @@ The `error-catalog` check of `cargo xtask ci` MUST fail when:
 6. MG-REQ-1335.6: the codes of an area, the first two digits, do not run from `<aa>01` to
    their highest without a gap, so a code is never removed or reused (MG-REQ-1332).
 
-`MG-REQ-` identifiers are not codes. With no catalog directory, only item 4 applies.
+A code takes the area of the rule that defines its error. "The next free code" is the next one
+on `main` when the pull request merges `main`: when two open pull requests take the same code,
+the one that merges second renumbers its codes. `MG-REQ-` identifiers are not codes. With no catalog directory, only item 4 applies.
 
 - Kind: process
 - Verify: check `error-catalog`

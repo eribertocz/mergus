@@ -4,6 +4,8 @@ use std::fmt;
 
 use mergus_ports::PortError;
 
+mod access;
+
 /// The kind of a name checked by MG-REQ-0305.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum NameKind {
@@ -233,6 +235,44 @@ pub enum ProjectError {
         /// reference to the next model of the cycle.
         references: Vec<(String, usize)>,
     },
+    /// DuckDB refuses to bind a `.sql` model against its inputs (MG-REQ-0604).
+    #[error("`{path}`: DuckDB cannot prepare the model: {message}")]
+    UnpreparableSql {
+        /// The path of the model.
+        path: String,
+        /// What DuckDB reports.
+        message: String,
+    },
+    /// A `.sql` model names a parameter that is not a run parameter (MG-REQ-0603).
+    #[error(
+        "`{path}` line {line} column {column}: parameter `${name}` is not a run parameter; use \
+         `$run_date`, `$period_start` or `$period_end`"
+    )]
+    UnknownParameter {
+        /// The path of the model.
+        path: String,
+        /// The line of the parameter, from 1.
+        line: usize,
+        /// The column of the parameter, from 1.
+        column: usize,
+        /// The name of the parameter, without its `$`.
+        name: String,
+    },
+    /// A `.sql` model has a positional parameter (MG-REQ-0603).
+    #[error(
+        "`{path}` line {line} column {column}: parameter `{written}` is positional; run \
+         parameters are named: `$run_date`, `$period_start` or `$period_end`"
+    )]
+    PositionalParameter {
+        /// The path of the model.
+        path: String,
+        /// The line of the parameter, from 1.
+        line: usize,
+        /// The column of the parameter, from 1.
+        column: usize,
+        /// The parameter as written, such as `?` or `$1`.
+        written: String,
+    },
 }
 
 /// Formats the models of a cycle, back to the first.
@@ -264,107 +304,6 @@ fn key_prefix(key: Option<&str>) -> String {
 /// Formats the closest valid name of an error, when there is one.
 fn hint(suggestion: Option<&str>) -> String {
     suggestion.map_or_else(String::new, |name| format!("; did you mean `{name}`?"))
-}
-
-impl ProjectError {
-    /// Returns the `MG-####` code of the error (MG-REQ-0008).
-    #[must_use]
-    pub fn code(&self) -> &'static str {
-        match self {
-            Self::DuplicateModel { .. } => "MG-0301",
-            Self::InvalidName { .. } => "MG-0302",
-            Self::InvalidToml { .. } => "MG-0303",
-            Self::UnknownKey { .. } => "MG-0304",
-            Self::InvalidValue { .. } => "MG-0305",
-            Self::Expression { .. } => "MG-0306",
-            Self::NonFiniteFloat { .. } => "MG-0307",
-            Self::UnknownSection { .. } => "MG-0308",
-            Self::LiteralSecret { .. } => "MG-0309",
-            Self::InvalidIds { .. } => "MG-0310",
-            Self::DuplicateIdsEntry { .. } => "MG-0311",
-            Self::DuplicateIdentifier { .. } => "MG-0312",
-            Self::UnknownReference { .. } => "MG-0313",
-            Self::ForbiddenSql { .. } => "MG-0314",
-            Self::ModelCycle { .. } => "MG-0315",
-        }
-    }
-
-    /// Returns the path that caused the error, relative to the project root.
-    #[must_use]
-    pub fn path(&self) -> &str {
-        match self {
-            Self::DuplicateModel { second, .. } => second,
-            Self::InvalidName { path, .. }
-            | Self::InvalidToml { path, .. }
-            | Self::UnknownKey { path, .. }
-            | Self::InvalidValue { path, .. }
-            | Self::Expression { path, .. }
-            | Self::NonFiniteFloat { path, .. }
-            | Self::UnknownSection { path, .. }
-            | Self::LiteralSecret { path, .. }
-            | Self::InvalidIds { path, .. }
-            | Self::DuplicateIdsEntry { path, .. }
-            | Self::DuplicateIdentifier { path, .. }
-            | Self::UnknownReference { path, .. }
-            | Self::ForbiddenSql { path, .. } => path,
-            Self::ModelCycle { references, .. } => references.first().map_or("", |(path, _)| path),
-        }
-    }
-
-    /// Returns the line of the file that caused the error, from 1, when there is one.
-    #[must_use]
-    pub fn line(&self) -> Option<usize> {
-        match self {
-            Self::DuplicateModel { .. }
-            | Self::InvalidName { .. }
-            | Self::DuplicateIdentifier { .. } => None,
-            Self::InvalidToml { line, .. }
-            | Self::UnknownKey { line, .. }
-            | Self::InvalidValue { line, .. }
-            | Self::Expression { line, .. }
-            | Self::NonFiniteFloat { line, .. }
-            | Self::UnknownSection { line, .. }
-            | Self::LiteralSecret { line, .. }
-            | Self::InvalidIds { line, .. }
-            | Self::DuplicateIdsEntry { line, .. }
-            | Self::UnknownReference { line, .. }
-            | Self::ForbiddenSql { line, .. } => Some(*line),
-            Self::ModelCycle { references, .. } => references.first().map(|(_, line)| *line),
-        }
-    }
-
-    /// Returns the column of the line that caused the error, from 1, when there is one.
-    #[must_use]
-    pub fn column(&self) -> Option<usize> {
-        match self {
-            Self::UnknownReference { column, .. } | Self::ForbiddenSql { column, .. } => {
-                Some(*column)
-            }
-            _ => None,
-        }
-    }
-
-    /// Returns the configuration key that caused the error, dotted from the root of its file.
-    #[must_use]
-    pub fn key(&self) -> Option<&str> {
-        match self {
-            Self::DuplicateModel { .. }
-            | Self::InvalidName { .. }
-            | Self::InvalidToml { .. }
-            | Self::DuplicateIdentifier { .. }
-            | Self::UnknownReference { .. }
-            | Self::ForbiddenSql { .. }
-            | Self::ModelCycle { .. } => None,
-            Self::InvalidIds { key, .. } => key.as_deref(),
-            Self::UnknownKey { key, .. }
-            | Self::InvalidValue { key, .. }
-            | Self::Expression { key, .. }
-            | Self::NonFiniteFloat { key, .. }
-            | Self::UnknownSection { section: key, .. }
-            | Self::LiteralSecret { key, .. }
-            | Self::DuplicateIdsEntry { second: key, .. } => Some(key),
-        }
-    }
 }
 
 /// Why a project layout could not be read.

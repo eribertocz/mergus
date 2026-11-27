@@ -9,6 +9,7 @@ use std::time::Duration;
 use arrow::record_batch::RecordBatch;
 
 use crate::PortError;
+use crate::column::{ResultColumn, is_column_type};
 use crate::session::protected_connection;
 
 /// A value bound to a parameter of a SQL statement. Values are always bound, never
@@ -25,6 +26,13 @@ pub enum SqlValue {
     Double(f64),
     /// A `VARCHAR`.
     Text(String),
+    /// A `DATE`: days since 1970-01-01.
+    Date(i32),
+    /// A `TIMESTAMPTZ`: microseconds since 1970-01-01 00:00:00 UTC. The `duckdb` crate binds
+    /// no `TIMESTAMPTZ`, so it is bound as the `TIMESTAMP` of that UTC instant, which the SQL
+    /// reads with `CAST(<parameter> AS TIMESTAMPTZ)`. Without the `icu` extension, which
+    /// MG-REQ-0194 does not load, DuckDB casts it as UTC: the instant is kept.
+    TimestampTz(i64),
 }
 
 /// A DuckLake catalog to attach to a connection.
@@ -141,6 +149,86 @@ pub trait DatabaseConnection: Send {
         sql: &str,
         params: &[SqlValue],
     ) -> Result<Vec<RecordBatch>, PortError>;
+
+    /// Runs the query `sql` with `params` bound to its parameters, and calls `each` with each
+    /// Arrow record batch of its rows, in order, as the database produces them, so that the
+    /// caller never holds more than one batch. It stops at the first error of `each`.
+    ///
+    /// The default collects the rows with [`DatabaseConnection::query_arrow`] first; the real
+    /// and simulated databases stream them. A connection that wraps another must forward this
+    /// method, or it collects.
+    ///
+    /// # Errors
+    ///
+    /// Fails with [`PortError::Failed`] when the query fails, and with the error of `each`
+    /// when it fails.
+    fn query_arrow_each(
+        &mut self,
+        sql: &str,
+        params: &[SqlValue],
+        each: &mut dyn FnMut(RecordBatch) -> Result<(), PortError>,
+    ) -> Result<(), PortError> {
+        for batch in self.query_arrow(sql, params)? {
+            each(batch)?;
+        }
+        Ok(())
+    }
+
+    /// Returns the columns of the result of the query `sql` with `params` bound to its
+    /// parameters, as DuckDB binds it, without running it, so no data is read
+    /// (MG-REQ-0604).
+    ///
+    /// A connection that wraps another MUST forward this method: the default fails.
+    ///
+    /// # Errors
+    ///
+    /// Fails with [`PortError::Refused`] when DuckDB refuses the query (a parser, catalog or
+    /// binder error), and with [`PortError::Failed`] when DuckDB fails otherwise or the
+    /// connection cannot describe queries.
+    fn describe(&mut self, sql: &str, params: &[SqlValue]) -> Result<Vec<ResultColumn>, PortError> {
+        let _ = params;
+        Err(PortError::Failed(format!(
+            "this connection cannot describe `{sql}`"
+        )))
+    }
+
+    /// Creates the empty table `table`, in the schema `schema` (created when missing) or in
+    /// the main schema, with `columns`: their names quoted, their DuckDB types as written
+    /// when each is a scalar type of [`is_column_type`].
+    ///
+    /// # Errors
+    ///
+    /// Fails with [`PortError::UnsupportedType`] for a type that is not, before any
+    /// statement, and with [`PortError::Failed`] when a statement fails.
+    fn create_empty_table(
+        &mut self,
+        schema: Option<&str>,
+        table: &str,
+        columns: &[ResultColumn],
+    ) -> Result<(), PortError> {
+        if let Some(column) = columns
+            .iter()
+            .find(|column| !is_column_type(&column.data_type))
+        {
+            return Err(PortError::UnsupportedType(column.data_type.clone()));
+        }
+        let mut name = quote_identifier(table);
+        if let Some(schema) = schema {
+            let schema = quote_identifier(schema);
+            // sql: identifiers quoted by quote_identifier
+            self.execute(&format!("CREATE SCHEMA IF NOT EXISTS {schema}"), &[])?;
+            name = format!("{schema}.{name}");
+        }
+        // Every type is one of `is_column_type`, never other text.
+        let columns: Vec<String> = columns
+            .iter()
+            .map(|column| format!("{} {}", quote_identifier(&column.name), column.data_type))
+            .collect();
+        let columns = columns.join(", ");
+        // sql: identifiers quoted by quote_identifier
+        self.execute(&format!("CREATE TABLE {name} ({columns})"), &[])
+            .map(|_| ())
+    }
 
     /// Appends the rows of `batch` to the existing table `table` of the main schema.
     ///

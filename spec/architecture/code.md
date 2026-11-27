@@ -151,7 +151,9 @@ The `sql-concatenation` check MUST fail on a Rust string literal passed to `form
 `ATTACH` and contains a `{` placeholder. A literal is exempt when the line directly above it
 is the waiver comment `// sql: identifiers quoted by <function>`, naming the dialect's
 quoting function (MG-REQ-0007); the review checks that every placeholder is such an
-identifier.
+identifier. No other way around the check is allowed: building the same text with `concat`,
+`push_str` or `+` breaks this rule. Text that must be composed from data, such as a macro
+definition sent to the parser, is joined inside SQL with the data bound as a parameter.
 
 - Kind: process
 - Verify: check `sql-concatenation`

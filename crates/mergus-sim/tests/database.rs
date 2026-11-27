@@ -10,7 +10,7 @@ use arrow::error::ArrowError;
 use arrow::record_batch::RecordBatch;
 use mergus_ports::{
     Database, DatabaseLocation, DuckLakeCatalog, Extension, LoadedExtension, PortError,
-    PostgresSource, SqlValue,
+    PostgresSource, ResultColumn, SqlValue,
 };
 use mergus_sim::{DatabaseFaults, Rate, SimDatabase};
 
@@ -337,4 +337,38 @@ fn mg_req_0429_session_parameter_already_set_is_refused() {
         );
         assert!(database.executed().is_empty());
     }
+}
+
+#[test]
+fn simulated_database_replays_described_schemas() {
+    let database = SimDatabase::new(1, DatabaseFaults::default());
+    let columns = vec![ResultColumn {
+        name: "id".to_owned(),
+        data_type: "BIGINT".to_owned(),
+    }];
+    let params = vec![SqlValue::Date(0)];
+    database.record_describe("SELECT id FROM items", params.clone(), columns.clone());
+    database.record_describe_failure("SELECT nope", Vec::new(), "Binder Error");
+    let mut connection = database.connect(&DatabaseLocation::InMemory).unwrap();
+    connection
+        .create_empty_table(Some("raw"), "items", &columns)
+        .unwrap();
+    let described = connection.describe("SELECT id FROM items", &params);
+    assert_eq!(described.unwrap(), columns);
+    assert_eq!(
+        connection.describe("SELECT nope", &[]),
+        Err(PortError::Refused("Binder Error".to_owned()))
+    );
+    assert!(matches!(
+        connection.describe("SELECT id FROM items", &[]),
+        Err(PortError::NotFound(_))
+    ));
+    assert_eq!(database.described().len(), 3);
+    assert_eq!(
+        database.created(),
+        [(Some("raw".to_owned()), "items".to_owned(), columns)]
+    );
+    assert!(connection.query_arrow("SELECT 3", &[]).is_err());
+    assert_eq!(database.queried(), [("SELECT 3".to_owned(), Vec::new())]);
+    assert!(database.executed().is_empty());
 }

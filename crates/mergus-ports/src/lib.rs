@@ -8,6 +8,7 @@
 #![forbid(unsafe_code)]
 
 mod clock;
+mod column;
 mod database;
 mod environment;
 mod error;
@@ -16,6 +17,7 @@ mod keychain;
 mod network;
 mod object_store;
 mod process;
+mod python;
 mod random;
 mod session;
 mod source;
@@ -30,17 +32,22 @@ mod sql_parser;
 pub mod real;
 
 pub use clock::{Clock, MonotonicTime, Timestamp};
+pub use column::{ResultColumn, is_column_type};
 pub use database::{
     Database, DatabaseConnection, DatabaseLocation, DuckLakeCatalog, Extension, LoadedExtension,
     PostgresSource, SqlValue,
 };
 pub use environment::Environment;
 pub use error::PortError;
-pub use file_system::FileSystem;
+pub use file_system::{FileSystem, SeekRead};
 pub use keychain::Keychain;
 pub use network::{Connection, HttpRequest, HttpResponse, Network};
 pub use object_store::ObjectStore;
 pub use process::{Process, ProcessCommand, ProcessOutput};
+pub use python::{
+    PYTHON_TREE_VERSION, Python, PythonCall, PythonFunction, PythonImport, PythonParameter,
+    PythonParameterKind, PythonReturn, PythonReturned, PythonSegment, PythonTree,
+};
 pub use random::Random;
 pub use source::{SourceConnector, SourceReader};
 pub use sql_parser::SqlParser;

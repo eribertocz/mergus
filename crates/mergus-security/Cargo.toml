@@ -18,6 +18,9 @@ thiserror = "2.0.21"
 [lints]
 workspace = true
 
+# The test of MG-REQ-0006 also runs a real `python3` when one is installed.
+# Dev-dependencies are not linked into other crates (MG-REQ-0126.5).
 [dev-dependencies]
+mergus-ports = { path = "../mergus-ports", features = ["real"] }
 mergus-sim = { path = "../mergus-sim" }
 serde = "1.0.229"

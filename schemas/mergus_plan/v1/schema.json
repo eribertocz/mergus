@@ -64,6 +64,14 @@
         "$ref": "#/$defs/stale",
         "description": "One stale upstream model."
       }
+    },
+    "gates": {
+      "description": "The gates of stage 4, in the order of the gate table of `run/gates.md`, each with its status (MG-REQ-0747.3, MG-REQ-0720, MG-REQ-0722). Absent before phase 0.4.",
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/gate",
+        "description": "One gate."
+      }
     }
   },
   "$defs": {
@@ -125,6 +133,34 @@
         "parallel_group": {
           "description": "The parallel group of the step, from 1 (MG-REQ-0744.3).",
           "type": "integer"
+        },
+        "incremental": {
+          "description": "How an incremental step recomputes its result; when present, `refresh` describes nothing and readers use it (MG-REQ-0747.4, MG-REQ-0652, MG-REQ-0653).",
+          "$ref": "#/$defs/incremental"
+        },
+        "segments": {
+          "description": "The segments of the model in execution order (MG-REQ-0747.1, MG-REQ-0631).",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/segment",
+            "description": "One segment."
+          }
+        },
+        "boundaries": {
+          "description": "The boundaries between segments, sorted by `from` and then by `to` (MG-REQ-0747.1).",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/boundary",
+            "description": "One boundary."
+          }
+        },
+        "periods": {
+          "description": "The periods the model recomputes, sorted by `start`; present only when `incremental.mode` is `period`, and empty when nothing is recomputed (MG-REQ-0747.2, MG-REQ-0652).",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/period",
+            "description": "One period."
+          }
         }
       }
     },
@@ -143,6 +179,191 @@
         },
         "include": {
           "description": "The selector that includes it: `+<model>` of the first selected model downstream of it, in name order.",
+          "type": "string"
+        }
+      }
+    },
+    "incremental": {
+      "description": "The incremental refresh of a step.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "mode"
+      ],
+      "properties": {
+        "mode": {
+          "description": "What is recomputed: `period` the periods of `periods` (MG-REQ-0652), `key` the rows of changed keys (MG-REQ-0653).",
+          "enum": [
+            "period",
+            "key"
+          ]
+        }
+      }
+    },
+    "segment": {
+      "description": "A run of the model's steps on one engine (MG-REQ-0631).",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "index",
+        "engine",
+        "steps"
+      ],
+      "properties": {
+        "index": {
+          "description": "The position of the segment in execution order, from 0.",
+          "type": "integer"
+        },
+        "engine": {
+          "description": "The engine that runs the segment.",
+          "enum": [
+            "duckdb",
+            "polars"
+          ]
+        },
+        "steps": {
+          "description": "The names of the model's steps the segment runs, in order.",
+          "type": "array",
+          "items": {
+            "description": "One step name.",
+            "type": "string"
+          }
+        },
+        "polars_level": {
+          "description": "How Polars runs the segment; present only when `engine` is `polars` (MG-REQ-0635).",
+          "enum": [
+            "native",
+            "in_process",
+            "subprocess"
+          ]
+        },
+        "polars_reason": {
+          "description": "Why that level was chosen; present only when `engine` is `polars` (MG-REQ-0635).",
+          "enum": [
+            "qualified",
+            "version_mismatch",
+            "not_available"
+          ]
+        }
+      }
+    },
+    "boundary": {
+      "description": "Where data crosses from one segment to another (MG-REQ-0633).",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "from",
+        "to",
+        "columns",
+        "transport"
+      ],
+      "properties": {
+        "from": {
+          "description": "The index of the segment the data leaves.",
+          "type": "integer"
+        },
+        "to": {
+          "description": "The index of the segment the data enters.",
+          "type": "integer"
+        },
+        "columns": {
+          "description": "The names of the columns crossing, in their output order.",
+          "type": "array",
+          "items": {
+            "description": "One column name.",
+            "type": "string"
+          }
+        },
+        "transport": {
+          "description": "How the data crosses (MG-REQ-0633).",
+          "enum": [
+            "arrow",
+            "parquet"
+          ]
+        }
+      }
+    },
+    "period": {
+      "description": "One period the model recomputes.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "start",
+        "end"
+      ],
+      "properties": {
+        "start": {
+          "description": "The start of the period, an RFC 3339 timestamp in UTC.",
+          "type": "string"
+        },
+        "end": {
+          "description": "The end of the period, an RFC 3339 timestamp in UTC.",
+          "type": "string"
+        }
+      }
+    },
+    "gate": {
+      "description": "One gate of stage 4 and its status (MG-REQ-0720).",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "gate",
+        "status"
+      ],
+      "properties": {
+        "gate": {
+          "description": "The name of the gate in the gate table of `run/gates.md`.",
+          "type": "string"
+        },
+        "status": {
+          "description": "Whether the gate passes, blocks, or is not applicable yet.",
+          "enum": [
+            "pass",
+            "block",
+            "not_applicable"
+          ]
+        },
+        "phase": {
+          "description": "The phase the gate is due in, such as `0.5`; present only when `status` is `not_applicable`.",
+          "type": "string"
+        },
+        "errors": {
+          "description": "Why the gate blocks; present only when `status` is `block` (MG-REQ-0722).",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/gate_error",
+            "description": "One error."
+          }
+        }
+      }
+    },
+    "gate_error": {
+      "description": "One error of a blocking gate (MG-REQ-0008).",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "code",
+        "message"
+      ],
+      "properties": {
+        "code": {
+          "description": "The `MG-####` code of the error.",
+          "type": "string"
+        },
+        "message": {
+          "description": "What is wrong.",
+          "type": "string"
+        },
+        "model": {
+          "description": "The model that caused it.",
+          "type": "string"
+        },
+        "step": {
+          "description": "The step of the model that caused it.",
+          "type": "string"
+        },
+        "fix": {
+          "description": "How to fix it.",
           "type": "string"
         }
       }

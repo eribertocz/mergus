@@ -12,7 +12,8 @@ use mergus_contracts::hash::sha256_hex;
 
 use crate::fingerprint::{FingerprintInputs, fingerprint};
 use crate::graph::Graph;
-use crate::{PlanError, PlanModel, PlanRequest};
+use crate::incremental::{self, Fields, Refreshes};
+use crate::{PlanError, PlanModel, PlanRequest, Storage, execution};
 
 /// A plan: a `mergus_plan` document valid against its schema, identified by its hash
 /// (MG-REQ-0714). It cannot be changed once made.
@@ -20,6 +21,7 @@ use crate::{PlanError, PlanModel, PlanRequest};
 pub struct Plan {
     document: MergusPlan,
     valid: ValidDocument,
+    storage: BTreeMap<String, Storage>,
 }
 
 impl Plan {
@@ -41,6 +43,24 @@ impl Plan {
         &self.document.plan_id
     }
 
+    /// Where the result of the step of `model` is stored (MG-REQ-0656), or `None` when the
+    /// plan has no step of that model.
+    #[must_use]
+    pub fn storage(&self, model: &str) -> Option<Storage> {
+        self.storage.get(model).copied()
+    }
+
+    /// The models whose step produces stored output: published, or intermediate with
+    /// `materialize = true` (MG-REQ-0656).
+    #[must_use]
+    pub fn stored(&self) -> BTreeSet<String> {
+        self.storage
+            .iter()
+            .filter(|(_, storage)| **storage != Storage::NotStored)
+            .map(|(model, _)| model.clone())
+            .collect()
+    }
+
     /// The bytes of the plan artifact: its canonical JSON (MG-REQ-0208).
     #[must_use]
     pub fn bytes(&self) -> Vec<u8> {
@@ -53,7 +73,12 @@ impl Plan {
 /// # Errors
 ///
 /// Fails with [`PlanError::UnknownSelected`] when a selected name is not a model of `models`,
-/// with [`PlanError::Cycle`] when models read one another in a cycle, and with
+/// with [`PlanError::Cycle`] when models read one another in a cycle, with
+/// [`PlanError::Refresh`] holding every refresh error of the models (MG-REQ-0654,
+/// MG-REQ-0657.2, MG-REQ-0661), with [`PlanError::BadOption`],
+/// [`PlanError::UnknownBackfill`] and [`PlanError::InvertedBackfill`] for a request the CLI
+/// never makes, with
+/// [`PlanError::ExecutionFields`] when a step's execution fields break MG-REQ-0747.4, and with
 /// [`PlanError::Emit`] when the plan does not match its contract.
 pub fn plan(models: &[PlanModel], request: &PlanRequest) -> Result<Plan, PlanError> {
     let graph = Graph::new(models)?;
@@ -64,7 +89,10 @@ pub fn plan(models: &[PlanModel], request: &PlanRequest) -> Result<Plan, PlanErr
     {
         return Err(PlanError::UnknownSelected(unknown.clone()));
     }
+    let refreshes = incremental::resolve(&graph, request)?;
     let fingerprints = fingerprints(&graph, request);
+    let steps = steps(&graph, request, &fingerprints, &refreshes);
+    execution::check(&steps)?;
     let mut document = MergusPlan {
         contract: MergusPlan::NAME.to_owned(),
         contract_version: i64::from(MergusPlan::VERSION),
@@ -73,12 +101,25 @@ pub fn plan(models: &[PlanModel], request: &PlanRequest) -> Result<Plan, PlanErr
         environment: request.environment.clone(),
         max_parallel: i64::from(request.max_parallel.get()),
         selected: request.selected.iter().cloned().collect(),
-        steps: steps(&graph, request, &fingerprints),
+        steps,
         stale_upstream: stale_upstream(&graph, request, &fingerprints),
+        gates: None,
     };
     document.plan_id = plan_id(&validate(&document)?);
     let valid = validate(&document)?;
-    Ok(Plan { document, valid })
+    let storage = document
+        .steps
+        .iter()
+        .filter_map(|step| {
+            let storage = refreshes.storage.get(step.model.as_str())?;
+            Some((step.model.clone(), *storage))
+        })
+        .collect();
+    Ok(Plan {
+        document,
+        valid,
+        storage,
+    })
 }
 
 /// The fingerprint of every model, upstream models first (MG-REQ-0711, MG-REQ-0743).
@@ -118,6 +159,7 @@ fn steps(
     graph: &Graph<'_>,
     request: &PlanRequest,
     fingerprints: &BTreeMap<&str, String>,
+    refreshes: &Refreshes<'_>,
 ) -> Vec<Step> {
     let mut by_depth: BTreeMap<usize, Vec<&str>> = BTreeMap::new();
     for (name, depth) in graph.depths(&request.selected) {
@@ -132,7 +174,9 @@ fn steps(
             for name in chunk {
                 if let Some(model) = graph.models.get(name) {
                     let print = fingerprints.get(name).cloned().unwrap_or_default();
-                    steps.push(step(model, print, group, &request.available));
+                    let rows = request.rows.get(*name).copied();
+                    let fields = incremental::fields(name, refreshes.refresh.get(name), request);
+                    steps.push(step(model, print, group, &request.available, rows, fields));
                 }
             }
         }
@@ -140,9 +184,19 @@ fn steps(
     steps
 }
 
-/// The step of `model`, whose fingerprint is `print`, in the parallel group `group`.
-fn step(model: &PlanModel, print: String, group: i64, available: &BTreeSet<String>) -> Step {
-    let (action, reason) = if available.contains(&print) {
+/// The step of `model`, whose fingerprint is `print`, in the parallel group `group`, whose
+/// boundaries carry about `rows` rows, with the refresh fields `fields`. A backfilled step is
+/// computed whatever the changes (MG-REQ-0657.2).
+fn step(
+    model: &PlanModel,
+    print: String,
+    group: i64,
+    available: &BTreeSet<String>,
+    rows: Option<u64>,
+    fields: Fields,
+) -> Step {
+    let (segments, boundaries) = execution::fields(model, rows);
+    let (action, reason) = if available.contains(&print) && !fields.backfilled {
         (StepAction::Skip, StepReason::ResultAvailable)
     } else {
         (StepAction::Compute, StepReason::NoResult)
@@ -156,6 +210,10 @@ fn step(model: &PlanModel, print: String, group: i64, available: &BTreeSet<Strin
         reason,
         refresh: StepRefresh::Full,
         parallel_group: group,
+        incremental: fields.incremental,
+        segments,
+        boundaries,
+        periods: fields.periods,
     }
 }
 

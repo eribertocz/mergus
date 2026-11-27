@@ -6,14 +6,15 @@
 |---|---|
 | `Rate` | A fault probability in parts per million, from `Rate::NEVER` to `Rate::ALWAYS` |
 | `SimClock`, `ClockFaults` | Virtual wall and monotonic time; jumps and skew |
-| `SimFileSystem` | Files and directories in memory, keyed by path components |
+| `SimFileSystem` | Files and directories in memory, keyed by path components; `open` reads a cursor over the stored bytes, `create` stores a stream on flush and on drop |
 | `SimObjectStore`, `ObjectStoreFaults` | Objects in memory; errors, latency, partial, lost writes |
 | `SimNetwork`, `NetworkFaults`, `TcpHandler` | HTTP routes and TCP peers set by the test |
 | `SimSourceConnector`, `SourceFaults` | Sources of batches, with a changed version |
 | `SimRandom` | Seeded random numbers |
-| `SimProcess` | Programs answer with outputs set by the test |
+| `SimProcess` | Programs answer with outputs set by the test; `runs` returns every command run |
 | `SimEnvironment` | Arguments, current directory, variables, a configuration and a cache directory set by the test |
-| `SimDatabase`, `DatabaseFaults` | Results and extension versions recorded with the real `Database`; the statements run, appended batches and attached catalogs, encrypted or not; catalogs recorded unencrypted; errors |
+| `SimDatabase`, `DatabaseFaults` | Results and extension versions recorded with the real `Database`, replayed batch by batch by `query_arrow_each`; the statements run, appended batches and attached catalogs, encrypted or not; catalogs recorded unencrypted; errors |
+| `SimPython` | Python trees recorded with the real `Python` port, by source text, read with `PythonTree::from_json` |
 | `SimKeychain` | Keychain entries in memory, by service and account, set by the test |
 | `Scenario` | What a caller simulates: how a seed draws steps, the world, one step |
 | `Simulator` | Runs, replays and shrinks a scenario from a seed |
