@@ -62,8 +62,6 @@ pub(crate) struct Project {
     pub(crate) sources: Vec<String>,
     /// Its models, in the walking order of the layout.
     pub(crate) models: Vec<ProjectModel>,
-    /// Its sources, as `plan` shows what reading them costs (MG-REQ-0432).
-    pub(crate) configuration: Configuration,
 }
 
 impl Project {
@@ -139,7 +137,6 @@ pub(crate) fn read(ports: &Ports<'_>) -> Result<Result<Project, Vec<Diagnostic>>
         root,
         sources: source_names(&configuration),
         models,
-        configuration,
     }))
 }
 

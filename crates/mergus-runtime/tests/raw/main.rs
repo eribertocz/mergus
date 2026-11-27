@@ -1,7 +1,10 @@
 //! Tests of the raw tables (MG-REQ-0511, MG-REQ-0512, MG-REQ-0518), written through a storage
 //! adapter in memory.
 
+mod failures;
 mod memory;
+mod registry;
+mod retention;
 
 use std::sync::Arc;
 

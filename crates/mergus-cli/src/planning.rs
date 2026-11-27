@@ -9,7 +9,8 @@ use mergus_contracts::generated::mergus_events_v1::Step as EventStep;
 use mergus_contracts::generated::mergus_plan_v1::{StepAction, StepReason};
 use mergus_plan::{Plan, PlanModel, PlanRequest};
 use mergus_ports::{FileSystem, PortError};
-use mergus_project::Source;
+use mergus_project::{Configuration, Source, read_configuration};
+use mergus_runtime::{raw_off_sources, raw_retention, show_retention};
 use mergus_source::{ImpactUnknown, SourceCare, TableImpact, declared_tables, source_impact};
 
 use crate::args::Invocation;
@@ -17,11 +18,12 @@ use crate::care::attach;
 use crate::commands::{EXCLUDE, MAX_PARALLEL, SELECTION};
 use crate::diagnostic::Diagnostic;
 use crate::error::CliError;
-use crate::models;
+use crate::models::{self, Project};
 use crate::output::{ENVIRONMENT, Output};
 use crate::run::Ports;
 use crate::selection::select;
 use crate::settings::max_parallel;
+use crate::validate::collect;
 
 /// The folder of the plans, relative to the project root.
 const PLANS: &str = ".mergus/plans";
@@ -43,6 +45,14 @@ pub(crate) fn plan(
         Ok(project) => project,
         Err(diagnostics) => return Ok(diagnostics),
     };
+    let mut diagnostics = Vec::new();
+    let Some(configuration) = collect(
+        read_configuration(ports.files, &project.root),
+        &mut diagnostics,
+    )?
+    else {
+        return Ok(diagnostics);
+    };
     let selected = select(
         &project,
         &invocation.values(SELECTION),
@@ -52,7 +62,29 @@ pub(crate) fn plan(
         .value(MAX_PARALLEL)
         .map(|value| (MAX_PARALLEL, value));
     let setting = max_parallel(flag, ports.environment, ports.files)?;
-    let planned: Vec<PlanModel> = project
+    let planned = planned_models(&project);
+    let names: BTreeSet<String> = selected.into_keys().collect();
+    let mut request = PlanRequest::new(env!("CARGO_PKG_VERSION"), ENVIRONMENT, names);
+    request.max_parallel = setting.value;
+    let plan = mergus_plan::plan(&planned, &request)
+        .map_err(|error| CliError::Internal(error.to_string()))?;
+    let relative = write(ports.files, &project.root, &plan)?;
+    output.plan_ready(steps(&plan))?;
+    let mut text = summary(&plan, &relative);
+    text.push_str(&raw_summary(&configuration));
+    diagnostics.extend(impact_lines(
+        ports,
+        &project.root,
+        &configuration,
+        &mut text,
+    ));
+    output.report(&text)?;
+    Ok(diagnostics)
+}
+
+/// The models of `project` as `mergus-plan` plans them.
+fn planned_models(project: &Project) -> Vec<PlanModel> {
+    project
         .models
         .iter()
         .map(|model| {
@@ -63,25 +95,28 @@ pub(crate) fn plan(
                 &model.inputs,
             )
         })
-        .collect();
-    let names: BTreeSet<String> = selected.into_keys().collect();
-    let mut request = PlanRequest::new(env!("CARGO_PKG_VERSION"), ENVIRONMENT, names);
-    request.max_parallel = setting.value;
-    let plan = mergus_plan::plan(&planned, &request)
-        .map_err(|error| CliError::Internal(error.to_string()))?;
-    let relative = write(ports.files, &project.root, &plan)?;
-    output.plan_ready(steps(&plan))?;
-    let mut text = summary(&plan, &relative);
+        .collect()
+}
+
+/// Appends to `text` one line per table of each source of `configuration`, with what reading
+/// it costs the source (MG-REQ-0432), and returns the warnings of the sources that could not
+/// be reached or read (MG-REQ-0432.2).
+fn impact_lines(
+    ports: &Ports<'_>,
+    root: &Path,
+    configuration: &Configuration,
+    text: &mut String,
+) -> Vec<Diagnostic> {
     let mut warnings = Vec::new();
-    for source in &project.configuration.sources {
-        let (impacts, warning) = impacts(ports, &project.root, source);
+    for source in &configuration.sources {
+        let (impacts, warning) = impacts(ports, root, source);
         for impact in impacts {
+            // Writing to a `String` cannot fail.
             let _ = writeln!(text, "{impact}");
         }
         warnings.extend(warning);
     }
-    output.report(&text)?;
-    Ok(warnings)
+    warnings
 }
 
 /// What reading each table of `source` costs it (MG-REQ-0432). A source that cannot be
@@ -176,6 +211,21 @@ fn summary(plan: &Plan, relative: &str) -> String {
             "stale upstream: {}; include it with `{}`",
             stale.model, stale.include
         );
+    }
+    text
+}
+
+/// What `mergus plan` prints about raw for a person: one line per source with
+/// `raw = false` (MG-REQ-0517.2), then the retention raw is expired with, when a source keeps
+/// raw (MG-REQ-0516.2).
+fn raw_summary(configuration: &Configuration) -> String {
+    let mut text = String::new();
+    for source in raw_off_sources(configuration) {
+        // Writing to a `String` cannot fail.
+        let _ = writeln!(text, "source {source}: raw = false");
+    }
+    if let Some(retention) = raw_retention(configuration) {
+        let _ = writeln!(text, "raw retention: {}", show_retention(retention));
     }
     text
 }

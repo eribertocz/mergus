@@ -117,3 +117,37 @@ fn mg_req_0746_invalid_project_writes_no_plan() {
     assert!(outcome.of("plan_ready").is_empty());
     assert!(!files.exists(&Path::new(ROOT).join(".mergus")).unwrap());
 }
+
+#[test]
+fn mg_req_0517_plan_shows_raw_off_sources() {
+    let files = shop();
+    let crm = Path::new(ROOT).join("sources/crm.toml");
+    files
+        .write(
+            &crm,
+            b"kind = \"database\"\nengine = \"postgresql\"\nconnection = \"secret:crm\"\nraw = false\nretention = \"90d\"\n[tables.customers]\n",
+        )
+        .unwrap();
+    let outcome = mergus(&files, &["plan"]);
+    assert_eq!(outcome.exit, 0, "{outcome:?}");
+    // MG-REQ-0517.2: only the sources with `raw = false`, one line each.
+    assert!(
+        outcome.stdout.contains("source crm: raw = false\n"),
+        "{}",
+        outcome.stdout
+    );
+    assert!(
+        !outcome.stdout.contains("source erp:"),
+        "{}",
+        outcome.stdout
+    );
+    // MG-REQ-0516.2: the retention in effect, of the sources kept in raw only.
+    assert!(
+        outcome.stdout.contains("raw retention: 30d\n"),
+        "{}",
+        outcome.stdout
+    );
+    // The JSON output does not change.
+    let json = mergus(&files, &["plan", "--json"]);
+    assert!(!json.stdout.contains("raw = false"), "{}", json.stdout);
+}
