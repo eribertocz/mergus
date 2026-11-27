@@ -2,9 +2,11 @@
 //! (MG-REQ-0611). Python is never embedded.
 
 use std::ffi::OsString;
-use std::io::Write;
+use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
-use std::process::{Command, Stdio};
+use std::process::{Child, Command, ExitStatus, Stdio};
+use std::thread::{self, JoinHandle};
+use std::time::{Duration, Instant};
 
 use super::port_error;
 use crate::{PortError, Python, PythonTree};
@@ -17,11 +19,19 @@ const SCRIPT: &str = include_str!("python_tree.py");
 /// directory and the current directory; `-S` does not import `site`.
 const OPTIONS: [&str; 3] = ["-I", "-S", "-c"];
 
+/// How long one call may run before its child is killed, unless
+/// [`RealPython::with_timeout`] sets another limit.
+pub const PYTHON_TIMEOUT: Duration = Duration::from_secs(60);
+
+/// How often a running child is checked.
+const POLL: Duration = Duration::from_millis(5);
+
 /// A Python interpreter found on this machine, run with exactly the environment it was given.
 #[derive(Clone, Debug)]
 pub struct RealPython {
     interpreter: PathBuf,
     env: Vec<(String, String)>,
+    timeout: Duration,
 }
 
 impl RealPython {
@@ -57,6 +67,7 @@ impl RealPython {
             Some(interpreter) => Ok(Self {
                 interpreter: interpreter.clone(),
                 env,
+                timeout: PYTHON_TIMEOUT,
             }),
             None => Err(PortError::PythonNotFound {
                 searched: candidates
@@ -65,6 +76,13 @@ impl RealPython {
                     .collect(),
             }),
         }
+    }
+
+    /// Returns this interpreter with `timeout` as the limit of each call, in place of
+    /// [`PYTHON_TIMEOUT`].
+    #[must_use]
+    pub fn with_timeout(self, timeout: Duration) -> Self {
+        Self { timeout, ..self }
     }
 
     /// Returns the interpreter found.
@@ -87,25 +105,77 @@ impl Python for RealPython {
             .stderr(Stdio::piped())
             .spawn()
             .map_err(|error| port_error(&shown, &error))?;
-        // The script reads all of standard input before it writes anything.
-        if let Some(mut stdin) = child.stdin.take() {
-            stdin
-                .write_all(source.as_bytes())
-                .map_err(|error| port_error(&shown, &error))?;
-        }
-        let output = child
-            .wait_with_output()
-            .map_err(|error| port_error(&shown, &error))?;
-        if !output.status.success() {
+        // Standard input is written, and the outputs read, on their own threads, so a child
+        // that never reads or fills a pipe cannot block the wait for its deadline.
+        let input = source.as_bytes().to_vec();
+        let stdin = child.stdin.take();
+        let writer = thread::spawn(move || {
+            if let Some(mut stdin) = stdin {
+                // A child that exits early closes the pipe; its exit code tells why.
+                let _ignored = stdin.write_all(&input);
+            }
+        });
+        let stdout = drain(child.stdout.take());
+        let stderr = drain(child.stderr.take());
+        let status = wait(&mut child, self.timeout, &shown)?;
+        let _ignored = writer.join();
+        let stdout = joined(stdout, &shown)?;
+        let stderr = joined(stderr, &shown)?;
+        if !status.success() {
             return Err(PortError::Failed(format!(
                 "the Python interpreter `{shown}` failed: {}",
-                String::from_utf8_lossy(&output.stderr).trim()
+                String::from_utf8_lossy(&stderr).trim()
             )));
         }
-        let json = String::from_utf8(output.stdout).map_err(|error| {
+        let json = String::from_utf8(stdout).map_err(|error| {
             PortError::Failed(format!("the Python interpreter `{shown}` printed {error}"))
         })?;
         PythonTree::from_json(&json)
+    }
+}
+
+/// Waits for `child` until `timeout` has passed, then kills it.
+fn wait(child: &mut Child, timeout: Duration, shown: &str) -> Result<ExitStatus, PortError> {
+    let deadline = Instant::now() + timeout;
+    loop {
+        if let Some(status) = child
+            .try_wait()
+            .map_err(|error| port_error(shown, &error))?
+        {
+            return Ok(status);
+        }
+        if Instant::now() >= deadline {
+            // Killing a child that has just exited fails harmlessly; `wait` reaps it.
+            let _ignored = child.kill();
+            let _ignored = child.wait();
+            return Err(PortError::TimedOut {
+                program: shown.to_owned(),
+                after: timeout,
+            });
+        }
+        thread::sleep(POLL);
+    }
+}
+
+/// Reads all of `pipe` on its own thread.
+fn drain(pipe: Option<impl Read + Send + 'static>) -> JoinHandle<std::io::Result<Vec<u8>>> {
+    thread::spawn(move || {
+        let mut bytes = Vec::new();
+        if let Some(mut pipe) = pipe {
+            pipe.read_to_end(&mut bytes)?;
+        }
+        Ok(bytes)
+    })
+}
+
+/// Returns what a [`drain`] thread read.
+fn joined(thread: JoinHandle<std::io::Result<Vec<u8>>>, shown: &str) -> Result<Vec<u8>, PortError> {
+    match thread.join() {
+        Ok(Ok(bytes)) => Ok(bytes),
+        Ok(Err(error)) => Err(port_error(shown, &error)),
+        Err(_) => Err(PortError::Failed(format!(
+            "reading the output of `{shown}` failed"
+        ))),
     }
 }
 
@@ -147,11 +217,16 @@ fn is_search_path(name: &str) -> bool {
     }
 }
 
-/// Whether `path` is a file this process may run.
+/// Whether `path` is a file this process may run. An empty file never is: on Windows, the
+/// zero-byte App Execution Alias `python3.exe` of the Microsoft Store is skipped, so a real
+/// `python.exe` after it is found.
 fn is_program(path: &Path) -> bool {
     let Ok(metadata) = std::fs::metadata(path) else {
         return false;
     };
+    if metadata.len() == 0 {
+        return false;
+    }
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;
@@ -168,6 +243,7 @@ fn is_program(path: &Path) -> bool {
 mod tests {
     use std::os::unix::fs::PermissionsExt;
     use std::path::{Path, PathBuf};
+    use std::time::{Duration, Instant};
 
     use super::RealPython;
     use crate::{PortError, Python, PythonTree};
@@ -213,6 +289,38 @@ mod tests {
             RealPython::locate(Some(Path::new("plain")), &root, Vec::new()),
             Err(PortError::PythonNotFound { .. })
         ));
+    }
+
+    #[test]
+    fn real_python_skips_empty_files() {
+        // An empty file, like the Store's `python3.exe` alias on Windows, is not run.
+        let root = scratch("empty");
+        program(&root.join(".venv").join("bin").join("python"), "");
+        program(&root.join("first").join("python3"), "");
+        program(&root.join("second").join("python3"), "#!/bin/sh\n");
+        let path = std::env::join_paths([root.join("first"), root.join("second")]).unwrap();
+        let env = vec![("PATH".to_owned(), path.into_string().unwrap())];
+        let found = RealPython::locate(None, &root, env).unwrap();
+        assert_eq!(found.interpreter(), root.join("second").join("python3"));
+    }
+
+    #[test]
+    fn real_python_kills_a_child_that_does_not_answer() {
+        let root = scratch("timeout");
+        let hung = root.join("hung-python");
+        program(&hung, "#!/bin/sh\nexec sleep 30\n");
+        let python = RealPython::locate(Some(&hung), &root, Vec::new())
+            .unwrap()
+            .with_timeout(Duration::from_millis(200));
+        let started = Instant::now();
+        assert_eq!(
+            python.parse("x = 1\n"),
+            Err(PortError::TimedOut {
+                program: hung.display().to_string(),
+                after: Duration::from_millis(200),
+            })
+        );
+        assert!(started.elapsed() < Duration::from_secs(10));
     }
 
     #[test]

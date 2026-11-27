@@ -33,7 +33,16 @@ impl Python for SimPython {
         let tree = lock(&self.trees)
             .get(source)
             .cloned()
-            .ok_or_else(|| PortError::NotFound(format!("a recorded tree for `{source}`")))?;
+            .ok_or_else(|| PortError::NotFound(missing(source)))?;
         PythonTree::from_json(&tree)
     }
+}
+
+/// Names a source with no recorded tree by its size and first line, not its whole text.
+fn missing(source: &str) -> String {
+    let first = source.lines().next().unwrap_or_default();
+    format!(
+        "a recorded Python tree for the source of {} bytes whose first line is `{first}`",
+        source.len()
+    )
 }

@@ -33,9 +33,10 @@ pub trait Python: Send + Sync {
     ///
     /// # Errors
     ///
-    /// Fails with [`PortError::PythonSyntax`] when `source` is not valid Python, and with
-    /// another [`PortError`] when the interpreter cannot run or answers with something that
-    /// is not a tree.
+    /// Fails with [`PortError::PythonSyntax`] when `source` is not valid Python, with
+    /// [`PortError::TimedOut`] when the interpreter does not answer in time, and with
+    /// [`PortError::Failed`] when it cannot run, cannot read a valid file that is too deep or
+    /// too large, or answers with something that is not a tree.
     fn parse(&self, source: &str) -> Result<PythonTree, PortError>;
 }
 

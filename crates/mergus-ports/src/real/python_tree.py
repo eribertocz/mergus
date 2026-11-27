@@ -103,16 +103,27 @@ def imports(tree, positions):
 
 
 def chain(node):
-    """The segments of an expression, from its root to `node` itself."""
-    if isinstance(node, ast.Name):
-        return [{"kind": "name", "name": node.id}]
-    if isinstance(node, ast.Attribute):
-        return chain(node.value) + [{"kind": "attribute", "name": node.attr}]
-    if isinstance(node, ast.Call):
-        return chain(node.func) + [{"kind": "call"}]
-    if isinstance(node, ast.Subscript):
-        return chain(node.value) + [{"kind": "subscript"}]
-    return [{"kind": "other", "node": type(node).__name__}]
+    """The segments of an expression, from its root to `node` itself, walked without
+    recursion so that a long chain never exhausts the stack."""
+    segments = []
+    while True:
+        if isinstance(node, ast.Attribute):
+            segments.append({"kind": "attribute", "name": node.attr})
+            node = node.value
+        elif isinstance(node, ast.Call):
+            segments.append({"kind": "call"})
+            node = node.func
+        elif isinstance(node, ast.Subscript):
+            segments.append({"kind": "subscript"})
+            node = node.value
+        elif isinstance(node, ast.Name):
+            segments.append({"kind": "name", "name": node.id})
+            break
+        else:
+            segments.append({"kind": "other", "node": type(node).__name__})
+            break
+    segments.reverse()
+    return segments
 
 
 def call(node, positions):
@@ -131,23 +142,22 @@ def call(node, positions):
     }
 
 
-class Calls(ast.NodeVisitor):
-    """Every call, in the order of the tree: a call before the calls inside it."""
-
-    def __init__(self, positions):
-        self.positions = positions
-        self.found = []
-
-    def visit_Call(self, node):
-        self.found.append(call(node, self.positions))
-        self.generic_visit(node)
+def calls(tree, positions):
+    """Every call, in the order of the tree: a call before the calls inside it. The tree is
+    walked with an explicit stack, without recursion."""
+    found = []
+    pending = [tree]
+    while pending:
+        node = pending.pop()
+        if isinstance(node, ast.Call):
+            found.append(call(node, positions))
+        pending.extend(reversed(list(ast.iter_child_nodes(node))))
+    return found
 
 
 def tree_of(text):
     tree = ast.parse(text, filename="<model>", mode="exec")
     positions = Positions(text)
-    calls = Calls(positions)
-    calls.visit(tree)
     return {
         "version": VERSION,
         "functions": [
@@ -156,7 +166,7 @@ def tree_of(text):
             if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
         ],
         "imports": imports(tree, positions),
-        "calls": calls.found,
+        "calls": calls(tree, positions),
     }
 
 
@@ -169,12 +179,17 @@ def error_of(error):
 
 def main():
     text = sys.stdin.buffer.read().decode("utf-8")
-    if text.startswith("﻿"):
+    if text.startswith("\ufeff"):
         text = text[1:]
     try:
         document = tree_of(text)
-    except (SyntaxError, ValueError, RecursionError, MemoryError) as error:
+    except (SyntaxError, ValueError) as error:
         document = error_of(error)
+    except (RecursionError, MemoryError) as error:
+        # Not a syntax error: the file is too deep or too large to read. The port reports
+        # the exit code 2 and this message as a failure.
+        sys.stderr.write(f"the file cannot be read: {type(error).__name__}: {error}\n")
+        sys.exit(2)
     output = json.dumps(document, ensure_ascii=True, sort_keys=True, separators=(",", ":"))
     sys.stdout.buffer.write(output.encode("ascii"))
 

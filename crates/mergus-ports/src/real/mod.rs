@@ -19,7 +19,7 @@ pub use environment::RealEnvironment;
 pub use file_system::RealFileSystem;
 pub use keychain::RealKeychain;
 pub use process::RealProcess;
-pub use python::RealPython;
+pub use python::{PYTHON_TIMEOUT, RealPython};
 pub use random::RealRandom;
 pub use sql_parser::RealSqlParser;
 

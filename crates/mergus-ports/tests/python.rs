@@ -112,7 +112,11 @@ fn mg_req_0611_tree_shape_is_frozen() {
     let mut recorded: serde_json::Value = serde_json::from_str(MODEL_TREE).unwrap();
     recorded.as_object_mut().unwrap().remove("version");
     assert_eq!(written, recorded);
+}
 
+#[test]
+fn mg_req_0611_tree_functions_and_parameters() {
+    let tree = PythonTree::from_json(MODEL_TREE).unwrap();
     let names: Vec<_> = tree.functions.iter().map(|f| f.name.as_str()).collect();
     assert_eq!(names, ["joined", "in_usd", "latest"]);
     let joined = &tree.functions[0];
@@ -131,6 +135,12 @@ fn mg_req_0611_tree_shape_is_frozen() {
             PythonParameterKind::VarKeyword
         ]
     );
+}
+
+#[test]
+fn mg_req_0611_tree_returns() {
+    let tree = PythonTree::from_json(MODEL_TREE).unwrap();
+    let in_usd = &tree.functions[1];
     // The `return 0` of `nested` is not one of `in_usd`.
     let returned: Vec<_> = in_usd.returns.iter().map(|r| r.value.clone()).collect();
     assert_eq!(
@@ -149,6 +159,11 @@ fn mg_req_0611_tree_shape_is_frozen() {
             node: "JoinedStr".to_owned()
         }
     );
+}
+
+#[test]
+fn mg_req_0611_tree_imports_and_calls() {
+    let tree = PythonTree::from_json(MODEL_TREE).unwrap();
     let relative = &tree.imports[1];
     assert_eq!(
         (
@@ -196,6 +211,26 @@ fn mg_req_0611_syntax_error_is_typed() {
             }
         ),
         "{error:?}"
+    );
+}
+
+#[test]
+fn mg_req_0611_long_chain_is_not_a_syntax_error() {
+    let root = scratch("long-chain");
+    let Some(python) = python(&root) else {
+        return;
+    };
+    // A valid chain of 1,000 links is read without recursion.
+    let source = format!("x = df{}.first()\n", ".b".repeat(999));
+    let tree = python.parse(&source).unwrap();
+    assert_eq!(tree.calls.len(), 1);
+    assert_eq!(tree.calls[0].name.as_deref(), Some("first"));
+    assert_eq!(tree.calls[0].receiver.len(), 1_000);
+    assert_eq!(
+        tree.calls[0].receiver[0],
+        PythonSegment::Name {
+            name: "df".to_owned()
+        }
     );
 }
 

@@ -1,6 +1,7 @@
 //! The error every port returns.
 
 use std::path::PathBuf;
+use std::time::Duration;
 
 /// A failure reported by a port.
 #[derive(Clone, Debug, PartialEq, Eq, thiserror::Error)]
@@ -58,6 +59,14 @@ pub enum PortError {
         /// The interpreters tried, in order.
         searched: Vec<String>,
     },
+    /// A program did not finish in time and was killed.
+    #[error("`{program}` did not finish within {after:?} and was stopped")]
+    TimedOut {
+        /// The program.
+        program: String,
+        /// The limit it reached.
+        after: Duration,
+    },
     /// A Python file is not valid Python. The message is the interpreter's; lines and columns
     /// start at 1, and a column counts characters.
     #[error("{message}")]
@@ -85,6 +94,7 @@ impl PortError {
             | Self::ExtensionUnavailable { .. }
             | Self::UnencryptedCatalog { .. }
             | Self::PythonNotFound { .. }
+            | Self::TimedOut { .. }
             | Self::PythonSyntax { .. } => None,
         }
     }

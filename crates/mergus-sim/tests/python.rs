@@ -26,7 +26,8 @@ fn mg_req_0611_sim_replays_recorded_trees() {
     assert_eq!(
         python.parse("x = 1\n"),
         Err(PortError::NotFound(
-            "a recorded tree for `x = 1\n`".to_owned()
+            "a recorded Python tree for the source of 6 bytes whose first line is `x = 1`"
+                .to_owned()
         ))
     );
 }

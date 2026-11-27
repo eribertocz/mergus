@@ -12,7 +12,7 @@
 | `Random` | Random numbers and bytes |
 | `Process` | Runs a `ProcessCommand` and returns its `ProcessOutput` |
 | `Environment` | Command-line arguments, current directory, environment variables and the user configuration and cache directories |
-| `PortError` | `NotFound`, `Failed`, `ExtensionUnavailable` (extension, host, cache directory), `PythonNotFound` (what was tried) or `PythonSyntax` (message, line, column), among others, returned by every fallible call |
+| `PortError` | `NotFound`, `Failed`, `ExtensionUnavailable` (extension, host, cache directory), `PythonNotFound` (what was tried), `PythonSyntax` (message, line, column) or `TimedOut` (program, limit), among others, returned by every fallible call |
 | `SqlParser` | Returns the tree DuckDB's `json_serialize_sql` gives for a SQL text, without executing it |
 | `Python`, `PythonTree` | Returns the tree of a Python file without importing it: `PythonFunction`s with `PythonParameter`s and `PythonReturn`s, `PythonImport`s and `PythonCall`s with their receiver `PythonSegment`s; `PythonTree::from_json` reads the document the interpreter prints |
 | `Database`, `DatabaseConnection` | Connects to a `DatabaseLocation`; runs SQL with bound `SqlValue`s, returns, streams (`query_arrow_each`, DuckDB's streaming execution in the real port) and appends Arrow `RecordBatch`es, attaches a `DuckLakeCatalog`, a DuckDB file or a `PostgresSource` read-only, detaches them, loads an `Extension` and lists each `LoadedExtension` with its version |
@@ -28,10 +28,13 @@ Every trait is `Send + Sync` and takes `&self`, so one value can be shared behin
 2. It passes them, as constructor or context arguments, to the crates that need them.
 3. Those crates call the traits only; they never name an implementation.
 4. `RealPython::locate` takes the `[python] interpreter` setting, else `<root>/.venv`, else
-   `python3` on the given search path (`python` too on Windows). `parse` runs it with
+   `python3` on the given search path (`python` too on Windows), skipping empty files such as
+   the Store's alias. `parse` runs it with
    `-I -S -c` and the script `src/real/python_tree.py` (`include_str!`), writes the source to
-   its standard input, clears the inherited environment and sets only the one given. The
-   script parses with `ast` and prints the JSON tree, which `PythonTree::from_json` reads.
+   its standard input, clears the inherited environment and sets only the one given. A
+   call that runs longer than `PYTHON_TIMEOUT` (60 s) kills the child and fails with
+   `TimedOut`. The script walks the tree without recursion, parses with `ast` and prints the
+   JSON tree, which `PythonTree::from_json` reads.
 
 ## Dependencies
 
