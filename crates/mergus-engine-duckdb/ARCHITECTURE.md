@@ -5,7 +5,7 @@
 | Item | Role |
 |---|---|
 | `Segment` | What a segment runs: SQL, parameters, macro texts, inputs and output |
-| `Input` | A boundary the SQL reads by name, with its declared schema |
+| `Table` | An input the SQL reads by name, or the output, with its declared schema |
 | `Boundary` | A boundary file and its `Transport` |
 | `Transport`, `MEMORY_BUDGET` | Arrow in shared memory or Parquet in the work zone (MG-REQ-0633) |
 | `run_segment` | Runs one segment in a new DuckDB session |
@@ -20,15 +20,17 @@ Segment ─► Database::connect (in memory)
         ─► each input:
              SharedMemory: FileSystem::read ─► Arrow IPC ─► conform to schema (MG-REQ-0180)
                            ─► CREATE TABLE <name> ─► append_arrow
-             Parquet:      SET VARIABLE ─► CREATE VIEW <name> AS read_parquet(...)
-        ─► query_arrow(SQL, parameters)
+             Parquet:      SET VARIABLE ─► DESCRIBE, check declared types (MG-REQ-0180)
+                           ─► CREATE VIEW <name> AS SELECT <columns> FROM read_parquet(...)
+        ─► query_arrow(SQL, parameters) ─► conform to the output schema, zones restored
         ─► output:
              SharedMemory: Arrow IPC ─► FileSystem::write
              Parquet:      CREATE TABLE mergus_output ─► append_arrow ─► COPY TO <path>
 ```
 
-`exact` maps each Arrow type to the DuckDB type that holds it exactly and converts a column
-only when every value survives the round trip unchanged. `transport` encodes and decodes the
+`exact` maps each Arrow type to the type DuckDB describes for the column that holds it
+exactly, converts a column only when every value survives the round trip unchanged, and puts
+a declared time zone back on DuckDB's UTC instants. `transport` encodes and decodes the
 Arrow IPC files. `hash` writes each row as canonical JSON with `mergus-contracts` and hashes
 it with its SHA-256.
 
@@ -38,4 +40,5 @@ it with its SHA-256.
 - `mergus-contracts`: canonical JSON (RFC 8785) and SHA-256 (MG-REQ-0186).
 - `arrow` with `ipc`: record batches, casts and the IPC file format.
 - `serde_json`: the JSON value of a row; `thiserror`: the error type.
-- Tests use `mergus-sim`, the simulated ports.
+- Tests use `mergus-sim`, the simulated ports; `tests/real.rs` runs the same statements on
+  the real `Database` and `FileSystem` of `mergus-ports`.

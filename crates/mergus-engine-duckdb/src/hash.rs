@@ -22,10 +22,11 @@ const EXACT_INTEGER: u64 = 1 << 53;
 /// sorted SHA-256 hashes of each row's canonical JSON (RFC 8785). The order of the rows, and
 /// how they are split into batches, does not change it.
 ///
-/// A row is an object of its column names and values. NULL is `null`, a boolean is a JSON
-/// boolean, an integer up to 2^53 in magnitude and a finite float are JSON numbers, and any
-/// other value is the string Arrow displays for it, so that decimals and large integers stay
-/// exact; a timestamp with a time zone is its UTC value followed by the zone's name.
+/// A row is an object whose members are its column names, each holding the pair
+/// `[Arrow type, value]`, so that equal texts of different types differ. NULL is `null`, a
+/// boolean is a JSON boolean, an integer up to 2^53 in magnitude and a finite float are JSON
+/// numbers, and any other value is the string Arrow displays for it, so that decimals and
+/// large integers stay exact; a timestamp with a time zone is its UTC value.
 ///
 /// # Errors
 ///
@@ -50,14 +51,14 @@ fn row_hashes(batch: &RecordBatch) -> Result<Vec<[u8; 32]>, EngineError> {
     let options = FormatOptions::default().with_display_error(false);
     let formatters = shown
         .iter()
-        .map(|(column, _)| ArrayFormatter::try_new(column.as_ref(), &options))
+        .map(|column| ArrayFormatter::try_new(column.as_ref(), &options))
         .collect::<Result<Vec<_>, _>>()
         .map_err(|error| display(&error))?;
     let mut hashes = Vec::with_capacity(batch.num_rows());
     for row in 0..batch.num_rows() {
         let mut object = Map::new();
         let columns = schema.fields().iter().zip(batch.columns());
-        for (((field, column), formatter), (_, zone)) in columns.zip(&formatters).zip(&shown) {
+        for ((field, column), formatter) in columns.zip(&formatters) {
             let value = match json_value(column.as_ref(), row) {
                 Some(value) => value,
                 None => {
@@ -65,24 +66,22 @@ fn row_hashes(batch: &RecordBatch) -> Result<Vec<[u8; 32]>, EngineError> {
                         .value(row)
                         .try_to_string()
                         .map_err(|error| display(&error))?;
-                    Value::String(match zone {
-                        Some(zone) => format!("{text} {zone}"),
-                        None => text,
-                    })
+                    Value::String(text)
                 }
             };
-            object.insert(field.name().clone(), value);
+            let tagged = Value::Array(vec![Value::String(field.data_type().to_string()), value]);
+            object.insert(field.name().clone(), tagged);
         }
         hashes.push(sha256(canonical_json(&Value::Object(object)).as_bytes()));
     }
     Ok(hashes)
 }
 
-/// Returns the array whose display is the text of `column`, with the time zone written after
-/// it: a timestamp with a time zone is shown as its UTC value followed by the zone's name.
-fn displayable(column: &ArrayRef) -> Result<(ArrayRef, Option<String>), EngineError> {
-    let DataType::Timestamp(unit, Some(zone)) = column.data_type() else {
-        return Ok((Arc::clone(column), None));
+/// Returns the array whose display is the text of `column`: a timestamp with a time zone is
+/// shown as its UTC value, the zone being in the column's type.
+fn displayable(column: &ArrayRef) -> Result<ArrayRef, EngineError> {
+    let DataType::Timestamp(unit, Some(_)) = column.data_type() else {
+        return Ok(Arc::clone(column));
     };
     let data = column
         .to_data()
@@ -90,7 +89,7 @@ fn displayable(column: &ArrayRef) -> Result<(ArrayRef, Option<String>), EngineEr
         .data_type(DataType::Timestamp(*unit, None))
         .build()
         .map_err(|error| display(&error))?;
-    Ok((make_array(data), Some(zone.to_string())))
+    Ok(make_array(data))
 }
 
 /// Returns the JSON value of row `row` of `column` when it is NULL, a boolean, an exact

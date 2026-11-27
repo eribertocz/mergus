@@ -6,14 +6,15 @@ use mergus_ports::PortError;
 #[derive(Debug, thiserror::Error)]
 #[non_exhaustive]
 pub enum EngineError {
-    /// A value, or a column, of an input cannot be represented exactly in the type its schema
-    /// declares: a DECIMAL overflow, a HUGEINT beyond BIGINT, a lost digit, a changed time
-    /// zone, or an Arrow type DuckDB has no exact type for (MG-REQ-0180). The step failed
-    /// before its SQL ran; nothing was rounded, truncated or cast.
-    #[error("input `{input}`, column `{column}`: {reason}")]
+    /// A value, or a column, of an input or of the output cannot be represented exactly in
+    /// the type its schema declares: a DECIMAL overflow, a HUGEINT beyond BIGINT, a lost
+    /// digit, a changed time zone, a Parquet column of another type, or an Arrow type DuckDB
+    /// has no exact type for (MG-REQ-0180). Nothing was rounded, truncated or cast, and no
+    /// output was written.
+    #[error("table `{table}`, column `{column}`: {reason}")]
     Unrepresentable {
-        /// The input, as the segment's SQL names it.
-        input: String,
+        /// The input, as the segment's SQL names it, or the output.
+        table: String,
         /// The column.
         column: String,
         /// What cannot be represented, and in which type.

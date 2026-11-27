@@ -2,7 +2,7 @@
 //!
 //! [`run_segment`] runs one [`Segment`] in its own DuckDB session through the `Database`
 //! port (MG-REQ-0194): it executes the project's macro texts first (MG-REQ-0643), opens each
-//! [`Input`] in the types its schema declares or fails with `MG-0101` (MG-REQ-0180), runs the
+//! input [`Table`] in the types its schema declares or fails with `MG-0101` (MG-REQ-0180), runs the
 //! step's SQL with its bound parameters and leaves the rows at its output [`Boundary`] with the
 //! [`Transport`] the plan chose: Arrow IPC in the run's work directory, or Parquet in the work
 //! zone read lazily (MG-REQ-0633). [`table_hash`] hashes a table independently of the order
@@ -18,5 +18,5 @@ mod transport;
 
 pub use error::EngineError;
 pub use hash::table_hash;
-pub use segment::{Input, Segment, run_segment};
+pub use segment::{Segment, Table, run_segment};
 pub use transport::{Boundary, MEMORY_BUDGET, Transport};

@@ -20,3 +20,5 @@ workspace = true
 
 [dev-dependencies]
 mergus-sim = { path = "../mergus-sim" }
+# The real `Database` and `FileSystem` prove the statements of a segment on DuckDB itself.
+mergus-ports = { path = "../mergus-ports", features = ["real"] }
