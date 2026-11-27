@@ -144,6 +144,10 @@ fn detach_statements() -> [(&'static str, Vec<SqlValue>); 2] {
     ]
 }
 
+/// The connection value of `crm` with the session parameters of MG-REQ-0429.2, as the secret
+/// holds it.
+const CRM_PROTECTED: &str = "postgresql://reader:pw@db.example/crm?application_name=mergus&options=-c%20lock_timeout%3D5000";
+
 fn crm(connection: &str) -> PostgresSource {
     PostgresSource {
         alias: "crm".to_owned(),
@@ -158,7 +162,7 @@ fn mg_req_0196_simulated_database_attaches_sources_read_only() {
     let connection_value = "postgresql://reader:pw@db.example/crm";
     let database = SimDatabase::new(1, DatabaseFaults::default());
     database.record_extension(Extension::Postgres, "8b9d0bbe8d");
-    let statements = postgres_statements(connection_value);
+    let statements = postgres_statements(CRM_PROTECTED);
     for (sql, params) in &statements {
         database.record_execute(*sql, params.clone(), 0);
     }
@@ -208,7 +212,9 @@ fn mg_req_0196_simulated_database_attaches_sources_read_only() {
 fn mg_req_0196_simulated_failed_attach_drops_the_secret() {
     let database = SimDatabase::new(1, DatabaseFaults::default());
     database.record_extension(Extension::Postgres, "8b9d0bbe8d");
-    let statements = postgres_statements("host=db.example");
+    let statements = postgres_statements(
+        "host=db.example application_name=mergus options='-c lock_timeout=5000'",
+    );
     // The attach itself has no recorded result, so it fails.
     for (sql, params) in &statements[..4] {
         database.record_execute(*sql, params.clone(), 0);
@@ -226,4 +232,109 @@ fn mg_req_0196_simulated_failed_attach_drops_the_secret() {
     let mut connection = bare.connect(&DatabaseLocation::InMemory).unwrap();
     assert!(connection.attach_postgres(&crm("host=db.example")).is_err());
     assert!(bare.executed().is_empty());
+}
+
+/// A statement as the simulated database executed it, with its bound values.
+type Statement = (String, Vec<SqlValue>);
+
+/// Records the statements of attaching `crm` with the connection value `sent`, and attaches
+/// `given`; returns the value bound into the temporary secret.
+fn bound_secret_value(given: &str, sent: &str) -> Result<(Vec<Statement>, SqlValue), PortError> {
+    let database = SimDatabase::new(1, DatabaseFaults::default());
+    database.record_extension(Extension::Postgres, "8b9d0bbe8d");
+    for (sql, params) in postgres_statements(sent) {
+        database.record_execute(sql, params, 0);
+    }
+    let mut connection = database.connect(&DatabaseLocation::InMemory)?;
+    connection.attach_postgres(&crm(given))?;
+    let executed = database.executed();
+    let secret = executed[3].1[0].clone();
+    Ok((executed, secret))
+}
+
+#[test]
+fn mg_req_0429_session_is_read_only_and_identified() {
+    // URI form: percent-encoded query parameters, after `?` or `&`.
+    for (given, sent) in [
+        (
+            "postgresql://reader:pw@db.example/crm",
+            "postgresql://reader:pw@db.example/crm?application_name=mergus\
+             &options=-c%20lock_timeout%3D5000",
+        ),
+        (
+            "postgres://db.example/crm?sslmode=require",
+            "postgres://db.example/crm?sslmode=require&application_name=mergus\
+             &options=-c%20lock_timeout%3D5000",
+        ),
+        (
+            "postgresql://db.example/crm?",
+            "postgresql://db.example/crm?application_name=mergus\
+             &options=-c%20lock_timeout%3D5000",
+        ),
+        // Keyword/value form: two more keywords, the value of `options` quoted.
+        (
+            "host=db.example dbname=crm password='a b'",
+            "host=db.example dbname=crm password='a b' application_name=mergus \
+             options='-c lock_timeout=5000'",
+        ),
+    ] {
+        let (executed, secret) = bound_secret_value(given, sent).unwrap();
+        assert_eq!(secret, SqlValue::Text(sent.to_owned()));
+        // Read-only attach, statement timeout from `query_timeout`, never the value in SQL.
+        assert!(executed[4].0.ends_with("READ_ONLY)"), "{}", executed[4].0);
+        assert_eq!(
+            executed[2],
+            (
+                "SET pg_statement_timeout_millis = ?".to_owned(),
+                vec![SqlValue::Integer(600_000)]
+            )
+        );
+        assert!(executed.iter().all(|(sql, _)| !sql.contains("db.example")));
+    }
+}
+
+#[test]
+fn mg_req_0429_session_parameter_already_set_is_refused() {
+    // A value that already sets either parameter is refused before any statement, with the
+    // code MG-0410, the source and the parameter, and never the value.
+    for (value, parameter) in [
+        (
+            "postgresql://db.example/crm?application_name=etl",
+            "application_name",
+        ),
+        (
+            "postgresql://db.example/crm?sslmode=require&options=-c%20x%3D1",
+            "options",
+        ),
+        (
+            "postgresql://db.example/crm?application%5Fname=etl",
+            "application_name",
+        ),
+        ("host=db.example application_name=etl", "application_name"),
+        ("host=db.example options = '-c x=1'", "options"),
+    ] {
+        let database = SimDatabase::new(1, DatabaseFaults::default());
+        database.record_extension(Extension::Postgres, "8b9d0bbe8d");
+        let mut connection = database.connect(&DatabaseLocation::InMemory).unwrap();
+        let error = connection.attach_postgres(&crm(value)).unwrap_err();
+        assert_eq!(
+            error,
+            PortError::SessionParameterSet {
+                source_name: "crm".to_owned(),
+                parameter: parameter.to_owned(),
+            },
+            "{value}"
+        );
+        assert_eq!(error.code(), Some("MG-0410"));
+        let message = error.to_string();
+        assert!(
+            message.contains("`crm`") && message.contains(parameter),
+            "{message}"
+        );
+        assert!(
+            !message.contains("db.example") && !message.contains("etl"),
+            "{message}"
+        );
+        assert!(database.executed().is_empty());
+    }
 }

@@ -97,7 +97,10 @@ fn mg_req_0426_queries_go_to_replica() {
         let secrets_created = params_of(&database, "CREATE TEMPORARY SECRET");
         assert_eq!(
             secrets_created,
-            vec![vec![SqlValue::Text(expected.to_owned())]]
+            // The secret holds the value with the session parameters of MG-REQ-0429.2.
+            vec![vec![SqlValue::Text(format!(
+                "{expected}?application_name=mergus&options=-c%20lock_timeout%3D5000"
+            ))]]
         );
         let reads = params_of(&database, "SELECT * FROM \"erp\".\"orders\"");
         // Three rows fit one chunk of the `prod` default budget, 10 000 rows.

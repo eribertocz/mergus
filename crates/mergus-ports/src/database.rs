@@ -9,6 +9,7 @@ use std::time::Duration;
 use arrow::record_batch::RecordBatch;
 
 use crate::PortError;
+use crate::session::protected_connection;
 
 /// A value bound to a parameter of a SQL statement. Values are always bound, never
 /// concatenated into the SQL text (MG-REQ-0007).
@@ -212,15 +213,19 @@ pub trait DatabaseConnection: Send {
     /// Attaches the PostgreSQL source `source` read-only with the `postgres` extension
     /// (MG-REQ-0196.2): sets the pool to `max_connections` connections, acquired in `wait`
     /// mode, and the statement timeout to `query_timeout` (MG-REQ-0196.3); puts the
-    /// connection value into a temporary secret; then attaches with
+    /// connection value, with the session parameters of MG-REQ-0429.2 added, into a
+    /// temporary secret; then attaches with
     /// `ATTACH '' AS <alias> (TYPE postgres, SECRET <secret>, READ_ONLY)`. The secret is
     /// dropped when the attach fails.
     ///
     /// # Errors
     ///
-    /// Fails with [`PortError::ExtensionUnavailable`] when the extension is not cached and
-    /// cannot be downloaded, and with [`PortError::Failed`] when a statement fails.
+    /// Fails with [`PortError::SessionParameterSet`] when the connection value already sets
+    /// `application_name` or `options` (MG-REQ-0429.3), before any statement; with
+    /// [`PortError::ExtensionUnavailable`] when the extension is not cached and cannot be
+    /// downloaded; and with [`PortError::Failed`] when a statement fails.
     fn attach_postgres(&mut self, source: &PostgresSource) -> Result<(), PortError> {
+        let connection = protected_connection(&source.alias, &source.connection)?;
         self.load_extension(Extension::Postgres)?;
         let timeout = i64::try_from(source.query_timeout.as_millis()).unwrap_or(i64::MAX);
         let settings = [
@@ -244,7 +249,7 @@ pub trait DatabaseConnection: Send {
         let secret = quote_identifier(&secret_name(&source.alias));
         // sql: identifiers quoted by quote_identifier
         let create = format!("CREATE TEMPORARY SECRET {secret} (TYPE postgres, URI ?)");
-        self.execute(&create, &[SqlValue::Text(source.connection.clone())])?;
+        self.execute(&create, &[SqlValue::Text(connection)])?;
         // sql: identifiers quoted by quote_identifier
         let attach = format!("ATTACH '' AS {alias} (TYPE postgres, SECRET {secret}, READ_ONLY)");
         if let Err(error) = self.execute(&attach, &[]) {
