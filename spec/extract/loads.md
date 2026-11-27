@@ -84,8 +84,10 @@ nothing. Detection time is stored in `_deleted_at`.
    `deletes_checked_at` of its `ops.loads` rows; `delete_window` filters the incremental column
    on both sides; `_deleted_at` is the load's `_extracted_at` (MG-REQ-0518.2);
 4. MG-REQ-0415.4: `mergus validate` refuses, with a typed error (`MG-04xx`), `compare` on a
-   table without `key`, and `delete_window` on a table whose `incremental` is missing or not a
-   date or time column; a delete detected for a key that is not current is ignored.
+   table without `key`, and `delete_window` on a table without `incremental`; a `delete_window`
+   whose `incremental` column is not a date or time type is refused with the same error when
+   the table is first read, since only the source knows the type; a delete detected for a key
+   that is not current is ignored.
 
 - Kind: behavior
 - Verify: test `mg_req_0415_delete_policies`
