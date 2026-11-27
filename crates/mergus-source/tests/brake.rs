@@ -134,7 +134,7 @@ fn three_failures_stop_the_source() -> Result<(), Box<dyn Error>> {
     .err();
     let incident = incident.ok_or("three consecutive failures stop the source")?;
     // Chunks 5, 6, 7 have no script: three consecutive failures stop the source.
-    assert_eq!(incident.code(), "MG-0405");
+    assert_eq!(incident.code(), "MG-0406");
     assert_eq!(
         (incident.source_name.as_str(), incident.table.as_str()),
         ("erp", "orders")

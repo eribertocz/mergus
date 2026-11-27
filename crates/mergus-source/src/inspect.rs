@@ -28,7 +28,7 @@ impl InspectError {
     /// The `MG-####` code of the error (MG-REQ-0008).
     #[must_use]
     pub const fn code(&self) -> &'static str {
-        "MG-0407"
+        "MG-0408"
     }
 }
 
@@ -47,6 +47,6 @@ impl ImpactUnknown {
     /// The `MG-####` code of the warning (MG-REQ-0432.2).
     #[must_use]
     pub const fn code(&self) -> &'static str {
-        "MG-0408"
+        "MG-0409"
     }
 }

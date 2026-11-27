@@ -177,7 +177,7 @@ fn missing_indexes_are_warned() {
     // Warnings never change the exit code (MG-REQ-0431.1).
     assert_eq!(outcome.exit, 0, "{outcome:?}");
     let shown = format!("{}{}", outcome.stdout, outcome.stderr);
-    assert_eq!(shown.matches("warning[MG-0406]").count(), 3, "{shown}");
+    assert_eq!(shown.matches("warning[MG-0407]").count(), 3, "{shown}");
     for suggestion in [
         "CREATE INDEX ON \"public\".\"orders\" (\"updated_at\");",
         "CREATE INDEX ON \"public\".\"customers\" (\"region\", \"id\");",
@@ -221,14 +221,14 @@ fn present_indexes_are_not() {
     );
     let outcome = run(ERP, &["doctor", "--source", "erp"], Some(&database));
     assert_eq!(outcome.exit, 0, "{outcome:?}");
-    assert!(!outcome.stderr.contains("MG-0406"), "{outcome:?}");
+    assert!(!outcome.stderr.contains("MG-0407"), "{outcome:?}");
 }
 
-/// A source that cannot be reached is the error `MG-0407` (MG-REQ-0008).
+/// A source that cannot be reached is the error `MG-0408` (MG-REQ-0008).
 fn unreachable_source_is_typed() {
     let outcome = run(ERP, &["doctor", "--source", "erp"], None);
     assert_eq!(outcome.exit, 1, "{outcome:?}");
-    assert!(outcome.stderr.contains("error[MG-0407]"), "{outcome:?}");
+    assert!(outcome.stderr.contains("error[MG-0408]"), "{outcome:?}");
     assert!(
         outcome.stderr.contains("source `erp` cannot be reached"),
         "{outcome:?}"
@@ -236,7 +236,7 @@ fn unreachable_source_is_typed() {
     // The catalog cannot be read: nothing recorded answers `pg_index`.
     let outcome = run(ERP, &["doctor", "--source", "erp"], Some(&server(1)));
     assert_eq!(outcome.exit, 1, "{outcome:?}");
-    assert!(outcome.stderr.contains("error[MG-0407]"), "{outcome:?}");
+    assert!(outcome.stderr.contains("error[MG-0408]"), "{outcome:?}");
     assert!(
         outcome.stderr.contains("catalog of source `erp`"),
         "{outcome:?}"
@@ -267,7 +267,7 @@ fn other_sources() {
     );
     let outcome = run(ERP, &["doctor", "--source", "local"], Some(&local));
     assert_eq!(outcome.exit, 0, "{outcome:?}");
-    assert!(!outcome.stderr.contains("MG-0406"), "{outcome:?}");
+    assert!(!outcome.stderr.contains("MG-0407"), "{outcome:?}");
     assert!(local.executed().iter().any(|(sql, _)| sql == attach_file));
     let outcome = run(ERP, &["doctor", "--source", "erq"], Some(&server(1)));
     assert_eq!(outcome.exit, 1, "{outcome:?}");
@@ -307,12 +307,12 @@ fn mg_req_0432_plan_shows_source_impact() {
         assert!(outcome.stdout.contains(&line), "{line}\n{}", outcome.stdout);
     }
 
-    assert!(!outcome.stderr.contains("MG-0408"), "{outcome:?}");
+    assert!(!outcome.stderr.contains("MG-0409"), "{outcome:?}");
     plan_warns_for_an_unreachable_source();
 }
 
 /// Without a DuckDB, estimates and indexes are unknown and the reason is the warning
-/// `MG-0408`; the default load of `prod` is `low`, and `plan` does not fail
+/// `MG-0409`; the default load of `prod` is `low`, and `plan` does not fail
 /// (MG-REQ-0432.2).
 fn plan_warns_for_an_unreachable_source() {
     let outcome = run(ERP, &["plan"], None);
@@ -320,11 +320,11 @@ fn plan_warns_for_an_unreachable_source() {
     let line = "source erp.orders: estimated rows unknown, index unknown, window none, \
                 load low (1 connections, 10000 rows per chunk, pause 1000 ms)";
     assert!(outcome.stdout.contains(line), "{}", outcome.stdout);
-    assert!(outcome.stderr.contains("warning[MG-0408]"), "{outcome:?}");
+    assert!(outcome.stderr.contains("warning[MG-0409]"), "{outcome:?}");
     assert!(
         outcome
             .stderr
-            .contains("MG-0407 source `erp` cannot be reached"),
+            .contains("MG-0408 source `erp` cannot be reached"),
         "{outcome:?}"
     );
 }

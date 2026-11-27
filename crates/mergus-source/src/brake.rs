@@ -134,7 +134,7 @@ impl SourceIncident {
     /// The `MG-####` code of the incident (MG-REQ-0008).
     #[must_use]
     pub const fn code(&self) -> &'static str {
-        "MG-0405"
+        "MG-0406"
     }
 }
 

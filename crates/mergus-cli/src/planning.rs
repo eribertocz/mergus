@@ -85,7 +85,7 @@ pub(crate) fn plan(
 }
 
 /// What reading each table of `source` costs it (MG-REQ-0432). A source that cannot be
-/// attached, or whose catalog cannot be read, shows `unknown` and gives the `MG-0408`
+/// attached, or whose catalog cannot be read, shows `unknown` and gives the `MG-0409`
 /// warning with the reason; `plan` fails for none (MG-REQ-0432.2). A `connect` or `live`
 /// source is read by no extraction, and a source without tables has none to show: neither
 /// is attached.

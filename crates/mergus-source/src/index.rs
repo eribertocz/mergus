@@ -82,7 +82,7 @@ impl IndexWarning {
     /// The `MG-####` code of the warning (MG-REQ-0431.1).
     #[must_use]
     pub const fn code(&self) -> &'static str {
-        "MG-0406"
+        "MG-0407"
     }
 
     /// The suggested index: `CREATE INDEX ON "<schema>"."<table>" ("<column>", …);`

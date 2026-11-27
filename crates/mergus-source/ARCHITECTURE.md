@@ -19,12 +19,17 @@
 | `extract_source`, `TableExtraction` | Every declared table of a source, with its raw tables |
 | `ConnectError` | `EngineMismatch` (`MG-0404`) or a `PortError` |
 | `SourceCare`, `Load`, `Budget` | The care options of a source with their defaults, and its budget (MG-REQ-0426, MG-REQ-0427) |
-| `Brake`, `read_with_brake`, `SourceIncident` | The pace of the reads of a source, and the stop after three failures (`MG-0405`, MG-REQ-0428) |
+| `Brake`, `read_with_brake`, `SourceIncident` | The pace of the reads of a source, and the stop after three failures (`MG-0406`, MG-REQ-0428) |
 | `Window`, `LoadKind`, `wait_for_window` | When a full load or a backfill may start (MG-REQ-0430) |
-| `check_indexes`, `IndexWarning` | Keys and incremental columns without an index (`MG-0406`, MG-REQ-0431) |
-| `InspectError`, `ImpactUnknown` | A source `doctor` cannot reach or read (`MG-0407`), and the warning of `plan` for one (`MG-0408`, MG-REQ-0432.2) |
+| `check_indexes`, `IndexWarning` | Keys and incremental columns without an index (`MG-0407`, MG-REQ-0431) |
+| `InspectError`, `ImpactUnknown` | A source `doctor` cannot reach or read (`MG-0408`), and the warning of `plan` for one (`MG-0409`, MG-REQ-0432.2) |
 | `source_impact`, `TableImpact` | What reading each table costs the source (MG-REQ-0432) |
 | `PG_INDEXES`, `SCHEMA_INDEXES`, `PG_ESTIMATES`, `SCHEMA_ESTIMATES` | The fixed statements of the index check and the estimates, so that tests can record their answers |
+| `copied_tables` | The tables copied into raw: none of a `connect` or `live` source (MG-REQ-0405) |
+| `source_columns`, `SourceColumn` | The columns of a source table and their DuckDB types, from `DESCRIBE` |
+| `breaking_changes`, `ColumnChange` | The dropped, renamed or retyped columns since the last load (MG-REQ-0407) |
+| `SchemaChange` | A table stopped by breaking changes (`MG-0405`) |
+| `extract_source_timed`, `SourceExtraction`, `TableRead` | A source read with its changes checked and each table's read times and spread (MG-REQ-0419) |
 
 ## Data flow
 
@@ -89,6 +94,26 @@
    it (MG-REQ-0007); the answer is grouped by table. A table is in the schema `public`, where
    DuckDB's `postgres` extension reads `<alias>.<table>`. An index covers columns when its
    leading columns are those columns, in their order (MG-REQ-0431.4).
+
+## Source changes and read times
+
+1. `copied_tables` is `declared_tables` for a `copy` source, the default, and empty for a
+   `connect` or `live` source; `extract_source` and `extract_source_timed` read only these,
+   so such a source returns no table and sends no statement (MG-REQ-0405).
+2. For each copied table, `extract_source_timed` first runs
+   `SELECT column_name, column_type FROM (DESCRIBE "<alias>"."<table>")`, which resolves the
+   table as the read does, and compares the columns with those of the last load the caller
+   gives. Each column of the last load that is missing, or whose type text differs, is a
+   `ColumnChange`; an added column is not one, nor is anything at a first load (empty last
+   columns). A table with changes becomes a `SchemaChange` and is not read; the other
+   tables go on (MG-REQ-0407).
+3. The wall clock of the `Clock` port is read just before the first statement of a table,
+   its `DESCRIBE`, and just after its last one (MG-REQ-0419.1). `spread` is the latest end minus the
+   earliest start, zero if the wall clock went backwards (MG-REQ-0419.2). No official DuckDB
+   page documents a snapshot shared by several attached PostgreSQL tables, so every source
+   records times (MG-REQ-0419.3).
+4. `extract_source` reads the same tables without the check and the times; a run extracts
+   with `extract_source_timed`.
 
 ## Dependencies
 

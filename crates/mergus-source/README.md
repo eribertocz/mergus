@@ -33,6 +33,14 @@ Extract from databases (ADBC) and files.
   (MG-REQ-0411). With a chunk size from the caller, a table with a `key` is read by keyset
   pagination, `WHERE "key" > ? ORDER BY "key" LIMIT ?`, one statement per chunk, never
   `OFFSET` (MG-REQ-0417). Every value is a bound parameter (MG-REQ-0007).
+- Copies only `copy` sources: a `connect` or `live` source returns no table and reads
+  nothing (MG-REQ-0405).
+- Before reading a table, compares its columns (`DESCRIBE`) with those of its last load,
+  given by the caller. A dropped or renamed column, or any type change in this phase, stops
+  that table with `MG-0405`, naming each column, its old type and its new one; an added
+  column does not (MG-REQ-0407).
+- Records, from the `Clock` port, the start and the end in UTC of each table's read, and the
+  spread of the source: the latest end minus the earliest start (MG-REQ-0419).
 
 - Takes care of the source (`SourceCare`), so that Mergus is never the reason it becomes
   slow:
@@ -55,13 +63,13 @@ Extract from databases (ADBC) and files.
     the chunks before it, the pause before the next chunk doubles, or becomes the chunk's
     latency when it is zero; each chunk at most the median halves the pause above the
     budget's, until it is back. A chunk statement that fails or times out is sent again;
-    after three consecutive failures the extraction of the source stops with `MG-0405`, an
+    after three consecutive failures the extraction of the source stops with `MG-0406`, an
     error, and is not retried until the next trigger (MG-REQ-0428);
   - `wait_for_window` holds a full load or a backfill until the source's `window` opens;
     the window is in UTC, spans midnight when its end is before its start, and is open all
     day when its start is its end (MG-REQ-0430.1). An incremental load is not held
     (MG-REQ-0430);
-  - `check_indexes` gives `MG-0406`, a warning, for each key or incremental column of a
+  - `check_indexes` gives `MG-0407`, a warning, for each key or incremental column of a
     PostgreSQL source without an index led by it: by the key columns in key order, or by the
     incremental column (MG-REQ-0431.4). The indexes are read from `pg_index` through
     `postgres_query`, once per source, and the warning gives the index to create:
@@ -73,7 +81,7 @@ Extract from databases (ADBC) and files.
     the window and the budget, for `mergus plan` (MG-REQ-0432). The estimates and indexes are
     read once per source;
   - a source that `doctor --source` cannot reach, or whose catalog it cannot read, is
-    `MG-0407`, an error (`InspectError`); one that `plan` cannot reach or read is `MG-0408`,
+    `MG-0408`, an error (`InspectError`); one that `plan` cannot reach or read is `MG-0409`,
     a warning (`ImpactUnknown`) with the reason, and its tables show `unknown`
     (MG-REQ-0432.2).
 
@@ -83,4 +91,6 @@ Extract from databases (ADBC) and files.
   or unknown kind with `MG-0305`.
 - It does not write raw tables: `mergus-runtime` and the storage adapter do. It does not resolve the secret of a PostgreSQL source: the caller
   passes the resolved connection value. Remote DuckDB over Quack (`whoami()`) is phase 0.7.
+- It does not store the columns of the last load, nor show the spread: the caller keeps the
+  columns each read returns, and the run report shows the spread.
 - It writes nothing and prints nothing: `mergus validate` reports its problems.

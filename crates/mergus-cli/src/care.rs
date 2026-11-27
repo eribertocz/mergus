@@ -73,7 +73,7 @@ pub(crate) fn attach(
 }
 
 /// The diagnostic of a source that could not be attached: `MG-0404` for another engine,
-/// `MG-0407` when it cannot be reached (MG-REQ-0008).
+/// `MG-0408` when it cannot be reached (MG-REQ-0008).
 fn of_connect(source_name: &str, error: &ConnectError) -> Diagnostic {
     match error.code() {
         Some(code) => Diagnostic::of_code(code, error.to_string()),
