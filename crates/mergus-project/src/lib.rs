@@ -35,6 +35,14 @@
 //! macro, as fingerprint inputs (MG-REQ-0644). [`read_seeds`] checks each `seeds/<name>.csv`
 //! against its `[seeds.<name>]`, hashes it for the fingerprints of its readers (MG-REQ-0645)
 //! and warns about a large one (MG-REQ-0646).
+//!
+//! [`read_python_model`] reads one `.py` model through the [`Python`](mergus_ports::Python)
+//! port, which parses it without importing it (MG-REQ-0611): its public top-level functions
+//! are its [`PythonStep`]s (MG-REQ-0612), each run by the [`StepEngine`] its returns select
+//! (MG-REQ-0613), each parameter an [`InputSource`] (MG-REQ-0614); the step named like the file
+//! is the result (MG-REQ-0615), and no call makes data eager (MG-REQ-0616).
+//! [`read_python_lib`] reads `lib/*.py` the same way, and [`PythonLib::fingerprint_inputs`]
+//! gives the `lib` modules a model imports, directly or through each other (MG-REQ-0618).
 
 #![forbid(unsafe_code)]
 
@@ -43,6 +51,7 @@ mod error;
 mod ids;
 mod layout;
 mod names;
+mod python;
 mod reuse;
 mod sql;
 
@@ -50,10 +59,14 @@ pub use config::{
     ConfigFile, ConfigKind, Configuration, Effective, ModelOptions, Origin, Setting, Source,
     key_line, read_configuration, read_model_options, toml_to_json,
 };
-pub use error::{LayoutError, NameKind, ProjectError, ProjectWarning};
+pub use error::{LayoutError, NameKind, ProjectError, ProjectWarning, PythonModelError};
 pub use ids::{IdKind, Identifier, Identifiers, Renames, derive_identifier, read_renames};
 pub use layout::{Layout, Model, ModelLanguage, Publication, read_layout};
 pub use names::{closest_name, is_valid_name, suggest_valid_name};
+pub use python::{
+    InputSource, PythonLib, PythonLibModule, PythonModel, PythonStep, StepEngine, StepInput,
+    read_python_lib, read_python_model,
+};
 pub use reuse::{LARGE_SEED_BYTES, Macro, Macros, Seed, Seeds, read_macros, read_seeds, sql_calls};
 pub use sql::{
     KnownTables, RunParameters, SqlStep, check_sql, check_sql_models, read_sql_references,

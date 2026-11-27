@@ -1,0 +1,1 @@
+{"calls":[],"functions":[{"async":false,"column":1,"line":1,"name":"other","parameters":[],"returns":[{"column":5,"kind":"string","line":2,"value":"SELECT 1"}]},{"async":false,"column":1,"line":5,"name":"_nameless","parameters":[],"returns":[{"column":5,"kind":"string","line":6,"value":"SELECT 2"}]}],"imports":[],"version":1}

@@ -31,6 +31,7 @@ impl ProjectError {
             Self::SeedWithoutFile { .. } => "MG-0614",
             Self::UnknownSeedKey { .. } => "MG-0615",
             Self::UnknownSeedType { .. } => "MG-0616",
+            Self::Python(error) => error.code(),
         }
     }
 
@@ -63,6 +64,7 @@ impl ProjectError {
             | Self::UnknownSeedKey { path, .. }
             | Self::UnknownSeedType { path, .. } => path,
             Self::ModelCycle { references, .. } => references.first().map_or("", |(path, _)| path),
+            Self::Python(error) => error.path(),
         }
     }
 
@@ -95,6 +97,7 @@ impl ProjectError {
             | Self::UnknownSeedKey { line, .. }
             | Self::UnknownSeedType { line, .. } => Some(*line),
             Self::ModelCycle { references, .. } => references.first().map(|(_, line)| *line),
+            Self::Python(error) => error.line(),
         }
     }
 
@@ -106,6 +109,7 @@ impl ProjectError {
             | Self::ForbiddenSql { column, .. }
             | Self::UnknownParameter { column, .. }
             | Self::PositionalParameter { column, .. } => Some(*column),
+            Self::Python(error) => error.column(),
             _ => None,
         }
     }
@@ -128,7 +132,8 @@ impl ProjectError {
             | Self::DuplicateMacro { .. }
             | Self::MacroShadowsBuiltin { .. }
             | Self::UndeclaredSeed { .. }
-            | Self::SeedWithoutFile { .. } => None,
+            | Self::SeedWithoutFile { .. }
+            | Self::Python(_) => None,
             Self::InvalidIds { key, .. } => key.as_deref(),
             Self::UnknownKey { key, .. }
             | Self::InvalidValue { key, .. }

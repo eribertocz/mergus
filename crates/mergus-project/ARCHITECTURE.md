@@ -22,9 +22,13 @@
 | `Macros`, `Macro` | The macros of `macros/`, by lowercase name: file, kind, definition, hash and the macros each calls |
 | `Seeds`, `Seed` | The seeds, their problems and warnings; each seed's columns, delimiter, header and hash |
 | `ProjectWarning` | A warning with its `MG-####` code and path, which never fails a read |
+| `PythonModel`, `PythonStep` | A `.py` model: its steps in file order, its result, its `lib` fingerprint inputs |
+| `StepEngine`, `StepInput`, `InputSource` | The engine of a step, and what each parameter reads: a step, a model or a raw table |
+| `PythonModelError` | A problem of a `.py` model, `MG-0618` to `MG-0624`, inside `ProjectError::Python` |
+| `PythonLib`, `PythonLibModule` | The modules of `lib/`: path, hash and the `lib` modules each imports |
 | `Identifiers` | Gives each object its identifier and collects the ones given twice |
 
-Functions: `read_layout`, `read_configuration`, `read_model_options`, `is_valid_name`, `suggest_valid_name`, `closest_name`, `read_renames`, `derive_identifier`, `read_sql_references`, `read_macros`, `sql_calls` and `read_seeds`.
+Functions: `read_layout`, `read_configuration`, `read_model_options`, `is_valid_name`, `suggest_valid_name`, `closest_name`, `read_renames`, `derive_identifier`, `read_sql_references`, `read_macros`, `sql_calls`, `read_seeds`, `read_python_model` and `read_python_lib`.
 
 ## Data flow
 
@@ -85,9 +89,25 @@ Functions: `read_layout`, `read_configuration`, `read_model_options`, `is_valid_
    file is hashed and warns above `LARGE_SEED_BYTES`. Unknown seed keys are found by the
    schema and reported as `MG-0615`.
 
+## Python models flow
+
+1. `read_python_lib` lists `lib/*.py` in the port's order and parses each through the
+   `Python` port; each module keeps its hash and the `lib` modules it imports: absolute
+   imports whose first name part is a module stem.
+2. `read_python_model` parses the model the same way. Its public top-level functions, async
+   ones excepted, are its steps. Each step's returns give its engine (`returns.rs`); a
+   `.format` call on a literal counts when it is on the line of a return.
+3. Each parameter resolves to another step, a model other than this one, then a raw table
+   (`wiring.rs`); unresolved ones get the closest candidate within 3 edits. A depth-first walk
+   in file order finds the cycles between steps, each from its first step.
+4. The result step must exist, and every call of the file is checked for eager methods and
+   `DataFrame` on the names `polars` is bound to (`eager.rs`).
+5. Problems come in that order; with none, the model gets its `lib` inputs, followed through
+   the modules' own imports.
+
 ## Dependencies
 
-- `mergus-ports`: the `FileSystem`, `SqlParser` and `Database` ports, `MacroRun`, `is_column_type` and `PortError`.
+- `mergus-ports`: the `FileSystem`, `SqlParser`, `Database` and `Python` ports and the Python tree, `MacroRun`, `is_column_type` and `PortError`.
 - `mergus-contracts`: `canonical_json`, the RFC 8785 serializer, and `hash::sha256`, the
   SHA-256 of derived identifiers, macros and seeds behind a Mergus interface (MG-REQ-0186).
 - `toml` 0.9.8, with `toml_parser` 1.0.4 in `Cargo.lock`: the last releases that parse TOML
@@ -96,4 +116,5 @@ Functions: `read_layout`, `read_configuration`, `read_model_options`, `is_valid_
 - `serde_json`: the JSON values.
 - `thiserror`: derives the error types.
 - Base32 is written in this crate and tested against the vectors of RFC 4648.
-- `mergus-sim`, as a dev-dependency only: the in-memory file system of the tests.
+- `mergus-sim`, as a dev-dependency only: the in-memory file system and the recorded Python
+  trees of the tests.
