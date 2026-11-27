@@ -75,6 +75,7 @@ pub fn plan(models: &[PlanModel], request: &PlanRequest) -> Result<Plan, PlanErr
         selected: request.selected.iter().cloned().collect(),
         steps: steps(&graph, request, &fingerprints),
         stale_upstream: stale_upstream(&graph, request, &fingerprints),
+        gates: None,
     };
     document.plan_id = plan_id(&validate(&document)?);
     let valid = validate(&document)?;
@@ -156,6 +157,10 @@ fn step(model: &PlanModel, print: String, group: i64, available: &BTreeSet<Strin
         reason,
         refresh: StepRefresh::Full,
         parallel_group: group,
+        incremental: None,
+        segments: None,
+        boundaries: None,
+        periods: None,
     }
 }
 
