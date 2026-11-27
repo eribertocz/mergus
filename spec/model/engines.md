@@ -21,7 +21,12 @@ and makes each one cheap, automatically.
 ### MG-REQ-0631 · Fused segments
 
 Consecutive steps of the same engine MUST be fused into one segment: one DuckDB query (a CTE
-chain) or one chained LazyFrame.
+chain) or one chained LazyFrame:
+
+1. MG-REQ-0631.1: steps are fused only inside one model.
+2. MG-REQ-0631.2: a `.sql` model is one step, named like the model, and so one segment
+   `{index: 0, engine: duckdb, steps: [<model name>]}`. Every model in a plan has at least one
+   segment.
 
 - Kind: behavior
 - Verify: test `mg_req_0631_consecutive_steps_fused`
