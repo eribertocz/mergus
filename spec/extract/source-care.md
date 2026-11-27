@@ -71,12 +71,17 @@ identify itself as `mergus` (for example `application_name` in PostgreSQL).
 1. MG-REQ-0429.1: the lock timeout is 5 seconds;
 2. MG-REQ-0429.2: for PostgreSQL, read-only is the `READ_ONLY` attach and the statement
    timeout is `pg_statement_timeout_millis` (MG-REQ-0196.2, MG-REQ-0196.3); the
-   identification and the lock timeout are libpq connection options of the temporary secret,
-   `APPLICATION_NAME 'mergus'` and `OPTIONS '-c lock_timeout=5000'`.
+   identification and the lock timeout are the libpq parameters `application_name=mergus`
+   and `options=-c lock_timeout=5000`, added in memory to the connection value before it
+   goes into the temporary secret: as percent-encoded query parameters of a URI, or as
+   keywords of a keyword/value string;
+3. MG-REQ-0429.3: a connection value that already sets `application_name` or `options` is
+   refused with a typed error (`MG-04xx`) naming the source and the parameter, never its
+   value.
 
 - Kind: behavior
 - Verify: test `mg_req_0429_session_is_read_only_and_identified`
-- Decision: 0045
+- Decision: 0045, 0046
 
 ### MG-REQ-0430 · Time window
 
