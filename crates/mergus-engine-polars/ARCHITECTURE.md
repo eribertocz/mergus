@@ -12,7 +12,7 @@
 | `execute_step` | Calls a step with `pl.scan_ipc` inputs and returns its result (MG-REQ-0617.3) |
 | `step_dir` | The working directory of a step under the run's work directory |
 | `child_environment` | The allowlisted environment of the Python child (MG-REQ-0006) |
-| `PolarsError`, `StepFailure` | `StepFailed` (`MG-0618`), `PolarsMissing` (`MG-0619`), `Child`, `Boundary` or a `PortError` |
+| `PolarsError`, `StepFailure` | `StepFailed` (`MG-0611`), `PolarsMissing` (`MG-0612`), `Child`, `Boundary` or a `PortError` |
 
 ## Data flow
 

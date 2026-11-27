@@ -66,6 +66,23 @@ fn no_secret_in_files(dir: &Path) {
     }
 }
 
+/// Fails when the environment, the arguments or the files of the step `dir` hold the secret,
+/// or when the environment has a variable outside the allowlist.
+#[cfg(test)]
+fn no_secret_reaches_python(first: &serde_json::Value, run: &Path, dir: &Path) {
+    for (name, value) in first["env"].as_object().unwrap() {
+        let allowed = ALLOWED.contains(&name.as_str()) || SET_BY_THE_CHILD.contains(&name.as_str());
+        assert!(allowed, "{name} reached Python");
+        assert!(
+            !value.as_str().unwrap().contains(SECRET),
+            "{name} holds the secret"
+        );
+    }
+    assert_eq!(first["env"]["TMPDIR"], run.display().to_string());
+    assert!(!first["argv"].to_string().contains(SECRET));
+    no_secret_in_files(dir);
+}
+
 #[test]
 fn mg_req_0636_server_mode_isolates_python() {
     let root = scratch("isolation");
@@ -74,7 +91,7 @@ fn mg_req_0636_server_mode_isolates_python() {
         .iter()
         .filter_map(|name| Some(((*name).to_owned(), RealEnvironment.var(name)?)))
         .collect();
-    vars.push(("MERGUS_SECRET_WAREHOUSE".to_owned(), SECRET.to_owned()));
+    vars.push(("WAREHOUSE_TOKEN".to_owned(), SECRET.to_owned()));
     vars.push(("AWS_SECRET_ACCESS_KEY".to_owned(), SECRET.to_owned()));
     vars.push(("PGPASSWORD".to_owned(), SECRET.to_owned()));
     let environment = SimEnvironment::new(vars, None);
@@ -93,21 +110,7 @@ fn mg_req_0636_server_mode_isolates_python() {
     let dir = step_dir(&first_run, &spy);
     assert!(dir.starts_with(&first_run));
     let first = seen(&dir);
-    // The environment is the allowlisted one, and holds no secret value.
-    for (name, value) in first["env"].as_object().unwrap() {
-        assert!(
-            ALLOWED.contains(&name.as_str()) || SET_BY_THE_CHILD.contains(&name.as_str()),
-            "{name} reached Python"
-        );
-        assert!(
-            !value.as_str().unwrap().contains(SECRET),
-            "{name} holds the secret"
-        );
-    }
-    assert_eq!(first["env"]["TMPDIR"], first_run.display().to_string());
-    // The arguments and the files of the working directory hold none either.
-    assert!(!first["argv"].to_string().contains(SECRET));
-    no_secret_in_files(&dir);
+    no_secret_reaches_python(&first, &first_run, &dir);
     // The step ran in its own directory under the run's work directory, which was empty.
     assert_eq!(first["cwd"], dir.display().to_string());
     assert!(

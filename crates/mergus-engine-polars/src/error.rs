@@ -80,8 +80,8 @@ impl PolarsError {
     #[must_use]
     pub fn code(&self) -> Option<&'static str> {
         match self {
-            Self::StepFailed { .. } => Some("MG-0618"),
-            Self::PolarsMissing { .. } => Some("MG-0619"),
+            Self::StepFailed { .. } => Some("MG-0611"),
+            Self::PolarsMissing { .. } => Some("MG-0612"),
             Self::Child { .. } | Self::Boundary { .. } | Self::Port(_) => None,
         }
     }

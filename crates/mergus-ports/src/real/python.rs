@@ -1,5 +1,7 @@
 //! A Python interpreter run as a child process, which parses files without importing them
 //! (MG-REQ-0611) and runs programs (MG-REQ-0617.1). Python is never embedded.
+// size: the Unix unit tests of the interpreter search and its environment need `chmod`, which
+// integration tests may not call, so they live in this file with the port they test.
 
 use std::ffi::OsString;
 use std::io::{Read, Write};

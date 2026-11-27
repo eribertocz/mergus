@@ -4,7 +4,9 @@
 use mergus_engine_polars::{
     Frame, Parameter, PolarsError, StepFailure, execute_step, plan_step, step_dir,
 };
-use mergus_ports::real::RealFileSystem;
+use std::path::Path;
+
+use mergus_ports::real::{RealFileSystem, RealPython};
 
 use super::{batch, column, floats, python, read, scratch, step, write};
 
@@ -43,36 +45,50 @@ fn mg_req_0617_polars_planned_with_empty_frames() {
         name: "joined".to_owned(),
         schema: joined.clone(),
     }];
-    let in_usd = step(&root, "sales", "in_usd");
-    let dir = step_dir(&work, &in_usd);
-
-    // Planning: one call with an empty LazyFrame of the input's schema.
-    let schema = plan_step(&python, &RealFileSystem, &in_usd, &parameters, &work).unwrap();
-    assert_eq!(*schema, *floats(&["amount", "rate", "amount_usd"]));
-    assert_eq!(read(&dir.join("rows_seen")), "0");
-    assert_eq!(read(&dir.join("lib_first")), "lib");
-
-    // Execution: the input as `pl.scan_ipc`, the result collected once.
     let inputs = [Frame {
         name: "joined".to_owned(),
         schema: joined.clone(),
         batches: vec![batch(&joined, &[&[10.0, 2.0], &[2.0, 0.5]])],
     }];
-    let output = execute_step(&python, &RealFileSystem, &in_usd, &inputs, &work).unwrap();
+    plans_and_executes(&python, &root, &work, &parameters, &inputs);
+    failures_are_typed(&python, &root, &work, &parameters, &inputs);
+    missing_polars_is_typed(&python, &root, &work, &parameters);
+}
+
+/// Planning calls the step once with an empty LazyFrame of the input's schema; execution
+/// passes the input as `pl.scan_ipc` and collects the result once.
+#[cfg(test)]
+fn plans_and_executes(
+    python: &RealPython,
+    root: &Path,
+    work: &Path,
+    parameters: &[Parameter],
+    inputs: &[Frame],
+) {
+    let in_usd = step(root, "sales", "in_usd");
+    let dir = step_dir(work, &in_usd);
+    let schema = plan_step(python, &RealFileSystem, &in_usd, parameters, work).unwrap();
+    assert_eq!(*schema, *floats(&["amount", "rate", "amount_usd"]));
+    assert_eq!(read(&dir.join("rows_seen")), "0");
+    assert_eq!(read(&dir.join("lib_first")), "lib");
+    let output = execute_step(python, &RealFileSystem, &in_usd, inputs, work).unwrap();
     assert_eq!(*output.schema, *schema);
     assert_eq!(column(&output.batches, "amount_usd"), [20.0, 1.0]);
     assert_eq!(read(&dir.join("rows_seen")), "2");
+}
 
-    // An exception, and a return value that is not a LazyFrame: MG-0618.
-    let fails = plan_step(
-        &python,
-        &RealFileSystem,
-        &step(&root, "sales", "fails"),
-        &parameters,
-        &work,
-    );
-    let error = fails.unwrap_err();
-    assert_eq!(error.code(), Some("MG-0618"));
+/// An exception, and a return value that is not a LazyFrame, are `MG-0611`.
+#[cfg(test)]
+fn failures_are_typed(
+    python: &RealPython,
+    root: &Path,
+    work: &Path,
+    parameters: &[Parameter],
+    inputs: &[Frame],
+) {
+    let fails = step(root, "sales", "fails");
+    let error = plan_step(python, &RealFileSystem, &fails, parameters, work).unwrap_err();
+    assert_eq!(error.code(), Some("MG-0611"));
     assert!(
         matches!(
             &error,
@@ -82,15 +98,9 @@ fn mg_req_0617_polars_planned_with_empty_frames() {
         ),
         "{error:?}"
     );
-    let not_lazy = execute_step(
-        &python,
-        &RealFileSystem,
-        &step(&root, "sales", "not_lazy"),
-        &inputs,
-        &work,
-    );
-    let error = not_lazy.unwrap_err();
-    assert_eq!(error.code(), Some("MG-0618"));
+    let not_lazy = step(root, "sales", "not_lazy");
+    let error = execute_step(python, &RealFileSystem, &not_lazy, inputs, work).unwrap_err();
+    assert_eq!(error.code(), Some("MG-0611"));
     assert!(
         matches!(
             &error,
@@ -99,15 +109,23 @@ fn mg_req_0617_polars_planned_with_empty_frames() {
         ),
         "{error:?}"
     );
+}
 
-    // A child that cannot import `polars`: MG-0619, with its fix.
+/// A child that cannot import `polars` is `MG-0612`, with its fix.
+#[cfg(test)]
+fn missing_polars_is_typed(
+    python: &RealPython,
+    root: &Path,
+    work: &Path,
+    parameters: &[Parameter],
+) {
     write(
         &root.join("lib").join("polars.py"),
         "raise ImportError('no polars here')\n",
     );
-    let missing = plan_step(&python, &RealFileSystem, &in_usd, &parameters, &work);
-    let error = missing.unwrap_err();
-    assert_eq!(error.code(), Some("MG-0619"));
+    let in_usd = step(root, "sales", "in_usd");
+    let error = plan_step(python, &RealFileSystem, &in_usd, parameters, work).unwrap_err();
+    assert_eq!(error.code(), Some("MG-0612"));
     assert!(
         matches!(&error, PolarsError::PolarsMissing { message, .. } if message == "no polars here"),
         "{error:?}"
