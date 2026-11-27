@@ -143,3 +143,11 @@
 
 The implementers of phase 0.4 build from these values. A value that proves wrong is changed
 here, through a specification pull request, before code depends on it.
+
+## Plan contract compatibility (#255)
+
+The plan contract stays at major version 1. `step.refresh` keeps its single value `full`,
+because adding an enum value is a major change (MG-REQ-0204). An incremental step is written
+with the new optional property `step.incremental` `{mode: period | key}`, which is a minor
+change. Version 2 can fold the two into one property later, if a major change is ever needed
+for another reason.
