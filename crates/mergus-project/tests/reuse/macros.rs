@@ -271,3 +271,31 @@ fn mg_req_0644_macro_change_refingerprints_callers_only() {
     assert_eq!(before["fact_plain"], BTreeMap::new());
     assert_eq!(after["fact_plain"], BTreeMap::new());
 }
+
+#[test]
+fn mg_req_0644_each_overload_parsed_in_its_form() {
+    let file = "CREATE MACRO pick(a) AS helper(a), (t) AS TABLE SELECT * FROM query_table(t);\n\
+                CREATE MACRO helper(a) AS a;\n";
+    let table = CatalogMacro {
+        name: "pick".to_owned(),
+        table: true,
+        definition: "SELECT * FROM query_table(t)".to_owned(),
+    };
+    let runs = [(
+        file,
+        created(vec![
+            scalar("helper", "a"),
+            scalar("pick", "helper(a)"),
+            table,
+        ]),
+    )];
+    let parser = SimSqlParser::new();
+    parser.record("SELECT a", tree(&[]));
+    parser.record("SELECT helper(a)", tree(&["helper"]));
+    parser.record("SELECT * FROM query_table(t)", tree(&["query_table"]));
+    let macros = read(&[("macros/pick.sql", file)], &runs, &parser).unwrap();
+    let pick = &macros.macros["pick"];
+    assert!(pick.table);
+    assert_eq!(pick.overloads.len(), 2);
+    assert_eq!(pick.calls, BTreeSet::from(["helper".to_owned()]));
+}

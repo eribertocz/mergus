@@ -160,3 +160,25 @@ fn mg_req_0646_large_seed_warns() {
     assert_eq!(read.warnings[0].path(), "seeds/big.csv");
     assert!(read.warnings[0].to_string().contains("source"));
 }
+
+#[test]
+fn mg_req_0645_seed_columns_keep_declaration_order() {
+    let project = "name = \"sales\"\n\
+        [seeds.inline]\nheader = false\ncolumns = { zone = \"VARCHAR\", amount = \"BIGINT\" }\n\
+        [seeds.table.columns]\nzz = \"DATE\"\nmm = \"VARCHAR\"\naa = \"BIGINT\"\n";
+    let files = [
+        ("seeds/inline.csv", b"north,7\n".as_slice()),
+        ("seeds/table.csv", b"zz,mm,aa\n".as_slice()),
+    ];
+    let read = read(project, &files).unwrap();
+    let names = |index: usize| -> Vec<&str> {
+        read.seeds[index]
+            .columns
+            .iter()
+            .map(|column| column.name.as_str())
+            .collect()
+    };
+    assert!(!read.seeds[0].header);
+    assert_eq!(names(0), ["zone", "amount"]);
+    assert_eq!(names(1), ["zz", "mm", "aa"]);
+}

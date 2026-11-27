@@ -8,6 +8,7 @@ use mergus_contracts::hash::sha256_hex;
 use mergus_ports::{FileSystem, ResultColumn, is_column_type};
 use serde_json::Value;
 
+use crate::config::key_order;
 use crate::{Configuration, LayoutError, ProjectError, ProjectWarning, key_line};
 
 /// The size above which a seed warns, in bytes (MG-REQ-0646.1).
@@ -23,7 +24,8 @@ pub struct Seed {
     pub name: String,
     /// The path of the CSV file, relative to the project root.
     pub path: String,
-    /// Its columns, in the sorted order of their names, each with its DuckDB type.
+    /// Its columns, in the order `project.toml` writes them, each with its DuckDB type: a
+    /// file without a header is read by position.
     pub columns: Vec<ResultColumn>,
     /// The one character between values.
     pub delimiter: String,
@@ -107,7 +109,9 @@ pub fn read_seeds(
         }
         let problems = column_problems(&project, &name, declaration);
         if problems.is_empty() {
-            read.seeds.push(seed(name, path, declaration, &bytes));
+            let order = key_order(&project, &["seeds", &name, "columns"]).unwrap_or_default();
+            read.seeds
+                .push(seed(name, path, declaration, &order, &bytes));
         }
         read.problems.extend(problems);
     }
@@ -166,13 +170,18 @@ fn columns(declaration: &Value) -> impl Iterator<Item = (&str, &str)> {
         .filter_map(|(column, data_type)| Some((column.as_str(), data_type.as_str()?)))
 }
 
-/// The seed `name` at `path`, declared by `declaration`, whose file holds `bytes`.
-fn seed(name: String, path: String, declaration: &Value, bytes: &[u8]) -> Seed {
+/// The seed `name` at `path`, declared by `declaration` with its columns in `order`, whose
+/// file holds `bytes`.
+fn seed(name: String, path: String, declaration: &Value, order: &[String], bytes: &[u8]) -> Seed {
+    let types: BTreeMap<&str, &str> = columns(declaration).collect();
     Seed {
-        columns: columns(declaration)
-            .map(|(column, data_type)| ResultColumn {
-                name: column.to_owned(),
-                data_type: data_type.to_owned(),
+        columns: order
+            .iter()
+            .filter_map(|column| {
+                Some(ResultColumn {
+                    name: column.clone(),
+                    data_type: (*types.get(column.as_str())?).to_owned(),
+                })
             })
             .collect(),
         delimiter: declaration

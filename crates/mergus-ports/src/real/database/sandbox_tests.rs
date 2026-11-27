@@ -1,8 +1,11 @@
 //! Tests of the sandboxed session of macro files of the real `Database` (MG-REQ-0641,
 //! MG-REQ-0642).
 
+use std::path::Path;
+
 use super::RealDatabase;
-use crate::{CatalogMacro, Database, MacroRun};
+use crate::real::RealFileSystem;
+use crate::{CatalogMacro, Database, FileSystem, MacroRun};
 
 /// Runs `script` in the sandboxed session of a real database.
 fn run(script: &str) -> MacroRun {
@@ -51,22 +54,54 @@ fn mg_req_0641_other_objects_are_changes() {
     );
 }
 
+/// The refusal of `script` in the sandboxed session; fails when it is not refused.
+fn refusal(script: &str) -> String {
+    let run = run(script);
+    assert_eq!(run.macros, Vec::<CatalogMacro>::new(), "`{script}`");
+    run.refused
+        .unwrap_or_else(|| panic!("`{script}` was not refused"))
+}
+
 #[test]
 fn mg_req_0641_sandbox_refuses_files_network_and_settings() {
+    // The paths are relative to the crate directory, where `cargo test` runs.
+    let files = RealFileSystem;
+    let csv = Path::new("mg_req_0641_rates.csv");
+    let attached = Path::new("mg_req_0641_other.duckdb");
+    let copy = Path::new("mg_req_0641_copy.csv");
+    files.write(csv, b"day,rate\n2026-01-01,1.5\n").unwrap();
+    for path in [attached, copy] {
+        if files.exists(path).unwrap() {
+            files.remove_file(path).unwrap();
+        }
+    }
+    let disabled = "file system operations are disabled by configuration";
     for script in [
-        "SET threads = 1;",
-        "ATTACH 'other.duckdb';",
+        "CREATE MACRO m() AS TABLE SELECT * FROM read_csv('mg_req_0641_rates.csv');",
+        "ATTACH 'mg_req_0641_other.duckdb';",
+        "COPY (SELECT 1) TO 'mg_req_0641_copy.csv';",
+    ] {
+        let refused = refusal(script);
+        assert!(refused.contains(disabled), "`{script}`: {refused}");
+    }
+    files.remove_file(csv).unwrap();
+    assert!(
+        !files.exists(attached).unwrap(),
+        "the ATTACH target was created"
+    );
+    assert!(!files.exists(copy).unwrap(), "the COPY target was created");
+    let locked = refusal("SET threads = 1;");
+    assert!(
+        locked.contains("the configuration has been locked"),
+        "{locked}"
+    );
+    for script in [
         "INSTALL httpfs;",
         "LOAD httpfs;",
-        "COPY (SELECT 1) TO 'mg_req_0641_copy.csv';",
-        "CREATE MACRO m() AS TABLE SELECT * FROM read_csv('mg_req_0641.csv');\
-         SELECT * FROM m();",
         "CREATE MACRO m() AS {{ body }};",
     ] {
-        let run = run(script);
-        assert!(run.refused.is_some(), "`{script}` was not refused");
+        refusal(script);
     }
-    assert!(!std::path::Path::new("mg_req_0641_copy.csv").exists());
 }
 
 #[test]

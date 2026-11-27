@@ -20,11 +20,13 @@ pub struct Macro {
     pub name: String,
     /// The path of its file, relative to the project root.
     pub path: String,
-    /// Whether it is a table macro.
+    /// Whether one of its overloads is a table macro.
     pub table: bool,
-    /// Its `macro_definition`; the definitions of its overloads in DuckDB's order, one per
-    /// line, when it has several.
+    /// Its `macro_definition`; the definitions of its overloads one per line, in the order of
+    /// their text (the port sorts them), when it has several.
     pub definition: String,
+    /// Its overloads, each parsed in its own form for its calls (MG-REQ-0644.1).
+    pub overloads: Vec<CatalogMacro>,
     /// `sha256:<hex>`, the SHA-256 of [`Macro::definition`] (MG-REQ-0644.2).
     pub hash: String,
     /// The macros of the project it calls, lowercase (MG-REQ-0644.1).
@@ -131,17 +133,18 @@ pub fn read_macros(
     }
     let names: BTreeSet<String> = read.macros.keys().cloned().collect();
     for found in read.macros.values_mut() {
-        // MG-REQ-0644.1: the text is only parsed, never run; a scalar macro's definition is
-        // an expression, read as the select list of `SELECT <definition>`.
-        let body = if found.table {
-            found.definition.clone()
-        } else {
-            ["SELECT ", found.definition.as_str()].concat()
-        };
-        found.calls = sql_calls(parser, &body)?
-            .intersection(&names)
-            .cloned()
-            .collect();
+        let mut calls = BTreeSet::new();
+        for overload in &found.overloads {
+            // MG-REQ-0644.1: the text is only parsed, never run; a scalar macro's definition
+            // is an expression, read as the select list of `SELECT <definition>`.
+            let body = if overload.table {
+                overload.definition.clone()
+            } else {
+                ["SELECT ", overload.definition.as_str()].concat()
+            };
+            calls.extend(sql_calls(parser, &body)?.intersection(&names).cloned());
+        }
+        found.calls = calls;
     }
     Ok(Macros {
         macros: read.macros,
@@ -246,6 +249,7 @@ fn grouped(path: &str, macros: &[CatalogMacro]) -> Vec<Macro> {
                 table: overloads.iter().any(|found| found.table),
                 hash: format!("sha256:{}", sha256_hex(definition.as_bytes())),
                 definition,
+                overloads: overloads.into_iter().cloned().collect(),
                 calls: BTreeSet::new(),
             }
         })
