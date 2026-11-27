@@ -7,7 +7,7 @@ use std::sync::{Arc, Mutex};
 use arrow::record_batch::RecordBatch;
 use mergus_ports::{
     Database, DatabaseConnection, DatabaseLocation, DuckLakeCatalog, Extension, LoadedExtension,
-    PortError, ResultColumn, SqlValue,
+    MacroRun, PortError, ResultColumn, SqlValue,
 };
 
 use crate::rng::{Rate, SimRng, lock};
@@ -43,6 +43,7 @@ struct Shared {
     schemas: Mutex<Vec<(String, Vec<SqlValue>, Described)>>,
     described: Mutex<Vec<(String, Vec<SqlValue>)>>,
     created: Mutex<Vec<CreatedTable>>,
+    macro_runs: Mutex<BTreeMap<String, MacroRun>>,
 }
 
 /// What the real database answered when it described a query: its columns, or its refusal.
@@ -103,6 +104,7 @@ impl SimDatabase {
                 schemas: Mutex::new(Vec::new()),
                 described: Mutex::new(Vec::new()),
                 created: Mutex::new(Vec::new()),
+                macro_runs: Mutex::new(BTreeMap::new()),
             }),
         }
     }
@@ -210,6 +212,12 @@ impl SimDatabase {
         lock(&self.shared.unencrypted).push(metadata.into());
     }
 
+    /// Records what the real database's sandboxed session showed when it ran the macro file
+    /// `script` (MG-REQ-0641), replacing an earlier answer.
+    pub fn record_macro_run(&self, script: impl Into<String>, run: MacroRun) {
+        lock(&self.shared.macro_runs).insert(script.into(), run);
+    }
+
     /// Records `answer` for `sql` with `params`, replacing an earlier one.
     fn record(&self, sql: String, params: Vec<SqlValue>, answer: Answer) {
         let mut answers = lock(&self.shared.answers);
@@ -227,6 +235,15 @@ impl Database for SimDatabase {
             shared: Arc::clone(&self.shared),
             loaded: Vec::new(),
         }))
+    }
+
+    /// Fails with [`PortError::NotFound`] when nothing was recorded for `script`.
+    fn run_macros(&self, script: &str) -> Result<MacroRun, PortError> {
+        self.shared.enter(script)?;
+        lock(&self.shared.macro_runs)
+            .get(script)
+            .cloned()
+            .ok_or_else(|| PortError::NotFound(format!("a recorded macro run for `{script}`")))
     }
 }
 

@@ -19,9 +19,12 @@
 | `Setting`, `Origin` | A JSON value and where it comes from: file and line, convention or default |
 | `Identifier`, `IdKind` | A stable identifier and the kind that picks its prefix |
 | `Renames` | The entries of `ids.toml`: current name to stored identifier |
+| `Macros`, `Macro` | The macros of `macros/`, by lowercase name: file, kind, definition, hash and the macros each calls |
+| `Seeds`, `Seed` | The seeds, their problems and warnings; each seed's columns, delimiter, header and hash |
+| `ProjectWarning` | A warning with its `MG-####` code and path, which never fails a read |
 | `Identifiers` | Gives each object its identifier and collects the ones given twice |
 
-Functions: `read_layout`, `read_configuration`, `read_model_options`, `is_valid_name`, `suggest_valid_name`, `closest_name`, `read_renames`, `derive_identifier` and `read_sql_references`.
+Functions: `read_layout`, `read_configuration`, `read_model_options`, `is_valid_name`, `suggest_valid_name`, `closest_name`, `read_renames`, `derive_identifier`, `read_sql_references`, `read_macros`, `sql_calls` and `read_seeds`.
 
 ## Data flow
 
@@ -67,11 +70,26 @@ Functions: `read_layout`, `read_configuration`, `read_model_options`, `is_valid_
    MG-REQ-0369 with the first `<n>` from 0 whose result is not reserved.
 4. `finish` returns every identifier given to a second object, naming both and their files.
 
+## Reuse flow
+
+1. `read_macros` lists `macros/*.sql`, sorted, and gives each file's text to
+   `Database::run_macros`, one fresh sandboxed session per file. A refusal or a changed
+   catalog row is `MG-0604`; the file's macros are grouped by lowercase name, overloads
+   together, and checked against that session's built-ins and the earlier files (`MG-0605`).
+2. With no problem, the calls of each macro are the function names of the `SqlParser` tree of
+   `SELECT <definition>` (scalar) or `<definition>` (table) that name a macro.
+3. `Macros::fingerprint_inputs` takes the calls of a model, from `sql_calls` on its text, and
+   follows them through the macros.
+4. `read_seeds` reads the valid configuration's `[seeds.*]` and the `seeds/*.csv` stems:
+   undeclared files, declarations without files and unknown types are problems; each declared
+   file is hashed and warns above `LARGE_SEED_BYTES`. Unknown seed keys are found by the
+   schema and reported as `MG-0608`.
+
 ## Dependencies
 
-- `mergus-ports`: the `FileSystem` port and `PortError`.
+- `mergus-ports`: the `FileSystem`, `SqlParser` and `Database` ports, `MacroRun`, `is_column_type` and `PortError`.
 - `mergus-contracts`: `canonical_json`, the RFC 8785 serializer, and `hash::sha256`, the
-  SHA-256 of derived identifiers behind a Mergus interface (MG-REQ-0186).
+  SHA-256 of derived identifiers, macros and seeds behind a Mergus interface (MG-REQ-0186).
 - `toml` 0.9.8, with `toml_parser` 1.0.4 in `Cargo.lock`: the last releases that parse TOML
   1.0 rather than 1.1.
 - `jsonschema` 0.63 without default features (no file or network resolution).

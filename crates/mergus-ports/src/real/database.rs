@@ -9,11 +9,14 @@ use duckdb::{Config, Connection};
 use crate::database::quote_identifier;
 use crate::{
     Database, DatabaseConnection, DatabaseLocation, DuckLakeCatalog, Extension, LoadedExtension,
-    PortError, ResultColumn, SqlValue,
+    MacroRun, PortError, ResultColumn, SqlValue,
 };
 
 #[cfg(test)]
 mod describe_tests;
+mod sandbox;
+#[cfg(test)]
+mod sandbox_tests;
 #[cfg(test)]
 mod tests;
 
@@ -101,6 +104,12 @@ impl Database for RealDatabase {
             host: self.host().to_owned(),
             loaded: Vec::new(),
         }))
+    }
+
+    /// Opens the session with the configuration of every connection, then turns external
+    /// access off and locks the configuration.
+    fn run_macros(&self, script: &str) -> Result<MacroRun, PortError> {
+        sandbox::run(self.config()?, script)
     }
 }
 
