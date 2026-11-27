@@ -23,10 +23,12 @@ Execute Polars steps.
   once (MG-REQ-0617.3).
 - Writes and reads every Arrow IPC file batch by batch through `FileSystem::create` and
   `FileSystem::open`.
-- Fails with `MG-0618` when the step raises an exception or does not return a LazyFrame,
-  naming the model, the step, and the exception's type and message or the returned type, and
-  with `MG-0620` when the child cannot import `polars`, with the fix "install polars in the
-  project's Python" (MG-REQ-0617.4).
+- Fails with `MG-0618` when the step raises an exception, in the call or while its result is
+  collected, or does not return a LazyFrame, naming the model, the step, and the exception's
+  type and message or the returned type (MG-REQ-0617.4); with `MG-0619` when the model file
+  raises when imported or has no function named after the step, naming the model, the file,
+  and the exception's type and message (MG-REQ-0617.5); and with `MG-0620` when the child
+  cannot import `polars`, with the fix "install polars in the project's Python".
 - Adds nothing to the model's module: a step stays a plain function that a Python test calls
   with a LazyFrame built by hand, without Mergus (MG-REQ-0619.1).
 

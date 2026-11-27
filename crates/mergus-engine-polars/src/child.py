@@ -37,6 +37,10 @@ def main():
         sys.modules[name] = module
         spec.loader.exec_module(module)
         function = getattr(module, step)
+    except Exception as error:
+        report({"status": "load_failed", "type": type(error).__name__, "message": str(error)})
+        return
+    try:
         if mode == "plan":
             frames = {p: pl.LazyFrame(schema=pl.read_ipc_schema(f)) for p, f in inputs}
         else:

@@ -74,6 +74,11 @@ enum Status {
     NotLazyFrame {
         returned: String,
     },
+    LoadFailed {
+        #[serde(rename = "type")]
+        kind: String,
+        message: String,
+    },
     Exception {
         #[serde(rename = "type")]
         kind: String,
@@ -104,7 +109,9 @@ pub fn child_environment(work_dir: &str, environment: &dyn Environment) -> Vec<(
 /// # Errors
 ///
 /// Fails with [`PolarsError::StepFailed`] (`MG-0618`) when the step raises an exception or
-/// does not return a LazyFrame, with [`PolarsError::PolarsMissing`] (`MG-0620`) when the
+/// does not return a LazyFrame, with [`PolarsError::LoadFailed`] (`MG-0619`) when the model
+/// file raises when imported or has no function named after the step, with
+/// [`PolarsError::PolarsMissing`] (`MG-0620`) when the
 /// child cannot import `polars`, with [`PolarsError::Child`] when the child stops without a
 /// report, with [`PolarsError::Boundary`] when a file of the step cannot be read as Arrow
 /// IPC, and with [`PolarsError::Port`] when the interpreter or the file system fails.
@@ -195,6 +202,11 @@ fn call(
     } else {
         None
     };
+    outcome(step, report, &output)
+}
+
+/// Turns the child's report, or its absence, into the result of the call.
+fn outcome(step: &Step, report: Option<Status>, output: &ProcessOutput) -> Result<(), PolarsError> {
     let failure = |failure| PolarsError::StepFailed {
         model: step.model.clone(),
         step: step.step.clone(),
@@ -207,6 +219,12 @@ fn call(
             step: step.step.clone(),
             message,
         }),
+        Some(Status::LoadFailed { kind, message }) => Err(PolarsError::LoadFailed {
+            model: step.model.clone(),
+            file: step.module.display().to_string(),
+            kind,
+            message,
+        }),
         Some(Status::NotLazyFrame { returned }) => {
             Err(failure(StepFailure::NotLazyFrame { returned }))
         }
@@ -216,7 +234,7 @@ fn call(
         Some(Status::Ok) | None => Err(PolarsError::Child {
             model: step.model.clone(),
             step: step.step.clone(),
-            reason: stopped(&output),
+            reason: stopped(output),
         }),
     }
 }

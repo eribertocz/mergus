@@ -6,8 +6,8 @@ use mergus_ports::PortError;
 #[derive(Debug, thiserror::Error)]
 #[non_exhaustive]
 pub enum PolarsError {
-    /// The step raised an exception, or returned something that is not a LazyFrame
-    /// (MG-REQ-0617.4).
+    /// The step raised an exception, returned something that is not a LazyFrame, or raised
+    /// an exception while its result was collected (MG-REQ-0617.4, MG-REQ-0617.5).
     #[error("model `{model}`, step `{step}`: {failure}")]
     StepFailed {
         /// The model.
@@ -16,6 +16,19 @@ pub enum PolarsError {
         step: String,
         /// What went wrong.
         failure: StepFailure,
+    },
+    /// The model file did not load: importing it raised an exception, or it has no function
+    /// named after the step (MG-REQ-0617.5).
+    #[error("model `{model}`, file `{file}` did not load: {kind}: {message}; fix the file")]
+    LoadFailed {
+        /// The model.
+        model: String,
+        /// The model file.
+        file: String,
+        /// The exception's type.
+        kind: String,
+        /// The exception's message.
+        message: String,
     },
     /// The Python child cannot import `polars` (MG-REQ-0617.4).
     #[error(
@@ -57,7 +70,7 @@ pub enum PolarsError {
 /// How a step failed (MG-REQ-0617.4).
 #[derive(Clone, Debug, PartialEq, Eq, thiserror::Error)]
 pub enum StepFailure {
-    /// It raised an exception, of the type `kind` with the message `message`.
+    /// It raised an exception in the call or while its result was collected, of the type `kind` with the message `message`.
     #[error("{kind}: {message}")]
     Exception {
         /// The exception's type.
@@ -81,6 +94,7 @@ impl PolarsError {
     pub fn code(&self) -> Option<&'static str> {
         match self {
             Self::StepFailed { .. } => Some("MG-0618"),
+            Self::LoadFailed { .. } => Some("MG-0619"),
             Self::PolarsMissing { .. } => Some("MG-0620"),
             Self::Child { .. } | Self::Boundary { .. } | Self::Port(_) => None,
         }

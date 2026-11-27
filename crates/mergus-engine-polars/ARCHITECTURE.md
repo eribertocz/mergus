@@ -12,7 +12,7 @@
 | `execute_step` | Calls a step with `pl.scan_ipc` inputs and returns its result (MG-REQ-0617.3) |
 | `step_dir` | The working directory of a step under the run's work directory |
 | `child_environment` | The allowlisted environment of the Python child (MG-REQ-0006) |
-| `PolarsError`, `StepFailure` | `StepFailed` (`MG-0618`), `PolarsMissing` (`MG-0620`), `Child`, `Boundary` or a `PortError` |
+| `PolarsError`, `StepFailure` | `StepFailed` (`MG-0618`), `LoadFailed` (`MG-0619`), `PolarsMissing` (`MG-0620`), `Child`, `Boundary` or a `PortError` |
 
 ## Data flow
 
@@ -27,7 +27,7 @@ plan_step / execute_step
                    plan:    pl.LazyFrame(schema=pl.read_ipc_schema(file))
                    execute: pl.scan_ipc(file)
               ─► plan: zero-row schema.arrow    execute: collect() once ─► output.arrow
-              ─► status.json: ok, exception, not_lazy_frame or no_polars
+              ─► status.json: ok, exception, not_lazy_frame, load_failed or no_polars
   ─► status.json ─► PolarsError, or FileSystem::open ─► schema.arrow / output.arrow
 ```
 

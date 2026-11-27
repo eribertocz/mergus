@@ -2,7 +2,7 @@
 //! once with `pl.scan_ipc` inputs for its result; its failures are typed.
 
 use mergus_engine_polars::{
-    Frame, Parameter, PolarsError, StepFailure, execute_step, plan_step, step_dir,
+    Frame, Parameter, PolarsError, Step, StepFailure, execute_step, plan_step, step_dir,
 };
 use std::path::Path;
 
@@ -24,6 +24,9 @@ def fails(joined):
 
 def not_lazy(joined):
     return "SELECT 1"
+
+def bad_column(joined):
+    return joined.select(pl.col("no_such_column"))
 "#;
 
 #[test]
@@ -52,6 +55,7 @@ fn mg_req_0617_polars_planned_with_empty_frames() {
     }];
     plans_and_executes(&python, &root, &work, &parameters, &inputs);
     failures_are_typed(&python, &root, &work, &parameters, &inputs);
+    load_failures_are_typed(&python, &root, &work, &parameters);
     missing_polars_is_typed(&python, &root, &work, &parameters);
 }
 
@@ -77,7 +81,8 @@ fn plans_and_executes(
     assert_eq!(read(&dir.join("rows_seen")), "2");
 }
 
-/// An exception, and a return value that is not a LazyFrame, are `MG-0618`.
+/// An exception in the call, a return value that is not a LazyFrame, and an exception while
+/// the result is collected are `MG-0618`.
 #[cfg(test)]
 fn failures_are_typed(
     python: &RealPython,
@@ -109,6 +114,51 @@ fn failures_are_typed(
         ),
         "{error:?}"
     );
+    let bad_column = step(root, "sales", "bad_column");
+    let error = execute_step(python, &RealFileSystem, &bad_column, inputs, work).unwrap_err();
+    assert_eq!(error.code(), Some("MG-0618"));
+    assert!(
+        matches!(&error, PolarsError::StepFailed { failure: StepFailure::Exception { kind, .. }, .. }
+            if kind == "ColumnNotFoundError"),
+        "{error:?}"
+    );
+}
+
+/// A model file that raises when imported, or that lacks the step's function, did not load:
+/// `MG-0619`, naming the model and the file.
+#[cfg(test)]
+fn load_failures_are_typed(
+    python: &RealPython,
+    root: &Path,
+    work: &Path,
+    parameters: &[Parameter],
+) {
+    let missing = step(root, "sales", "no_such_step");
+    let error = plan_step(python, &RealFileSystem, &missing, parameters, work).unwrap_err();
+    assert_eq!(error.code(), Some("MG-0619"));
+    assert!(
+        matches!(&error, PolarsError::LoadFailed { model, file, kind, .. }
+            if model == "sales" && *file == missing.module.display().to_string()
+                && kind == "AttributeError"),
+        "{error:?}"
+    );
+    let broken_file = root.join("models").join("broken.py");
+    write(
+        &broken_file,
+        "import polars as pl\nraise RuntimeError('broken at import')\n",
+    );
+    let broken = Step {
+        module: broken_file,
+        ..step(root, "broken", "broken")
+    };
+    let error = plan_step(python, &RealFileSystem, &broken, parameters, work).unwrap_err();
+    assert_eq!(error.code(), Some("MG-0619"));
+    assert!(
+        matches!(&error, PolarsError::LoadFailed { kind, message, .. }
+            if kind == "RuntimeError" && message == "broken at import"),
+        "{error:?}"
+    );
+    assert!(error.to_string().contains("fix the file"));
 }
 
 /// A child that cannot import `polars` is `MG-0620`, with its fix.
