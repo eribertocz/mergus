@@ -16,7 +16,7 @@
 | `RawLoad` | The rows one load extracted from one table, and the keys it found deleted |
 | `write_raw` | Writes a `RawLoad` into `__changes` and the current table in one commit |
 | `load_raw` | Writes a load with `write_raw`, then records it in `ops.loads` |
-| `load_raw_off` | Records the extraction of a source with `raw = false` |
+| `load_raw_off`, `load_raw_off_failed` | Record the extraction of a source with `raw = false`, done or failed |
 | `Watermarks` | The watermarks before and after a load, in text |
 | `record_load` | The one writer of `ops.loads`, for `mergus-ops` to take over |
 | `LoadRecord`, `LoadMode`, `LoadResult` | A row of `ops.loads`, its `mode` and its `result` |
@@ -69,8 +69,11 @@
    be written, `RawError::Registry` is returned: the raw version stays, unrecorded, and is
    ignored.
 3. `last_watermark` reads `loads` at a version of the ops store and keeps the
-   `watermark_after` of the last row of the table, failed rows included, as theirs equals
-   their `watermark_before`.
+   `watermark_after` of the table's row with the greatest `started_at`, then the greatest
+   `load_id`, since storage returns rows in no set order. Failed rows count, as their
+   `watermark_after` equals their `watermark_before`.
+4. `load_raw_off_failed` records a failed extraction of a source with `raw = false`, with the
+   code the caller gives.
 
 ## Retention
 

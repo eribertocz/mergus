@@ -29,7 +29,7 @@ pub(super) fn clock_at(micros: i64) -> SimClock {
 }
 
 #[cfg(test)]
-fn marks(before: Option<&str>, after: Option<&str>) -> Watermarks {
+pub(super) fn marks(before: Option<&str>, after: Option<&str>) -> Watermarks {
     Watermarks {
         before: before.map(str::to_owned),
         after: after.map(str::to_owned),
@@ -38,14 +38,14 @@ fn marks(before: Option<&str>, after: Option<&str>) -> Watermarks {
 
 #[cfg(test)]
 /// A load of the incremental table `sales`, keyed by `sale_id`.
-fn incremental(id: &str, at: i64, rows: RecordBatch) -> RawLoad {
+pub(super) fn incremental(id: &str, at: i64, rows: RecordBatch) -> RawLoad {
     let mut load = load(&["sale_id"], id, at, rows, Vec::new());
     load.table.incremental = Some("sold_at".to_owned());
     load
 }
 
 #[cfg(test)]
-fn optional_texts(batch: &RecordBatch, column: &str) -> Vec<Option<String>> {
+pub(super) fn optional_texts(batch: &RecordBatch, column: &str) -> Vec<Option<String>> {
     let column = batch.column_by_name(column).unwrap().as_string::<i32>();
     column
         .iter()

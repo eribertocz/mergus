@@ -21,6 +21,7 @@ use crate::output::{ENVIRONMENT, Output};
 use crate::run::Ports;
 use crate::selection::select;
 use crate::settings::max_parallel;
+use crate::validate::collect;
 
 /// The folder of the plans, relative to the project root.
 const PLANS: &str = ".mergus/plans";
@@ -41,6 +42,14 @@ pub(crate) fn plan(
     let project = match models::read(ports)? {
         Ok(project) => project,
         Err(diagnostics) => return Ok(diagnostics),
+    };
+    let mut diagnostics = Vec::new();
+    let Some(configuration) = collect(
+        read_configuration(ports.files, &project.root),
+        &mut diagnostics,
+    )?
+    else {
+        return Ok(diagnostics);
     };
     let selected = select(
         &project,
@@ -67,8 +76,6 @@ pub(crate) fn plan(
     let mut request = PlanRequest::new(env!("CARGO_PKG_VERSION"), ENVIRONMENT, names);
     request.max_parallel = setting.value;
     let plan = mergus_plan::plan(&planned, &request)
-        .map_err(|error| CliError::Internal(error.to_string()))?;
-    let configuration = read_configuration(ports.files, &project.root)
         .map_err(|error| CliError::Internal(error.to_string()))?;
     let relative = write(ports.files, &project.root, &plan)?;
     output.plan_ready(steps(&plan))?;

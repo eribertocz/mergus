@@ -41,7 +41,7 @@ mod zone;
 
 pub use problem::StorageProblem;
 pub use raw_error::RawError;
-pub use raw_load::{Watermarks, load_raw, load_raw_off};
+pub use raw_load::{Watermarks, load_raw, load_raw_off, load_raw_off_failed};
 pub use raw_open::{RAW_ALIAS, open_raw};
 pub use raw_write::{RawLoad, write_raw};
 pub use registry::{

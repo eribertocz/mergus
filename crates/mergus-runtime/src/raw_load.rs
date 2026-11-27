@@ -44,14 +44,8 @@ pub fn load_raw(
     };
     let written = write_raw(raw, load, previous);
     let record = match &written {
-        Ok(_) => record(clock, load, mode, watermarks, None),
-        Err(error) => {
-            let failed = Watermarks {
-                before: watermarks.before.clone(),
-                after: watermarks.before.clone(),
-            };
-            record(clock, load, mode, &failed, Some(error))
-        }
+        Ok(_) => record(clock, load, mode, watermarks, Outcome::Ok),
+        Err(error) => record(clock, load, mode, watermarks, Outcome::Failed(error.code())),
     };
     if let Err(error) = record_load(ops, &record) {
         return Err(written.err().unwrap_or(RawError::Registry(error)));
@@ -72,38 +66,75 @@ pub fn load_raw_off(
     load: &RawLoad,
     watermarks: &Watermarks,
 ) -> Result<VersionRef, RawError> {
-    let record = record(clock, load, LoadMode::RawOff, watermarks, None);
+    let record = record(clock, load, LoadMode::RawOff, watermarks, Outcome::Ok);
     record_load(ops, &record).map_err(RawError::Registry)
 }
 
-/// The row of `ops.loads` of `load`, read in `mode`, ending now by `clock`, failed with
-/// `error` when there is one.
+/// Records in `ops.loads`, through `ops`, the failed extraction `load` of a source with
+/// `raw = false`, with `mode = 'raw_off'`, `result = 'failed'`, 0 rows, `watermark_after`
+/// equal to `watermark_before` and the failure's `code` (MG-REQ-0514.1, MG-REQ-0517.1).
+/// Returns the version of the ops commit.
+///
+/// # Errors
+///
+/// Returns [`RawError::Registry`] when the load cannot be recorded.
+pub fn load_raw_off_failed(
+    ops: &mut dyn StorageAdapter,
+    clock: &dyn Clock,
+    load: &RawLoad,
+    watermarks: &Watermarks,
+    code: &str,
+) -> Result<VersionRef, RawError> {
+    let outcome = Outcome::Failed(Some(code));
+    let record = record(clock, load, LoadMode::RawOff, watermarks, outcome);
+    record_load(ops, &record).map_err(RawError::Registry)
+}
+
+/// How a load ended, for its row of `ops.loads`.
+#[derive(Clone, Copy)]
+enum Outcome<'a> {
+    /// It was written.
+    Ok,
+    /// It failed, with the `MG-####` code of its error.
+    Failed(Option<&'a str>),
+}
+
+/// The row of `ops.loads` of `load`, read in `mode`, ending now by `clock`. A failed load has
+/// 0 rows and keeps its `watermark_before` (MG-REQ-0514.1).
 fn record(
     clock: &dyn Clock,
     load: &RawLoad,
     mode: LoadMode,
     watermarks: &Watermarks,
-    error: Option<&RawError>,
+    outcome: Outcome<'_>,
 ) -> LoadRecord {
     let rows: usize = load.rows.iter().map(|batch| batch.num_rows()).sum();
     let elapsed = micros(clock.now()).saturating_sub(micros(load.extracted_at));
+    let (rows, after, result, error_code) = match outcome {
+        Outcome::Ok => (
+            i64::try_from(rows).unwrap_or(i64::MAX),
+            watermarks.after.clone(),
+            LoadResult::Ok,
+            None,
+        ),
+        Outcome::Failed(code) => (
+            0,
+            watermarks.before.clone(),
+            LoadResult::Failed,
+            code.map(str::to_owned),
+        ),
+    };
     LoadRecord {
         load_id: load.load_id.clone(),
         source: load.source.clone(),
         table: load.table.name.clone(),
         mode,
-        rows: match error {
-            Some(_) => 0,
-            None => i64::try_from(rows).unwrap_or(i64::MAX),
-        },
+        rows,
         watermark_before: watermarks.before.clone(),
-        watermark_after: watermarks.after.clone(),
+        watermark_after: after,
         started_at: load.extracted_at,
         duration_ms: elapsed.max(0) / 1_000,
-        result: match error {
-            Some(_) => LoadResult::Failed,
-            None => LoadResult::Ok,
-        },
-        error_code: error.and_then(RawError::code).map(str::to_owned),
+        result,
+        error_code,
     }
 }

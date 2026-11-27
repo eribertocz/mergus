@@ -9,7 +9,8 @@ use arrow::array::{
     Array, ArrayRef, AsArray, Int64Array, RecordBatch, RecordBatchIterator, StringArray,
     TimestampMicrosecondArray,
 };
-use arrow::datatypes::{DataType, Field, Schema, SchemaRef, TimeUnit};
+use arrow::compute::cast;
+use arrow::datatypes::{DataType, Field, Schema, SchemaRef, TimeUnit, TimestampMicrosecondType};
 use arrow::error::ArrowError;
 use mergus_adapter::{AdapterError, StorageAdapter, VersionRef, WriteMode};
 use mergus_ports::{Clock, Random, Timestamp};
@@ -124,11 +125,7 @@ fn schema() -> SchemaRef {
         Field::new("rows", DataType::Int64, false),
         text("watermark_before", true),
         text("watermark_after", true),
-        Field::new(
-            "started_at",
-            DataType::Timestamp(TimeUnit::Microsecond, Some(UTC.into())),
-            false,
-        ),
+        Field::new("started_at", utc(), false),
         Field::new("duration_ms", DataType::Int64, false),
         text("result", false),
         text("error_code", true),
@@ -161,8 +158,9 @@ fn row(record: &LoadRecord) -> Result<RecordBatch, ArrowError> {
 }
 
 /// The `watermark_after` of the last load of `table` of `source` recorded in `ops.loads` at
-/// `version`, where the next load starts (MG-REQ-0514.2). `None` when no load of the table is
-/// recorded, or the last one has no watermark.
+/// `version`, where the next load starts (MG-REQ-0514.2): the row with the greatest
+/// `started_at`, then the greatest `load_id`, whatever order the rows are read in. `None`
+/// when no load of the table is recorded, or the last one has no watermark.
 ///
 /// # Errors
 ///
@@ -173,28 +171,59 @@ pub fn last_watermark(
     source: &str,
     table: &str,
 ) -> Result<Option<String>, RawError> {
-    let unreadable = |error: ArrowError| RawError::Registry(AdapterError::Storage(Box::new(error)));
-    let mut last = None;
+    let mut last: Option<(i64, String, Option<String>)> = None;
     for batch in ops.read_at(LOADS, version).map_err(RawError::Registry)? {
         let batch = batch.map_err(unreadable)?;
-        let column = |name: &str| {
+        let text = |name: &str| {
             batch
                 .column_by_name(name)
                 .and_then(|column| column.as_string_opt::<i32>().cloned())
-                .ok_or_else(|| unreadable(ArrowError::SchemaError(format!("no column `{name}`"))))
+                .ok_or_else(|| missing(name))
         };
-        let (sources, tables, marks) = (
-            column("source")?,
-            column("table")?,
-            column("watermark_after")?,
+        let (sources, tables, ids, marks) = (
+            text("source")?,
+            text("table")?,
+            text("load_id")?,
+            text("watermark_after")?,
         );
+        let started = batch
+            .column_by_name("started_at")
+            .ok_or_else(|| missing("started_at"))?;
+        let started = cast(started, &utc()).map_err(unreadable)?;
+        let started = started.as_primitive::<TimestampMicrosecondType>();
         for index in 0..batch.num_rows() {
-            if sources.value(index) == source && tables.value(index) == table {
-                last = Some((!marks.is_null(index)).then(|| marks.value(index).to_owned()));
+            if sources.value(index) != source || tables.value(index) != table {
+                continue;
+            }
+            let row = (
+                started.value(index),
+                ids.value(index).to_owned(),
+                (!marks.is_null(index)).then(|| marks.value(index).to_owned()),
+            );
+            if last
+                .as_ref()
+                .is_none_or(|last| (row.0, &row.1) > (last.0, &last.1))
+            {
+                last = Some(row);
             }
         }
     }
-    Ok(last.flatten())
+    Ok(last.and_then(|(_, _, mark)| mark))
+}
+
+/// A failure to read `ops.loads`.
+fn unreadable(error: ArrowError) -> RawError {
+    RawError::Registry(AdapterError::Storage(Box::new(error)))
+}
+
+/// `ops.loads` read without the column `name`.
+fn missing(name: &str) -> RawError {
+    unreadable(ArrowError::SchemaError(format!("no column `{name}`")))
+}
+
+/// The type of `started_at`: a `TIMESTAMPTZ` in UTC.
+fn utc() -> DataType {
+    DataType::Timestamp(TimeUnit::Microsecond, Some(UTC.into()))
 }
 
 /// A new load id: a UUID version 7, lowercase with hyphens, from the time of `clock` and the
