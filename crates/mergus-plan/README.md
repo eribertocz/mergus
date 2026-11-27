@@ -12,6 +12,24 @@ Resolve, order and fingerprint the work; produce the plan.
 - Makes one step per selected model: `skip` with `result_available` when its fingerprint is
   among the available results the caller gives, otherwise `compute` with `no_result`; refresh
   `full` (MG-REQ-0712, MG-REQ-0713, MG-REQ-0744.2).
+- Reads each model's refresh from its options (MG-REQ-0651 to MG-REQ-0654, MG-REQ-0661):
+  - `full` by default: the whole result is rebuilt when the fingerprint changes.
+  - `incremental` with `partition_by`, with or without `key`: `step.incremental` is
+    `{mode: period}`. `step.periods` holds the affected periods the caller gives, those that
+    overlap or touch merged, sorted by `start`, as RFC 3339 UTC timestamps. The list is empty
+    when nothing is recomputed. A period is the half-open UTC range of one grain, and weeks
+    start on Monday.
+  - `incremental` with `key` only: `{mode: key}` and no periods.
+  - `incremental` with neither: `MG-0704`.
+  - `history` needs `key` and `by` (`MG-0705` otherwise), and `deletes` defaults to `ignore`.
+    Its step stays `full`.
+  Every model's refresh errors come back together, in model name order.
+- Adds a backfill's range, widened to whole periods of the grain, to the model's periods, and
+  computes the step even when its result is available (MG-REQ-0657). Backfilling a model that
+  is not incremental by period gives `MG-0706`.
+- Tells, through `Plan::storage` and `Plan::stored`, whether each step's result is stored: a
+  published model where it is published, an intermediate with `materialize = true` in the
+  internal zone, any other intermediate not at all (MG-REQ-0656).
 - Cuts the steps of each depth, in name order, into parallel groups of at most
   `max_parallel` (4 by default), numbered from 1 by depth then order (MG-REQ-0716,
   MG-REQ-0744.3).

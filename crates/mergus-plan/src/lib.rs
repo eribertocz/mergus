@@ -29,6 +29,12 @@
 //! `Determinism` gates (MG-REQ-0634, MG-REQ-0637), for the caller to give to [`evaluate`];
 //! [`detect_sql`] finds the non-deterministic operations of a SQL text on its parsed tree.
 //!
+//! Each model is refreshed as its options say ([`refresh`]): `full` by default (MG-REQ-0651);
+//! `incremental` by period, writing the affected periods the caller gives, merged and sorted
+//! (MG-REQ-0652), or by key (MG-REQ-0653); `history` with its `key`, `by` and `deletes`
+//! (MG-REQ-0661). A [`Backfill`] adds its range, widened to whole periods (MG-REQ-0657).
+//! [`Plan::storage`] says whether each result is stored (MG-REQ-0656).
+//!
 //! The crate is pure: it performs no I/O (MG-REQ-0004).
 
 #![forbid(unsafe_code)]
@@ -40,21 +46,28 @@ mod execution;
 mod fingerprint;
 mod gate;
 mod graph;
+mod incremental;
 mod input;
 mod passport;
+mod period;
+mod refresh;
 mod segment;
 mod types;
 
 pub use build::{Plan, plan};
 pub use determinism::{Detected, Operation, detect_sql, determinism};
-pub use error::PlanError;
+pub use error::{PlanError, RefreshError};
 pub use fingerprint::{FingerprintInputs, fingerprint};
 pub use gate::{
     Blocked, Cleared, Existence, Gate, GateCheck, GateError, GateInput, GateReport, GateResult,
     RequiredSecret, evaluate,
 };
-pub use input::{DEFAULT_MAX_PARALLEL, PlanModel, PlanRequest, effective_config, lf_text};
+pub use input::{
+    Backfill, DEFAULT_MAX_PARALLEL, PlanModel, PlanRequest, effective_config, lf_text,
+};
 pub use passport::type_passport;
+pub use period::{Grain, Instant, Range};
+pub use refresh::{By, Deletes, Refresh, Storage, refresh, storage};
 pub use segment::{
     ColumnRead, Crossing, CrossingColumn, Engine, Fused, ModelStep, OutputColumn, Segments, segment,
 };

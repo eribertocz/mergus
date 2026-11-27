@@ -17,9 +17,14 @@
 | `ModelStep`, `OutputColumn`, `ColumnRead`, `Engine` | One step of a model: its engine, its typed output columns, the columns it reads from earlier steps, its detected operations |
 | `Segments`, `Fused`, `Crossing`, `CrossingColumn` | The fused segments of a model, and the typed columns crossing between each pair |
 | `Operation`, `Detected` | A non-deterministic operation, and where a step uses it |
-| `PlanError` | An internal error: an unknown selected model, a cycle, a broken contract, a bad stage-4 input |
+| `Refresh`, `By`, `Deletes` | How a model is refreshed: full, incremental by period or by key, or history with its key, `by` and `deletes` |
+| `Storage` | Where a result is stored: published, internal (a materialized intermediate) or not stored |
+| `Instant`, `Range`, `Grain` | A UTC instant to the second, a half-open range of them, and the grain of a period |
+| `Backfill` | The `--from` and `--to` (or run start) of a backfill |
+| `RefreshError` | A refresh error a user sees, with its `MG-07xx` code |
+| `PlanError` | Refresh errors, or an internal error: an unknown selected model, a cycle, a broken contract, a bad stage-4 input, a bad option value, a bad backfill |
 
-Functions: `plan`, `segment`, `type_passport`, `detect_sql`, `determinism`, `fingerprint`, `effective_config`, `lf_text` and `evaluate`.
+Functions: `plan`, `refresh`, `storage`, `segment`, `type_passport`, `detect_sql`, `determinism`, `fingerprint`, `effective_config`, `lf_text` and `evaluate`.
 
 ## Data flow
 
@@ -27,23 +32,30 @@ Functions: `plan`, `segment`, `type_passport`, `detect_sql`, `determinism`, `fin
    `Identifiers`, `read_sql_references`) and builds one `PlanModel` per model with
    `PlanModel::from_project`; a Python model has no input in 0.2. A `.sql` model gets one
    DuckDB step named like the model (MG-REQ-0631.2).
-2. `plan` orders every model after the models it reads (depth first, in name order) and
+2. `plan` reads the refresh and storage of every model, in name order, and returns every
+   refresh error together (MG-REQ-0654, MG-REQ-0657.2, MG-REQ-0661).
+3. `plan` orders every model after the models it reads (depth first, in name order) and
    computes each fingerprint in that order, so an upstream fingerprint is known before it is
    used. A raw input takes the version the caller gives, or `null`.
-3. Each selected model gets its depth: the most selected models on a chain of models
+4. Each selected model gets its depth: the most selected models on a chain of models
    upstream of it. Steps of one depth are cut, in name order, into groups of at most
    `max_parallel`.
-4. Every model upstream of a selected model, not selected, whose fingerprint is not
+5. Every model upstream of a selected model, not selected, whose fingerprint is not
    available, is listed in `stale_upstream` with `+` and the first selected model downstream
    of it in name order.
-5. A model with steps gets its `segments`: `segment` starts a new segment at each change of
+6. A model with steps gets its `segments`: `segment` starts a new segment at each change of
    engine. A crossing from segment `a` to a later segment `b` holds the columns that steps of
    `b` read from steps of `a`, each once, in the output order of the steps of `a`. The
    builder then checks the conditions of MG-REQ-0747.4 that the schema cannot express.
    Each boundary's transport is `arrow` when `PlanRequest::rows` of the model times the
    widths of its columns is at most 1 GiB, `parquet` otherwise or without an estimate. Each
    Polars segment takes the highest level of this build, `subprocess`.
-6. The document is validated, `plan_id` is the SHA-256 of its canonical JSON without
+7. Each step gets its refresh fields. A model incremental by period gets `{mode: period}` and
+   its periods: the caller's `PlanRequest::affected` ranges, plus a backfill's range from the
+   start of the period holding `from` to the end of the period holding `to`, merged when they
+   overlap or touch. A backfilled step is `compute` even when its result is available. A model
+   by key gets `{mode: key}`, and the others get neither field.
+8. The document is validated, `plan_id` is the SHA-256 of its canonical JSON without
    `plan_id`, and the document with `plan_id` is validated again. `Plan::bytes` is its
    canonical JSON.
 
