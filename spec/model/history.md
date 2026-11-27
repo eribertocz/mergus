@@ -19,7 +19,10 @@ deletes = "close"          # ignore | close | tombstone
 
 ### MG-REQ-0661 · Required options
 
-A `history` model MUST declare `key` and `by`. `deletes` defaults to `ignore`.
+A `history` model MUST declare `key` and `by`. `deletes` defaults to `ignore`:
+
+1. MG-REQ-0661.1: a `history` model without `key` or without `by` is a validation error raised
+   when the plan is built, with the next free `MG-06xx` code and exit code 1.
 
 - Kind: behavior
 - Verify: test `mg_req_0661_history_requires_key_and_by`
