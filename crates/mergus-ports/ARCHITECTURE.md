@@ -12,11 +12,12 @@
 | `Random` | Random numbers and bytes |
 | `Process` | Runs a `ProcessCommand` and returns its `ProcessOutput` |
 | `Environment` | Command-line arguments, current directory, environment variables and the user configuration and cache directories |
-| `PortError` | `NotFound`, `Failed` or `ExtensionUnavailable` (extension, host, cache directory), returned by every fallible call |
+| `PortError` | `NotFound`, `Failed`, `ExtensionUnavailable` (extension, host, cache directory), `PythonNotFound` (what was tried) or `PythonSyntax` (message, line, column), among others, returned by every fallible call |
 | `SqlParser` | Returns the tree DuckDB's `json_serialize_sql` gives for a SQL text, without executing it |
+| `Python`, `PythonTree` | Returns the tree of a Python file without importing it: `PythonFunction`s with `PythonParameter`s and `PythonReturn`s, `PythonImport`s and `PythonCall`s with their receiver `PythonSegment`s; `PythonTree::from_json` reads the document the interpreter prints |
 | `Database`, `DatabaseConnection` | Connects to a `DatabaseLocation`; runs SQL with bound `SqlValue`s, returns, streams (`query_arrow_each`, DuckDB's streaming execution in the real port) and appends Arrow `RecordBatch`es, attaches a `DuckLakeCatalog`, a DuckDB file or a `PostgresSource` read-only, detaches them, loads an `Extension` and lists each `LoadedExtension` with its version |
 | `Keychain` | Get, set and delete operating system keychain entries by service and account |
-| `real::*` | `RealClock`, `RealDatabase`, `RealEnvironment`, `RealFileSystem`, `RealKeychain`, `RealProcess`, `RealRandom`, `RealSqlParser` (feature `real`) |
+| `real::*` | `RealClock`, `RealDatabase`, `RealEnvironment`, `RealFileSystem`, `RealKeychain`, `RealProcess`, `RealPython`, `RealRandom`, `RealSqlParser` (feature `real`) |
 
 Every trait is `Send + Sync` and takes `&self`, so one value can be shared behind an `Arc`.
 
@@ -26,10 +27,17 @@ Every trait is `Send + Sync` and takes `&self`, so one value can be shared behin
    tests and the simulator create the ports of `mergus-sim`.
 2. It passes them, as constructor or context arguments, to the crates that need them.
 3. Those crates call the traits only; they never name an implementation.
+4. `RealPython::locate` takes the `[python] interpreter` setting, else `<root>/.venv`, else
+   `python3` on the given search path (`python` too on Windows). `parse` runs it with
+   `-I -S -c` and the script `src/real/python_tree.py` (`include_str!`), writes the source to
+   its standard input, clears the inherited environment and sets only the one given. The
+   script parses with `ast` and prints the JSON tree, which `PythonTree::from_json` reads.
 
 ## Dependencies
 
 - `thiserror`: derives `PortError`.
+- `serde` (with `derive`) and `serde_json`: read and write the JSON tree of the `Python`
+  port, and compare trees as JSON values in tests.
 - `arrow` (default features off): the record batches of the `Database` port, at the version
   `duckdb` uses.
 - `duckdb` (feature `real` only; features `bundled`, `json`, `appender-arrow` and
@@ -42,6 +50,5 @@ Every trait is `Send + Sync` and takes `&self`, so one value can be shared behin
   It is the only crate allowed to depend on `keyring` (MG-REQ-0126.7).
 - The standard library, used directly only in `src/real/`, which allows Clippy's
   `disallowed_methods` and `disallowed_types` with a written reason (MG-REQ-0130).
-- A dev-dependency on `serde_json`, to compare trees as JSON values in tests.
 - A dev-dependency on itself with the feature `real`, so `cargo test` runs the tests of the
   real implementations. Dev-dependencies are not linked into other crates.

@@ -9,6 +9,7 @@ mod environment;
 mod file_system;
 mod keychain;
 mod process;
+mod python;
 mod random;
 mod sql_parser;
 
@@ -18,6 +19,7 @@ pub use environment::RealEnvironment;
 pub use file_system::RealFileSystem;
 pub use keychain::RealKeychain;
 pub use process::RealProcess;
+pub use python::RealPython;
 pub use random::RealRandom;
 pub use sql_parser::RealSqlParser;
 

@@ -51,6 +51,24 @@ pub enum PortError {
         /// The parameter, `application_name` or `options`.
         parameter: String,
     },
+    /// No Python interpreter was found: neither the configured one, nor one in the project's
+    /// `.venv`, nor one on the search path. `searched` lists what was tried, in order.
+    #[error("no Python interpreter was found; tried {}", .searched.join(", "))]
+    PythonNotFound {
+        /// The interpreters tried, in order.
+        searched: Vec<String>,
+    },
+    /// A Python file is not valid Python. The message is the interpreter's; lines and columns
+    /// start at 1, and a column counts characters.
+    #[error("{message}")]
+    PythonSyntax {
+        /// The interpreter's message.
+        message: String,
+        /// The line of the error, when the interpreter gives one.
+        line: Option<u32>,
+        /// The column of the error, when the interpreter gives one.
+        column: Option<u32>,
+    },
 }
 
 impl PortError {
@@ -65,7 +83,9 @@ impl PortError {
             | Self::Refused(_)
             | Self::UnsupportedType(_)
             | Self::ExtensionUnavailable { .. }
-            | Self::UnencryptedCatalog { .. } => None,
+            | Self::UnencryptedCatalog { .. }
+            | Self::PythonNotFound { .. }
+            | Self::PythonSyntax { .. } => None,
         }
     }
 }
