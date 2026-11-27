@@ -14,6 +14,7 @@
 | `SimProcess` | Programs answer with outputs set by the test; `runs` returns every command run |
 | `SimEnvironment` | Arguments, current directory, variables, a configuration and a cache directory set by the test |
 | `SimDatabase`, `DatabaseFaults` | Results and extension versions recorded with the real `Database`, replayed batch by batch by `query_arrow_each`; the statements run, appended batches and attached catalogs, encrypted or not; catalogs recorded unencrypted; errors |
+| `SimPython` | Python trees recorded with the real `Python` port, by source text, read with `PythonTree::from_json` |
 | `SimKeychain` | Keychain entries in memory, by service and account, set by the test |
 | `Scenario` | What a caller simulates: how a seed draws steps, the world, one step |
 | `Simulator` | Runs, replays and shrinks a scenario from a seed |
