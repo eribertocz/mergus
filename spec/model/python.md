@@ -36,7 +36,11 @@ it, to find its functions, parameters, return kinds and literal SQL.
 ### MG-REQ-0612 · Every public function is a step
 
 Every top-level function whose name does not start with `_` MUST be a step. Functions
-starting with `_` are private helpers.
+starting with `_` are private helpers:
+
+1. MG-REQ-0612.1: only functions defined at the top level of the file count; nested functions
+   and methods are not steps. Steps keep their order in the file. A public `async def` is a
+   validation error with the next free `MG-06xx` code and exit code 1.
 
 - Kind: behavior
 - Verify: test `mg_req_0612_public_functions_are_steps`
@@ -45,7 +49,17 @@ starting with `_` are private helpers.
 
 A step that returns a string literal MUST be a DuckDB step; a step that returns a Polars
 LazyFrame MUST be a Polars step. A step that returns anything else, or SQL built from
-variables or f-strings, MUST be a validation error.
+variables or f-strings, MUST be a validation error:
+
+1. MG-REQ-0613.1: a return of a string literal, including adjacent literals Python joins, is
+   SQL. Any other expression is Polars, confirmed when the step runs (MG-REQ-0617.4).
+2. MG-REQ-0613.2: the following are each a validation error with the next free `MG-06xx` code
+   and exit code 1, naming the step and the line:
+   - a return of an f-string, of a `+` or `%` expression, or of a bare variable name;
+   - a return of a `.format(...)` call on a string literal, that is a call named `format`
+     whose receiver is a literal, on the return's line;
+   - a return of `None`, or a step with no `return`;
+   - a step whose returns do not all have the same kind.
 
 - Kind: behavior
 - Verify: test `mg_req_0613_return_kind_selects_engine`
@@ -54,7 +68,14 @@ variables or f-strings, MUST be a validation error.
 
 Each parameter name MUST resolve to another step of the same file, a model, a raw table or a
 seed, in that order of precedence. Raw tables and seeds are named without the schema:
-`erp__sales` for `raw.erp__sales`, `seed__countries` for `raw.seed__countries`. An unresolved name is an error naming the closest match.
+`erp__sales` for `raw.erp__sales`, `seed__countries` for `raw.seed__countries`. An unresolved name is an error naming the closest match:
+
+1. MG-REQ-0614.1: the closest match is the known name with the smallest edit distance
+   (Levenshtein), ties broken by name order. A name farther than 3 edits from every known name
+   gets no suggestion. The error has the next free `MG-06xx` code and exit code 1.
+2. MG-REQ-0614.2: a `*args` or `**kwargs` parameter, a parameter with a default value, and a
+   cycle between steps of one file are each a validation error with its own next free `MG-06xx`
+   code and exit code 1. A step's parameter never resolves to the step itself.
 
 - Kind: behavior
 - Verify: test `mg_req_0614_parameters_resolve_inputs`
@@ -62,7 +83,10 @@ seed, in that order of precedence. Raw tables and seeds are named without the sc
 ### MG-REQ-0615 · The function named like the file is the result
 
 The step whose name equals the file stem MUST be the model's result, wherever it is written
-in the file. A file without it MUST be an error stating the missing function name.
+in the file. A file without it MUST be an error stating the missing function name:
+
+1. MG-REQ-0615.1: the error has the next free `MG-06xx` code and exit code 1. Its message names
+   the file and the expected definition, `def <stem>(...)`.
 
 - Kind: behavior
 - Verify: test `mg_req_0615_result_function_required`
@@ -70,7 +94,13 @@ in the file. A file without it MUST be an error stating the missing function nam
 ### MG-REQ-0616 · Steps return recipes, never data
 
 A Polars step MUST NOT call `.collect()`, `.fetch()` or convert to eager data. Mergus MUST
-reject it with the fix ("return the LazyFrame").
+reject it with the fix ("return the LazyFrame"):
+
+1. MG-REQ-0616.1: the eager calls are the methods `collect`, `collect_async`, `fetch`,
+   `to_pandas`, `to_arrow` and `to_dicts`, and `DataFrame(...)` called on the name `polars`
+   is imported as. Any of them anywhere in a model file, private helpers included, is a
+   validation error with the next free `MG-06xx` code and exit code 1, naming the line and
+   giving the fix.
 
 - Kind: behavior
 - Verify: test `mg_req_0616_collect_rejected`
@@ -104,7 +134,15 @@ same isolation as execution:
 ### MG-REQ-0618 · Shared code lives in lib
 
 Reusable Python MUST live in `lib/*.py` and be imported normally. Mergus MUST include the
-imported `lib` modules in the fingerprint of the models that import them.
+imported `lib` modules in the fingerprint of the models that import them:
+
+1. MG-REQ-0618.1: `lib` is first on the child's `sys.path` (MG-REQ-0617.1), so `lib/helpers.py`
+   is imported as `helpers`. An absolute import whose first name part is the stem of a
+   `lib/*.py` file imports that module. Lib modules are read without importing them, as
+   models are (MG-REQ-0611), to follow their own lib imports.
+2. MG-REQ-0618.2: the fingerprint inputs of a model gain one entry `lib:<module>` with the
+   value `sha256:<hex>` of the file's bytes, for each lib module it imports directly or through
+   other lib modules. Changing one lib file changes the fingerprint of its importers only.
 
 - Kind: behavior
 - Verify: test `mg_req_0618_lib_changes_refingerprint_importers`
