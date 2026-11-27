@@ -5,6 +5,12 @@ use std::fmt;
 use mergus_ports::PortError;
 
 mod access;
+mod warning;
+
+pub use warning::ProjectWarning;
+mod format;
+
+use format::{cycle_names, cycle_references, hint, key_prefix};
 
 /// The kind of a name checked by MG-REQ-0305.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -273,37 +279,86 @@ pub enum ProjectError {
         /// The parameter as written, such as `?` or `$1`.
         written: String,
     },
-}
-
-/// Formats the models of a cycle, back to the first.
-fn cycle_names(models: &[String]) -> String {
-    models
-        .iter()
-        .chain(models.first())
-        .map(|name| format!("`{name}`"))
-        .collect::<Vec<_>>()
-        .join(" -> ")
-}
-
-/// Formats each reference of a cycle with the model it reads.
-fn cycle_references(models: &[String], references: &[(String, usize)]) -> String {
-    let next = models.iter().skip(1).chain(models.first());
-    references
-        .iter()
-        .zip(next)
-        .map(|((path, line), name)| format!("`{path}` line {line} reads `{name}`"))
-        .collect::<Vec<_>>()
-        .join("; ")
-}
-
-/// Formats the key of an error, when there is one.
-fn key_prefix(key: Option<&str>) -> String {
-    key.map_or_else(String::new, |key| format!("key `{key}` "))
-}
-
-/// Formats the closest valid name of an error, when there is one.
-fn hint(suggestion: Option<&str>) -> String {
-    suggestion.map_or_else(String::new, |name| format!("; did you mean `{name}`?"))
+    /// A macro file holds a statement DuckDB refuses, or creates an object other than a
+    /// macro (MG-REQ-0641.2).
+    #[error("`{path}`: {reason}; a macro file holds only CREATE MACRO statements")]
+    ForbiddenMacroFile {
+        /// The path of the macro file.
+        path: String,
+        /// DuckDB's refusal, or the objects the file creates.
+        reason: String,
+    },
+    /// Two macros have one name, compared without case (MG-REQ-0642).
+    #[error("macro `{name}` is defined twice: `{first}` and `{path}`")]
+    DuplicateMacro {
+        /// The name of the later macro.
+        name: String,
+        /// The path of the earlier file, in the sorted order of `macros/`.
+        first: String,
+        /// The path of the later file.
+        path: String,
+    },
+    /// A macro has the name of a DuckDB built-in function or of a macro of Mergus, such as
+    /// `as_of`, compared without case (MG-REQ-0642).
+    #[error("`{path}`: macro `{name}` shadows the built-in function `{builtin}`")]
+    MacroShadowsBuiltin {
+        /// The name of the macro.
+        name: String,
+        /// The path of its file.
+        path: String,
+        /// The name of the built-in, as DuckDB or Mergus gives it.
+        builtin: String,
+    },
+    /// A `seeds/<name>.csv` has no `[seeds.<name>]` in `project.toml` (MG-REQ-0645.2).
+    #[error(
+        "seed `{path}` is not declared; add `[seeds.{name}]` with its column types to \
+         `project.toml`"
+    )]
+    UndeclaredSeed {
+        /// The seed name.
+        name: String,
+        /// The path of the CSV file.
+        path: String,
+    },
+    /// A `[seeds.<name>]` of `project.toml` has no `seeds/<name>.csv` (MG-REQ-0645.2).
+    #[error("`{path}` line {line}: seed `{name}` is declared but `seeds/{name}.csv` is missing")]
+    SeedWithoutFile {
+        /// The seed name.
+        name: String,
+        /// The path of `project.toml`.
+        path: String,
+        /// The line of the declaration, from 1.
+        line: usize,
+    },
+    /// A `[seeds.<name>]` has a key other than `columns`, `delimiter` and `header`
+    /// (MG-REQ-0645.1, MG-REQ-0645.2).
+    #[error("`{path}` line {line}: unknown seed key `{key}`{}", hint(suggestion.as_deref()))]
+    UnknownSeedKey {
+        /// The path of `project.toml`.
+        path: String,
+        /// The line of the key, from 1.
+        line: usize,
+        /// The key, dotted from the root of the file.
+        key: String,
+        /// The closest allowed key (MG-REQ-0359).
+        suggestion: Option<String>,
+    },
+    /// A seed column has a type that is not a DuckDB column type name as `DESCRIBE` writes
+    /// it (MG-REQ-0645.1, MG-REQ-0645.2).
+    #[error(
+        "`{path}` line {line}: key `{key}`: `{type_name}` is not a DuckDB column type as \
+         DESCRIBE writes it, such as `BIGINT` or `VARCHAR`"
+    )]
+    UnknownSeedType {
+        /// The path of `project.toml`.
+        path: String,
+        /// The line of the column, from 1.
+        line: usize,
+        /// The key of the column, dotted from the root of the file.
+        key: String,
+        /// The type given.
+        type_name: String,
+    },
 }
 
 /// Why a project layout could not be read.

@@ -25,6 +25,12 @@ impl ProjectError {
             Self::UnpreparableSql { .. } => "MG-0601",
             Self::UnknownParameter { .. } => "MG-0602",
             Self::PositionalParameter { .. } => "MG-0603",
+            Self::ForbiddenMacroFile { .. } => "MG-0611",
+            Self::DuplicateMacro { .. } | Self::MacroShadowsBuiltin { .. } => "MG-0612",
+            Self::UndeclaredSeed { .. } => "MG-0613",
+            Self::SeedWithoutFile { .. } => "MG-0614",
+            Self::UnknownSeedKey { .. } => "MG-0615",
+            Self::UnknownSeedType { .. } => "MG-0616",
         }
     }
 
@@ -48,7 +54,14 @@ impl ProjectError {
             | Self::ForbiddenSql { path, .. }
             | Self::UnpreparableSql { path, .. }
             | Self::UnknownParameter { path, .. }
-            | Self::PositionalParameter { path, .. } => path,
+            | Self::PositionalParameter { path, .. }
+            | Self::ForbiddenMacroFile { path, .. }
+            | Self::DuplicateMacro { path, .. }
+            | Self::MacroShadowsBuiltin { path, .. }
+            | Self::UndeclaredSeed { path, .. }
+            | Self::SeedWithoutFile { path, .. }
+            | Self::UnknownSeedKey { path, .. }
+            | Self::UnknownSeedType { path, .. } => path,
             Self::ModelCycle { references, .. } => references.first().map_or("", |(path, _)| path),
         }
     }
@@ -60,7 +73,11 @@ impl ProjectError {
             Self::DuplicateModel { .. }
             | Self::InvalidName { .. }
             | Self::DuplicateIdentifier { .. }
-            | Self::UnpreparableSql { .. } => None,
+            | Self::UnpreparableSql { .. }
+            | Self::ForbiddenMacroFile { .. }
+            | Self::DuplicateMacro { .. }
+            | Self::MacroShadowsBuiltin { .. }
+            | Self::UndeclaredSeed { .. } => None,
             Self::InvalidToml { line, .. }
             | Self::UnknownKey { line, .. }
             | Self::InvalidValue { line, .. }
@@ -73,7 +90,10 @@ impl ProjectError {
             | Self::UnknownReference { line, .. }
             | Self::ForbiddenSql { line, .. }
             | Self::UnknownParameter { line, .. }
-            | Self::PositionalParameter { line, .. } => Some(*line),
+            | Self::PositionalParameter { line, .. }
+            | Self::SeedWithoutFile { line, .. }
+            | Self::UnknownSeedKey { line, .. }
+            | Self::UnknownSeedType { line, .. } => Some(*line),
             Self::ModelCycle { references, .. } => references.first().map(|(_, line)| *line),
         }
     }
@@ -103,7 +123,12 @@ impl ProjectError {
             | Self::ModelCycle { .. }
             | Self::UnpreparableSql { .. }
             | Self::UnknownParameter { .. }
-            | Self::PositionalParameter { .. } => None,
+            | Self::PositionalParameter { .. }
+            | Self::ForbiddenMacroFile { .. }
+            | Self::DuplicateMacro { .. }
+            | Self::MacroShadowsBuiltin { .. }
+            | Self::UndeclaredSeed { .. }
+            | Self::SeedWithoutFile { .. } => None,
             Self::InvalidIds { key, .. } => key.as_deref(),
             Self::UnknownKey { key, .. }
             | Self::InvalidValue { key, .. }
@@ -111,7 +136,9 @@ impl ProjectError {
             | Self::NonFiniteFloat { key, .. }
             | Self::UnknownSection { section: key, .. }
             | Self::LiteralSecret { key, .. }
-            | Self::DuplicateIdsEntry { second: key, .. } => Some(key),
+            | Self::DuplicateIdsEntry { second: key, .. }
+            | Self::UnknownSeedKey { key, .. }
+            | Self::UnknownSeedType { key, .. } => Some(key),
         }
     }
 }

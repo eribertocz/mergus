@@ -27,6 +27,14 @@
 //! [`sql_schema`] gives the columns of a step through the
 //! [`Database`](mergus_ports::Database) port, with typed placeholders against empty input
 //! tables, so no data is read (MG-REQ-0604).
+//!
+//! [`read_macros`] runs each `macros/*.sql` through the
+//! [`Database`](mergus_ports::Database) port in a sandboxed session, which must show only new
+//! macros (MG-REQ-0641), with unique names that shadow no built-in (MG-REQ-0642); and
+//! [`Macros::fingerprint_inputs`] gives the macros a model uses, directly or through another
+//! macro, as fingerprint inputs (MG-REQ-0644). [`read_seeds`] checks each `seeds/<name>.csv`
+//! against its `[seeds.<name>]`, hashes it for the fingerprints of its readers (MG-REQ-0645)
+//! and warns about a large one (MG-REQ-0646).
 
 #![forbid(unsafe_code)]
 
@@ -35,16 +43,18 @@ mod error;
 mod ids;
 mod layout;
 mod names;
+mod reuse;
 mod sql;
 
 pub use config::{
     ConfigFile, ConfigKind, Configuration, Effective, ModelOptions, Origin, Setting, Source,
     key_line, read_configuration, read_model_options, toml_to_json,
 };
-pub use error::{LayoutError, NameKind, ProjectError};
+pub use error::{LayoutError, NameKind, ProjectError, ProjectWarning};
 pub use ids::{IdKind, Identifier, Identifiers, Renames, derive_identifier, read_renames};
 pub use layout::{Layout, Model, ModelLanguage, Publication, read_layout};
 pub use names::{closest_name, is_valid_name, suggest_valid_name};
+pub use reuse::{LARGE_SEED_BYTES, Macro, Macros, Seed, Seeds, read_macros, read_seeds, sql_calls};
 pub use sql::{
     KnownTables, RunParameters, SqlStep, check_sql, check_sql_models, read_sql_references,
     read_sql_step, sql_schema,

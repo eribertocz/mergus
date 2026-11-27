@@ -10,6 +10,11 @@ use crate::{PortError, SqlParser};
 /// concatenated (MG-REQ-0007), and `json_serialize_sql` only parses it.
 const SERIALIZE: &str = "SELECT json_serialize_sql(CAST(? AS VARCHAR))::VARCHAR";
 
+/// The query that returns the tree of `SELECT <its one bound parameter>`: DuckDB joins the
+/// text, the expression is bound, never concatenated by Mergus (MG-REQ-0184).
+const SERIALIZE_SELECT_LIST: &str =
+    "SELECT json_serialize_sql('SELECT ' || CAST(? AS VARCHAR))::VARCHAR";
+
 /// DuckDB's parser: an in-memory DuckDB with `enable_external_access = false`, opened on the
 /// first call and shared by every later one.
 #[derive(Debug, Default)]
@@ -25,8 +30,9 @@ impl RealSqlParser {
     }
 }
 
-impl SqlParser for RealSqlParser {
-    fn parse(&self, sql: &str) -> Result<String, PortError> {
+impl RealSqlParser {
+    /// Runs `query`, one of the serializing queries, with `text` bound.
+    fn serialize(&self, query: &str, text: &str) -> Result<String, PortError> {
         let mut connection = self
             .connection
             .lock()
@@ -38,8 +44,18 @@ impl SqlParser for RealSqlParser {
             return Err(PortError::Failed("the SQL parser is not open".to_owned()));
         };
         connection
-            .query_row(SERIALIZE, [sql], |row| row.get::<_, String>(0))
+            .query_row(query, [text], |row| row.get::<_, String>(0))
             .map_err(failed)
+    }
+}
+
+impl SqlParser for RealSqlParser {
+    fn parse(&self, sql: &str) -> Result<String, PortError> {
+        self.serialize(SERIALIZE, sql)
+    }
+
+    fn parse_select_list(&self, expression: &str) -> Result<String, PortError> {
+        self.serialize(SERIALIZE_SELECT_LIST, expression)
     }
 }
 

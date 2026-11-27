@@ -11,6 +11,8 @@ mod secret;
 
 pub use options::{Effective, ModelOptions, Origin, Setting, read_model_options};
 
+pub(crate) use convert::key_order;
+
 use std::path::Path;
 
 use mergus_ports::FileSystem;

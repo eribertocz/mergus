@@ -7,8 +7,9 @@ Deterministic simulator.
 - Gives every port of `mergus-ports` a simulated implementation (MG-REQ-0131): `SimClock`,
   `SimFileSystem`, `SimObjectStore`, `SimNetwork`, `SimSourceConnector`, `SimRandom`,
   `SimProcess`, `SimEnvironment`, `SimKeychain`, `SimPython`, which replays Python trees
-  recorded with the real `Python` port and runs nothing (MG-REQ-0611), and `SimDatabase`, which answers from results
-  recorded with the real `Database` and logs the statements run (MG-REQ-0194, MG-REQ-0196).
+  recorded with the real `Python` port and runs nothing (MG-REQ-0611), and `SimDatabase`, which
+  answers from results recorded with the real `Database`, macro runs included, and logs the
+  statements run (MG-REQ-0194, MG-REQ-0196, MG-REQ-0641).
 - Makes each one deterministic: created with the same seed and called the same way, it
   returns the same results.
 - Injects the faults of MG-REQ-0161 that belong to a port, at a `Rate` per call:
