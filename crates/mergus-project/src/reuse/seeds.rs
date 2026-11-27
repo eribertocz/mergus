@@ -81,13 +81,7 @@ pub fn read_seeds(
     root: &Path,
     configuration: &Configuration,
 ) -> Result<Seeds, LayoutError> {
-    let declared: BTreeMap<&String, &Value> = configuration
-        .project
-        .value
-        .get("seeds")
-        .and_then(Value::as_object)
-        .map(|seeds| seeds.iter().collect())
-        .unwrap_or_default();
+    let declared = declarations(configuration);
     let project = String::from_utf8_lossy(&files.read(&root.join(PROJECT))?).into_owned();
     let mut read = Seeds::default();
     let mut found = BTreeSet::new();
@@ -126,6 +120,17 @@ pub fn read_seeds(
         });
     }
     Ok(read)
+}
+
+/// The `[seeds.<name>]` of `project.toml`, by name.
+fn declarations(configuration: &Configuration) -> BTreeMap<&String, &Value> {
+    configuration
+        .project
+        .value
+        .get("seeds")
+        .and_then(Value::as_object)
+        .map(|seeds| seeds.iter().collect())
+        .unwrap_or_default()
 }
 
 /// The stems of the `*.csv` files directly in `folder`, in the port's sorted order.
