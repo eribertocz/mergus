@@ -25,6 +25,9 @@ pub struct MergusPlan {
     pub steps: Vec<Step>,
     /// The models left out of the selection, upstream of a selected model, whose result is stale (MG-REQ-0745), sorted by model.
     pub stale_upstream: Vec<Stale>,
+    /// The gates of stage 4, in the order of the gate table of `run/gates.md`, each with its status (MG-REQ-0747.3, MG-REQ-0720, MG-REQ-0722). Absent before phase 0.4.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub gates: Option<Vec<Gate>>,
 }
 
 /// The decision for one selected model.
@@ -43,10 +46,19 @@ pub struct Step {
     pub action: StepAction,
     /// Why: `result_available` for `skip`, `no_result` for `compute` (MG-REQ-0744.2).
     pub reason: StepReason,
-    /// What is computed: the whole result.
+    /// What is computed: `full` the whole result, `period` the periods of `periods` (MG-REQ-0652), `key` the rows of changed keys (MG-REQ-0653).
     pub refresh: StepRefresh,
     /// The parallel group of the step, from 1 (MG-REQ-0744.3).
     pub parallel_group: i64,
+    /// The segments of the model in execution order (MG-REQ-0747.1, MG-REQ-0631).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub segments: Option<Vec<Segment>>,
+    /// The boundaries between segments, sorted by `from` and then by `to` (MG-REQ-0747.1).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub boundaries: Option<Vec<Boundary>>,
+    /// The periods the model recomputes, sorted by `start`; present only when `refresh` is `period`, and empty when nothing is recomputed (MG-REQ-0747.2, MG-REQ-0652).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub periods: Option<Vec<Period>>,
 }
 
 /// Whether the model is computed or its available result reused (MG-REQ-0744.2).
@@ -71,12 +83,18 @@ pub enum StepReason {
     ResultAvailable,
 }
 
-/// What is computed: the whole result.
+/// What is computed: `full` the whole result, `period` the periods of `periods` (MG-REQ-0652), `key` the rows of changed keys (MG-REQ-0653).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum StepRefresh {
     /// `full`.
     #[serde(rename = "full")]
     Full,
+    /// `period`.
+    #[serde(rename = "period")]
+    Period,
+    /// `key`.
+    #[serde(rename = "key")]
+    Key,
 }
 
 /// A model left out of the selection whose result is stale.
@@ -89,9 +107,150 @@ pub struct Stale {
     pub include: String,
 }
 
+/// A run of the model's steps on one engine (MG-REQ-0631).
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Segment {
+    /// The position of the segment in execution order, from 0.
+    pub index: i64,
+    /// The engine that runs the segment.
+    pub engine: SegmentEngine,
+    /// The names of the model's steps the segment runs, in order.
+    pub steps: Vec<String>,
+    /// How Polars runs the segment; present only when `engine` is `polars` (MG-REQ-0635).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub polars_level: Option<SegmentPolarsLevel>,
+    /// Why that level was chosen; present only when `engine` is `polars` (MG-REQ-0635).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub polars_reason: Option<SegmentPolarsReason>,
+}
+
+/// The engine that runs the segment.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum SegmentEngine {
+    /// `duckdb`.
+    #[serde(rename = "duckdb")]
+    Duckdb,
+    /// `polars`.
+    #[serde(rename = "polars")]
+    Polars,
+}
+
+/// How Polars runs the segment; present only when `engine` is `polars` (MG-REQ-0635).
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum SegmentPolarsLevel {
+    /// `native`.
+    #[serde(rename = "native")]
+    Native,
+    /// `in_process`.
+    #[serde(rename = "in_process")]
+    InProcess,
+    /// `subprocess`.
+    #[serde(rename = "subprocess")]
+    Subprocess,
+}
+
+/// Why that level was chosen; present only when `engine` is `polars` (MG-REQ-0635).
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum SegmentPolarsReason {
+    /// `qualified`.
+    #[serde(rename = "qualified")]
+    Qualified,
+    /// `version_mismatch`.
+    #[serde(rename = "version_mismatch")]
+    VersionMismatch,
+    /// `not_available`.
+    #[serde(rename = "not_available")]
+    NotAvailable,
+}
+
+/// Where data crosses from one segment to another (MG-REQ-0633).
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Boundary {
+    /// The index of the segment the data leaves.
+    pub from: i64,
+    /// The index of the segment the data enters.
+    pub to: i64,
+    /// The names of the columns crossing, in their output order.
+    pub columns: Vec<String>,
+    /// How the data crosses (MG-REQ-0633).
+    pub transport: BoundaryTransport,
+}
+
+/// How the data crosses (MG-REQ-0633).
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum BoundaryTransport {
+    /// `arrow`.
+    #[serde(rename = "arrow")]
+    Arrow,
+    /// `parquet`.
+    #[serde(rename = "parquet")]
+    Parquet,
+}
+
+/// One period the model recomputes.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Period {
+    /// The start of the period, an RFC 3339 timestamp in UTC.
+    pub start: String,
+    /// The end of the period, an RFC 3339 timestamp in UTC.
+    pub end: String,
+}
+
+/// One gate of stage 4 and its status (MG-REQ-0720).
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Gate {
+    /// The name of the gate in the gate table of `run/gates.md`.
+    pub gate: String,
+    /// Whether the gate passes, blocks, or is not applicable yet.
+    pub status: GateStatus,
+    /// The phase the gate is due in, such as `0.5`; present only when `status` is `not_applicable`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub phase: Option<String>,
+    /// Why the gate blocks; present only when `status` is `block` (MG-REQ-0722).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub errors: Option<Vec<GateError>>,
+}
+
+/// Whether the gate passes, blocks, or is not applicable yet.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum GateStatus {
+    /// `pass`.
+    #[serde(rename = "pass")]
+    Pass,
+    /// `block`.
+    #[serde(rename = "block")]
+    Block,
+    /// `not_applicable`.
+    #[serde(rename = "not_applicable")]
+    NotApplicable,
+}
+
+/// One error of a blocking gate (MG-REQ-0008).
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct GateError {
+    /// The `MG-####` code of the error.
+    pub code: String,
+    /// What is wrong.
+    pub message: String,
+    /// The model that caused it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub model: Option<String>,
+    /// The step of the model that caused it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub step: Option<String>,
+    /// How to fix it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub fix: Option<String>,
+}
+
 impl crate::Contract for MergusPlan {
     const NAME: &'static str = "mergus_plan";
     const VERSION: u32 = 1;
-    const SEMANTIC_VERSION: &'static str = "1.0.0";
+    const SEMANTIC_VERSION: &'static str = "1.1.0";
     const SCHEMA: &'static str = include_str!("../../../../schemas/mergus_plan/v1/schema.json");
 }

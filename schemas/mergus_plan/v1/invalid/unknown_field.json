@@ -21,7 +21,7 @@
       "reason": "result_available",
       "refresh": "full",
       "parallel_group": 1,
-      "segments": []
+      "engine": "duckdb"
     },
     {
       "model": "fact_sales",
