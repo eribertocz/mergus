@@ -98,9 +98,15 @@
    current table is replaced in the same commit.
 4. `watermark_after` is `watermark_of` the load's rows, or the previous watermark when none
    has a value. The `ops.loads` row follows, through the ops adapter.
-5. A failure before any commit of the load is recorded as `failed` with its code, `MG-0410`
+5. A failure before any commit of the load is recorded as `failed` with its code, `MG-0411`
    among them. After a commit, nothing is recorded: the load is unfinished and the next one
-   resumes it (MG-REQ-0418.2).
+   resumes it (MG-REQ-0418.2). A key read twice in the load, across its chunks and those of
+   before a resume, is `MG-0504`, recorded `failed` even after commits; readers see only
+   loads recorded `ok` (MG-REQ-0518.1, MG-REQ-0518.3).
+6. A resumed load whose last commit was made, its rows current with its load id and its
+   deleted keys gone, only gets its `ops.loads` row (MG-REQ-0418.2).
+7. `rows` is the rows read; `deletes_checked_at` is the load's start when it compared, else
+   NULL; the last compare is the latest non-NULL value (MG-REQ-0415.3).
 
 ## Retention
 

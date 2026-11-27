@@ -85,28 +85,24 @@ impl Temporal {
         text
     }
 
-    /// The text of `watermark − overlap` for a column of this kind (MG-REQ-0412.2). For a
-    /// `DATE` it is the first date not before that instant, the dates a `>=` comparison with
-    /// it keeps. `None` when `watermark` is not a text of this kind.
+    /// The text of `watermark − overlap` for a column of this kind (MG-REQ-0412.2). From a
+    /// `DATE` the overlap is subtracted as whole days, rounded up to the next day. `None` when
+    /// `watermark` is not a text of this kind.
     #[must_use]
     pub fn minus(self, watermark: &str, overlap: Duration) -> Option<String> {
-        let overlap = i64::try_from(overlap.as_micros()).ok()?;
-        let since = self.parse(watermark)?.checked_sub(overlap)?;
+        let mut overlap = i64::try_from(overlap.as_micros()).ok()?;
         if self == Self::Date {
-            let day = since.div_euclid(DAY) + i64::from(since.rem_euclid(DAY) != 0);
-            return Some(self.format(day * DAY));
+            overlap = overlap.div_euclid(DAY) + i64::from(overlap.rem_euclid(DAY) != 0);
+            overlap = overlap.checked_mul(DAY)?;
         }
-        Some(self.format(since))
+        Some(self.format(self.parse(watermark)?.checked_sub(overlap)?))
     }
 }
 
-/// The DuckDB text of the value at `row` of `column`, as `CAST(value AS VARCHAR)` gives it
-/// (MG-REQ-0413): dates and timestamps in DuckDB's form, any other type as Arrow writes it.
-///
-/// # Errors
-///
-/// Fails with [`PortError::Failed`] when the value cannot be written as text.
-pub fn value_text(column: &dyn Array, row: usize) -> Result<String, PortError> {
+/// The value at `row` of `column` as a text DuckDB casts back to the column's type: dates
+/// and timestamps in DuckDB's form, any other type as Arrow writes it. It is bound to the
+/// query that gives DuckDB's own text of the value (MG-REQ-0413).
+pub(crate) fn bound_text(column: &dyn Array, row: usize) -> Result<String, PortError> {
     let failed = |error: arrow::error::ArrowError| {
         PortError::Failed(format!(
             "cannot write an incremental value as text: {error}"

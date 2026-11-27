@@ -24,6 +24,8 @@ pub(crate) struct Unfinished {
     pub(crate) extracted_at: Timestamp,
     /// A batch whose one row holds its largest key.
     pub(crate) last: RecordBatch,
+    /// Its rows.
+    pub(crate) rows: RecordBatch,
 }
 
 /// The rows of `table` at `version`, `None` when there is no version or no such table yet.
@@ -125,6 +127,7 @@ pub(crate) fn unfinished(
         load_id,
         extracted_at: Timestamp::from_unix_nanos(i128::from(micros) * 1_000),
         last: rows.slice(largest, 1),
+        rows,
     }))
 }
 
@@ -233,6 +236,23 @@ impl Current {
         filter_record_batch(rows, &mask)
     }
 
+    /// The first key of `batches` already in `seen`, or read twice in them, shown as
+    /// `column = value` pairs; each new key is added to `seen` (MG-REQ-0518.3).
+    pub(crate) fn repeated(
+        &self,
+        seen: &mut BTreeSet<OwnedRow>,
+        batches: &[RecordBatch],
+    ) -> Result<Option<String>, ArrowError> {
+        for batch in batches {
+            for (row, key) in self.keys.of(batch)?.into_iter().enumerate() {
+                if !seen.insert(key) {
+                    return Ok(Some(self.keys.show(batch, row)?));
+                }
+            }
+        }
+        Ok(None)
+    }
+
     /// The keys of `batches`.
     pub(crate) fn keys_of(
         &self,
@@ -275,4 +295,35 @@ pub(crate) fn stamped(
 /// The number of rows of `batch` that hold a value, for counts.
 pub(crate) fn count(batch: &RecordBatch) -> i64 {
     i64::try_from(batch.num_rows()).unwrap_or(i64::MAX)
+}
+
+/// Whether the last commit of the unfinished load `load_id`, whose rows are `rows`, was made:
+/// the current table holds each of its rows that is not a delete, with its load id, and none
+/// of the keys it deleted (MG-REQ-0418.2). Before that commit, its rows are not current, and
+/// the keys it deleted still are.
+pub(crate) fn finalized(
+    current: Option<&RecordBatch>,
+    rows: &RecordBatch,
+    load_id: &str,
+    key: &[String],
+) -> Result<bool, ArrowError> {
+    let Some(current) = current else {
+        return Ok(false);
+    };
+    let keys = Keys::new(&rows.schema(), key)?;
+    let ours = rows_of(current, load_id)?;
+    let current_keys = keys.set(std::slice::from_ref(current))?;
+    let our_keys = keys.set(std::slice::from_ref(&ours))?;
+    let deleted = deleted_flags(rows)?;
+    for (row, key) in keys.of(rows)?.iter().enumerate() {
+        let done = if deleted[row] {
+            !current_keys.contains(key)
+        } else {
+            our_keys.contains(key)
+        };
+        if !done {
+            return Ok(false);
+        }
+    }
+    Ok(rows.num_rows() > 0)
 }

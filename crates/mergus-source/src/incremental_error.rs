@@ -20,6 +20,20 @@ pub enum ExtractError {
         /// The delete column.
         column: String,
     },
+    /// A table declares a delete detection it cannot run: `compare` without `key`, or
+    /// `delete_window` without an incremental column of a date or time type
+    /// (MG-REQ-0415.4). Nothing of the table was read.
+    #[error("table `{table}` of source `{source_name}` declares `{option}` but {reason}")]
+    DeletesNotRunnable {
+        /// The source.
+        source_name: String,
+        /// The declared table.
+        table: String,
+        /// `deletes` or `delete_window`.
+        option: &'static str,
+        /// Why it cannot run.
+        reason: String,
+    },
     /// The source or the rows read failed.
     #[error(transparent)]
     Port(#[from] PortError),
@@ -31,7 +45,8 @@ impl ExtractError {
     #[must_use]
     pub fn code(&self) -> Option<&'static str> {
         match self {
-            Self::MissingDeleteColumn { .. } => Some("MG-0410"),
+            Self::MissingDeleteColumn { .. } => Some("MG-0411"),
+            Self::DeletesNotRunnable { .. } => Some("MG-0413"),
             Self::Port(_) => None,
         }
     }
@@ -61,6 +76,6 @@ impl LateRows {
     /// Returns the `MG-####` code of the warning (MG-REQ-0420.2).
     #[must_use]
     pub fn code(&self) -> &'static str {
-        "MG-0411"
+        "MG-0412"
     }
 }

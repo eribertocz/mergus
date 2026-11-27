@@ -4,11 +4,10 @@
 use std::collections::BTreeSet;
 
 use arrow::array::{RecordBatch, RecordBatchIterator};
-use arrow::compute::concat_batches;
 use arrow::datatypes::SchemaRef;
 use mergus_adapter::{StorageAdapter, VersionRef, WriteMode};
 use mergus_ports::Timestamp;
-use mergus_source::{IncrementalReader, LateRows, watermark_of};
+use mergus_source::{IncrementalReader, LateRows};
 
 use crate::RawError;
 use crate::chunk_load::{LoadOutcome, Stores, TableLoad, load_rows, rows_error};
@@ -33,8 +32,30 @@ pub(crate) struct Step<'a> {
     pub(crate) resumed: bool,
 }
 
+impl Step<'_> {
+    /// The metadata columns of the load's rows (MG-REQ-0512).
+    pub(crate) fn metadata(&self) -> Metadata {
+        Metadata {
+            load_id: self.load_id.clone(),
+            extracted_at: micros(self.extracted_at),
+        }
+    }
+}
+
 /// The source schema, the raw schema and the current rows of a load that read a schema.
 pub(crate) type Shape = (SchemaRef, SchemaRef, Current);
+
+/// What the chunks of a load did.
+pub(crate) struct Progress {
+    /// The shape of its rows; `None` when no row and no current table gave a schema.
+    pub(crate) shape: Option<Shape>,
+    /// The latest version of raw.
+    pub(crate) raw_version: Option<VersionRef>,
+    /// The rows read, those committed before a resume included (MG-REQ-0514).
+    pub(crate) read: i64,
+    /// The keys read, to find one read twice (MG-REQ-0518.3).
+    pub(crate) seen: BTreeSet<arrow::row::OwnedRow>,
+}
 
 /// Ends the load of `step`: appends the deletes of a due `compare` to `changes`, rewrites
 /// `current` from the load's rows in the same commit, then records the load in `ops.loads`
@@ -43,24 +64,21 @@ pub(crate) fn finish(
     stores: &mut Stores<'_>,
     reader: &mut IncrementalReader<'_>,
     step: &Step<'_>,
-    shape: Option<Shape>,
-    raw_version: Option<VersionRef>,
+    progress: Progress,
     changes: &str,
     current: &str,
 ) -> Result<LoadOutcome, LoadError> {
     let load = step.load;
-    let Some((source, schema, rows)) = shape else {
-        let record = record(
-            stores,
-            step,
-            0,
-            step.before.clone(),
-            step.checked,
-            LoadResult::Ok,
-        );
-        let ops_version = record_load(stores.ops, &record).map_err(RawError::Registry)?;
-        return Ok(outcome(step, raw_version, ops_version, 0, None));
+    let Some((source, schema, rows)) = progress.shape else {
+        let empty = RecordBatch::new_empty(std::sync::Arc::new(arrow::datatypes::Schema::empty()));
+        let ended = Ended {
+            read: 0,
+            checked: None,
+            late: None,
+        };
+        return recorded(stores, reader, step, progress.raw_version, &empty, ended);
     };
+    let raw_version = progress.raw_version;
     let loaded = load_rows(stores.raw, changes, raw_version.as_ref(), &step.load_id)?;
     let loaded = match loaded {
         Some(loaded) => conform(&loaded, &schema),
@@ -74,50 +92,77 @@ pub(crate) fn finish(
             Err(error) => return Err(record_failed(stores, step, true, error)),
         };
     if deletes.num_rows() > 0 {
-        write(stores.raw, changes, WriteMode::Append, deletes.clone())?;
+        write(stores.raw, changes, WriteMode::Append, deletes)?;
     }
     write(stores.raw, current, WriteMode::Replace, new_current)?;
     let raw_version = Some(stores.raw.commit().map_err(RawError::Storage)?);
-    let all =
-        concat_batches(&schema, &[loaded, deletes]).map_err(|error| rows_error(load, error))?;
-    let checked = if compare {
-        Some(step.extracted_at)
-    } else {
-        step.checked
+    let checked = compare.then_some(step.extracted_at);
+    let ended = Ended {
+        read: progress.read,
+        checked,
+        late,
     };
-    recorded(stores, step, raw_version, &all, checked, late)
+    recorded(stores, reader, step, raw_version, &loaded, ended)
 }
 
-/// Records the finished load of `step`, whose rows in `__changes` are `all`, in
-/// `ops.loads`, with the largest incremental value of `all` as `watermark_after`, or the
-/// previous watermark when none has a value (MG-REQ-0412.1, MG-REQ-0413).
+/// Records the unfinished load of `step` whose last commit was made, its rows `prior`: only
+/// its `ops.loads` row was missing (MG-REQ-0418.2). Whether it compared is known again from
+/// its `_extracted_at` and the last compare.
+pub(crate) fn record_only(
+    stores: &mut Stores<'_>,
+    reader: &mut IncrementalReader<'_>,
+    step: &Step<'_>,
+    prior: &RecordBatch,
+) -> Result<LoadOutcome, LoadError> {
+    let compare = reader.compare_due(step.checked, step.extracted_at);
+    let live = live_rows(prior).map_err(|error| rows_error(step.load, error))?;
+    let ended = Ended {
+        read: count(&live),
+        checked: compare.then_some(step.extracted_at),
+        late: None,
+    };
+    let raw_version = step.load.raw_version.clone();
+    recorded(stores, reader, step, raw_version, &live, ended)
+}
+
+/// How a load ended, for its `ops.loads` row.
+struct Ended {
+    /// The rows read (MG-REQ-0514).
+    read: i64,
+    /// Its `_extracted_at` when it compared, else `None` (MG-REQ-0415.3).
+    checked: Option<Timestamp>,
+    /// The very late rows its compare found.
+    late: Option<LateRows>,
+}
+
+/// Records the finished load of `step`, whose committed rows are `loaded`, in `ops.loads`,
+/// with the largest incremental value of `loaded` as `watermark_after`, or the previous
+/// watermark when none has a value (MG-REQ-0412.1, MG-REQ-0413).
 fn recorded(
     stores: &mut Stores<'_>,
+    reader: &mut IncrementalReader<'_>,
     step: &Step<'_>,
     raw_version: Option<VersionRef>,
-    all: &RecordBatch,
-    checked: Option<Timestamp>,
-    late: Option<LateRows>,
+    loaded: &RecordBatch,
+    ended: Ended,
 ) -> Result<LoadOutcome, LoadError> {
-    let load = step.load;
-    let watermark = match &load.table.incremental {
-        Some(column) => watermark_of(std::slice::from_ref(all), column)
-            .map_err(mergus_source::ExtractError::from)?
-            .or_else(|| step.before.clone()),
-        None => None,
+    let watermark = if loaded.num_rows() > 0 {
+        reader.watermark(std::slice::from_ref(loaded))?
+    } else {
+        None
     };
-    let rows = count(all);
+    let watermark = watermark.or_else(|| step.before.clone());
     let record = record(
         stores,
         step,
-        rows,
+        ended.read,
         watermark.clone(),
-        checked,
+        ended.checked,
         LoadResult::Ok,
     );
     let ops_version = record_load(stores.ops, &record).map_err(RawError::Registry)?;
-    let mut outcome = outcome(step, raw_version, ops_version, rows, watermark);
-    outcome.late = late;
+    let mut outcome = outcome(step, raw_version, ops_version, ended.read, watermark);
+    outcome.late = ended.late;
     Ok(outcome)
 }
 
@@ -214,7 +259,7 @@ pub(crate) fn record_failed(
         step,
         0,
         step.before.clone(),
-        step.checked,
+        None,
         LoadResult::Failed,
     );
     record.error_code = error.code().map(str::to_owned);

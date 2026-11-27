@@ -33,6 +33,7 @@
 #![forbid(unsafe_code)]
 
 mod chunk_load;
+mod chunk_read;
 mod chunk_rows;
 mod chunk_step;
 mod load_error;

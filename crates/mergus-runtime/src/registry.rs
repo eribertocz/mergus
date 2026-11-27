@@ -91,9 +91,8 @@ pub struct LoadRecord {
     pub result: LoadResult,
     /// The `MG-####` code of a failed load.
     pub error_code: Option<String>,
-    /// When the last `compare` of the table ran (MG-REQ-0415.3): this load's `started_at`
-    /// when it compared, else the value of the table's previous row; `None` before the
-    /// first compare.
+    /// This load's `started_at` when it ran a `compare`, else `None`; the last compare of a
+    /// table is the latest non-NULL value of its rows (MG-REQ-0415.3).
     pub deletes_checked_at: Option<Timestamp>,
 }
 

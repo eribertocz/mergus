@@ -20,7 +20,7 @@ pub struct LastLoad {
     pub load_id: String,
     /// Its `watermark_after`, where the next load starts.
     pub watermark_after: Option<String>,
-    /// Its `deletes_checked_at`: when the last `compare` of the table ran (MG-REQ-0415.3).
+    /// Its `deletes_checked_at`: its `started_at` when it ran a `compare`, else `None`.
     pub deletes_checked_at: Option<Timestamp>,
 }
 
@@ -33,6 +33,25 @@ pub struct TableLoads {
     /// The id of every recorded load of the table, finished or failed; a load id of
     /// `__changes` that is not here is unfinished (MG-REQ-0418.2).
     pub recorded: BTreeSet<String>,
+    /// The id of every load of the table recorded `ok`: the only ones readers see
+    /// (MG-REQ-0518.1).
+    pub ok: BTreeSet<String>,
+    /// When the last `compare` of the table ran: the latest non-NULL `deletes_checked_at`
+    /// (MG-REQ-0415.3).
+    pub deletes_checked_at: Option<Timestamp>,
+}
+
+impl TableLoads {
+    /// Adds the recorded load `row`, `ok` or not.
+    fn add(&mut self, row: &LastLoad, ok: bool) {
+        self.recorded.insert(row.load_id.clone());
+        if ok {
+            self.ok.insert(row.load_id.clone());
+        }
+        if row.deletes_checked_at > self.deletes_checked_at {
+            self.deletes_checked_at = row.deletes_checked_at;
+        }
+    }
 }
 
 /// The loads of `table` of `source` recorded in `ops.loads` at `version`, whatever order the
@@ -58,11 +77,12 @@ pub fn table_loads(
                 .and_then(|column| column.as_string_opt::<i32>().cloned())
                 .ok_or_else(|| missing(name))
         };
-        let (sources, tables, ids, marks) = (
+        let (sources, tables, ids, marks, results) = (
             text("source")?,
             text("table")?,
             text("load_id")?,
             text("watermark_after")?,
+            text("result")?,
         );
         let started = times(&batch, "started_at")?.ok_or_else(|| missing("started_at"))?;
         let checked = times(&batch, "deletes_checked_at")?;
@@ -70,14 +90,13 @@ pub fn table_loads(
             if sources.value(index) != source || tables.value(index) != table {
                 continue;
             }
-            let id = ids.value(index).to_owned();
-            loads.recorded.insert(id.clone());
             let row = LastLoad {
-                load_id: id,
+                load_id: ids.value(index).to_owned(),
                 watermark_after: (!marks.is_null(index)).then(|| marks.value(index).to_owned()),
                 deletes_checked_at: checked.as_ref().and_then(|checked| checked[index]),
             };
             let at = started[index].map_or(i64::MIN, micros);
+            loads.add(&row, results.value(index) == "ok");
             if last
                 .as_ref()
                 .is_none_or(|(known, load)| (at, &row.load_id) > (*known, &load.load_id))

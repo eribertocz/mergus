@@ -122,8 +122,25 @@ pub fn attach(
     window: Option<(Duration, i64)>,
     describe: &[&str],
 ) -> AttachedSource {
+    attach_with(rows, chunk, overlap, window, describe, Vec::new())
+}
+
+/// An answer recorded after the others, so that it wins: `(sql, params, rows)`.
+pub type Answer = (String, Vec<SqlValue>, Vec<RecordBatch>);
+
+#[cfg(test)]
+/// [`attach`], with `first` answered in place of what the rows give.
+pub fn attach_with(
+    rows: &[Row],
+    chunk: Option<u32>,
+    overlap: Duration,
+    window: Option<(Duration, i64)>,
+    describe: &[&str],
+    first: Vec<Answer>,
+) -> AttachedSource {
     let database = SimDatabase::new(1, DatabaseFaults::default());
     record_describe(&database, describe);
+    record_texts(&database, rows);
     let mut sorted = rows.to_vec();
     sorted.sort_by_key(|row| row.id);
     let mut sinces = vec![None];
@@ -131,6 +148,8 @@ pub fn attach(
         if let Some(hour) = row.hour {
             let since = Temporal::Timestamp.minus(&at(hour), overlap).unwrap();
             sinces.push(Some(since));
+            // A read from the watermark itself, which a test sees if the overlap is dropped.
+            sinces.push(Some(at(hour)));
         }
     }
     for since in &sinces {
@@ -142,6 +161,10 @@ pub fn attach(
         record_reads(&database, &kept, &sorted, since.as_deref(), chunk);
     }
     record_compare(&database, &sorted, window);
+    // A statement recorded again answers with its last recording.
+    for (sql, params, rows) in first {
+        database.record_query(sql, params, rows);
+    }
     let connection = database.connect(&DatabaseLocation::InMemory).unwrap();
     AttachedSource {
         connection,
@@ -150,6 +173,19 @@ pub fn attach(
             engine: DatabaseEngine::DuckDb,
             version: "v1.4.2".to_owned(),
         },
+    }
+}
+
+#[cfg(test)]
+/// Records DuckDB's `CAST(value AS VARCHAR)` of each `updated_at` of `rows`: the text of a
+/// watermark or of the oldest late row (MG-REQ-0413).
+fn record_texts(database: &SimDatabase, rows: &[Row]) {
+    let sql = "SELECT CAST(COALESCE((SELECT \"updated_at\" FROM \"erp\".\"sales\" WHERE false), ?) \
+               AS VARCHAR)";
+    for hour in rows.iter().filter_map(|row| row.hour) {
+        let text: ArrayRef = Arc::new(StringArray::from(vec![at(hour)]));
+        let answer = RecordBatch::try_from_iter([("text", text)]).unwrap();
+        database.record_query(sql, vec![SqlValue::Text(at(hour))], vec![answer]);
     }
 }
 

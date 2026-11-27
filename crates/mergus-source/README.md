@@ -87,19 +87,22 @@ Extract from databases (ADBC) and files.
 - Reads an incremental table chunk by chunk with `IncrementalReader`, whose position moves
   past a chunk only when the caller says it committed it (MG-REQ-0413, MG-REQ-0418). With
   the watermark of the last load, the read starts at `watermark − overlap` for a `DATE`,
-  `TIMESTAMP` (read as UTC) or `TIMESTAMPTZ` column and at the watermark for any other
-  (MG-REQ-0412.2); the overlap is the table's, else the source's, else `1h`. A resumed read
-  starts after the key the caller gives (MG-REQ-0418.2). `watermark_of` gives the largest
-  non-NULL incremental value of committed rows in the text DuckDB gives for
-  `CAST(value AS VARCHAR)` (MG-REQ-0412.1, MG-REQ-0413).
+  `TIMESTAMP` (read as UTC) or `TIMESTAMPTZ` column, the overlap counted in whole days rounded
+  up for a `DATE`, and at the watermark for any other (MG-REQ-0412.2); the overlap is the
+  table's, else the source's, else `1h`. A resumed read
+  starts after the key the caller gives (MG-REQ-0418.2). `IncrementalReader::watermark`
+  gives the largest non-NULL incremental value of committed rows in the text DuckDB itself
+  gives for `CAST(value AS VARCHAR)`, asked through the port (MG-REQ-0412.1, MG-REQ-0413).
 - Detects deletes as declared (MG-REQ-0415): `column:<name>` splits each chunk into kept and
   deleted rows, `true` or any non-NULL value of a non-boolean column being a delete, and a
-  source without the column is `MG-0410`, before any row is read; `compare` reads the key and
+  source without the column is `MG-0411`, before any row is read; `compare` reads the key and
   incremental columns of the source, within `delete_window` back from the load's start, when
   `delete_check` is due, and returns the raw rows whose key is gone; `none`, or no `deletes`,
-  detects nothing.
+  detects nothing. `compare` without `key`, and `delete_window` without `incremental`, are
+  `MG-0413` errors of `mergus validate`; a `delete_window` whose incremental column is not a
+  date or time is `MG-0413` when the table is read (MG-REQ-0415.4).
 - Reports, from a `compare`, the source rows missing from raw whose incremental value is
-  older than `watermark − overlap`, with the `MG-0411` warning and the suggested
+  older than `watermark − overlap`, with the `MG-0412` warning and the suggested
   `mergus backfill` command (MG-REQ-0420). They are counted, not loaded.
 
 ## What it does not

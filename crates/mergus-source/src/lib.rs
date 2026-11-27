@@ -31,7 +31,7 @@
 //!
 //! [`IncrementalReader`] reads an incremental table from `watermark − overlap`
 //! (MG-REQ-0412), chunk by chunk, and moves past a chunk only once the caller committed it
-//! (MG-REQ-0413, MG-REQ-0418); [`watermark_of`] is the watermark of committed rows. It detects
+//! (MG-REQ-0413, MG-REQ-0418); [`IncrementalReader::watermark`] is the watermark of committed rows. It detects
 //! deletes as [`load_options`] declare them (MG-REQ-0415) and reports very late rows,
 //! [`LateRows`] (MG-REQ-0420).
 //!
@@ -60,6 +60,7 @@ mod incremental_error;
 mod index;
 mod inspect;
 mod kind;
+mod marks;
 mod options;
 mod problem;
 mod read;
@@ -79,7 +80,7 @@ pub use engine::{
     attach_postgres,
 };
 pub use impact::{PG_ESTIMATES, SCHEMA_ESTIMATES, TableImpact, source_impact};
-pub use incremental::{Chunk, IncrementalReader, Start, watermark_of};
+pub use incremental::{Chunk, IncrementalReader, Start};
 pub use incremental_error::{ExtractError, LateRows};
 pub use index::{IndexWarning, PG_INDEXES, SCHEMA_INDEXES, Unindexed, check_indexes};
 pub use inspect::{ImpactUnknown, InspectError};
@@ -92,5 +93,5 @@ pub use schema_change::{
 };
 pub use snapshot::{SourceExtraction, TableRead, extract_source_timed};
 pub use table::{DeclaredTable, RawTables, declared_tables};
-pub use temporal::{Temporal, value_text};
+pub use temporal::Temporal;
 pub use window::{LoadKind, Window, wait_for_window};

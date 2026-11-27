@@ -104,19 +104,19 @@ fn engine(
     })
 }
 
-/// MG-REQ-0414 and MG-REQ-0416: an incremental table declares a `key`, and should declare
-/// `deletes`.
+/// MG-REQ-0414, MG-REQ-0415.4 and MG-REQ-0416: an incremental table declares a `key`, and
+/// should declare `deletes`; `compare` needs a `key` and `delete_window` an `incremental`.
 fn table_problems(
     source: &Source,
     table: &str,
     options: &Map<String, Value>,
     lines: &Lines<'_>,
 ) -> Vec<SourceProblem> {
+    let mut problems = delete_problems(source, table, options, lines);
     if !options.contains_key("incremental") {
-        return Vec::new();
+        return problems;
     }
     let line = lines.of(&["tables", table, "incremental"]);
-    let mut problems = Vec::new();
     if !options.contains_key("key") {
         problems.push(SourceProblem::IncrementalWithoutKey {
             path: source.file.path.clone(),
@@ -134,4 +134,34 @@ fn table_problems(
         });
     }
     problems
+}
+
+/// MG-REQ-0415.4: `compare` on a table without `key`, and `delete_window` on a table without
+/// `incremental`. Whether the incremental column is a date or time is known only from the
+/// source, and checked when it is read.
+fn delete_problems(
+    source: &Source,
+    table: &str,
+    options: &Map<String, Value>,
+    lines: &Lines<'_>,
+) -> Vec<SourceProblem> {
+    let compare = options.get("deletes").and_then(Value::as_str) == Some("compare");
+    let unrunnable = [
+        ("deletes", compare && !options.contains_key("key")),
+        (
+            "delete_window",
+            options.contains_key("delete_window") && !options.contains_key("incremental"),
+        ),
+    ];
+    unrunnable
+        .into_iter()
+        .filter(|(_, refused)| *refused)
+        .map(|(option, _)| SourceProblem::DeletesNotRunnable {
+            path: source.file.path.clone(),
+            line: lines.of(&["tables", table, option]),
+            source_name: source.name.clone(),
+            table: table.to_owned(),
+            option,
+        })
+        .collect()
 }

@@ -7,8 +7,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use arrow::array::{
-    ArrayRef, AsArray, BooleanArray, Date32Array, Int64Array, RecordBatch, StringArray,
-    TimestampMicrosecondArray,
+    Array, ArrayRef, AsArray, BooleanArray, Date32Array, Int64Array, RecordBatch, StringArray,
 };
 use arrow::datatypes::Int64Type;
 use mergus_ports::real::RealDatabase;
@@ -17,7 +16,7 @@ use mergus_project::{ConfigFile, Source};
 use mergus_sim::{DatabaseFaults, SimDatabase};
 use mergus_source::{
     AttachedSource, DatabaseEngine, DeclaredTable, DeleteCheck, DeletePolicy, EngineIdentity,
-    IncrementalReader, Start, Temporal, declared_tables, load_options, watermark_of,
+    IncrementalReader, Start, Temporal, declared_tables, load_options,
 };
 use serde_json::{Value, json};
 
@@ -91,8 +90,8 @@ fn mg_req_0412_read_starts_at_watermark_minus_overlap() {
             "2026-01-02 00:30:00+00",
             "2026-01-01 23:30:00+00",
         ),
-        // `DATE`: the first date not before `watermark − 1h`.
-        ("DATE", None, "2026-01-02", "2026-01-02"),
+        // `DATE`: the overlap in whole days, `1h` rounded up to one day.
+        ("DATE", None, "2026-01-02", "2026-01-01"),
         // Any other type is read from the watermark itself (MG-REQ-0412.2).
         ("BIGINT", Some("2h"), "42", "42"),
     ];
@@ -138,47 +137,53 @@ fn source_default() -> Source {
     source(json!({ "key": "id" }), None)
 }
 
-#[test]
-fn mg_req_0412_watermark_is_largest_committed_value() {
-    let marks: ArrayRef = Arc::new(TimestampMicrosecondArray::from(vec![
-        Some(1_767_225_600_000_000),
-        None,
-        Some(1_767_312_000_500_000),
-    ]));
-    let batch = RecordBatch::try_from_iter([("mark", marks)]).unwrap();
-    assert_eq!(
-        watermark_of(&[batch], "mark").unwrap().as_deref(),
-        Some("2026-01-02 00:00:00.5")
-    );
-    let nulls: ArrayRef = Arc::new(Int64Array::from(vec![None, None]));
-    let batch = RecordBatch::try_from_iter([("mark", nulls)]).unwrap();
-    assert_eq!(watermark_of(&[batch], "mark").unwrap(), None);
-}
-
-/// MG-REQ-0413: the watermark is stored in the text DuckDB gives for `CAST(value AS
-/// VARCHAR)`, checked against the real DuckDB, and cast back to the column's type.
+/// MG-REQ-0412.1 and MG-REQ-0413: the watermark is the largest non-NULL value of the rows,
+/// in the text DuckDB gives for `CAST(value AS VARCHAR)`, asked of the real DuckDB through the
+/// port and compared with DuckDB's own `CAST(max(...) AS VARCHAR)`.
 #[test]
 fn mg_req_0413_watermark_text_is_duckdb_cast() {
-    let database = RealDatabase::new(std::path::Path::new("target"));
+    let database = RealDatabase::new(std::path::Path::new(env!("CARGO_TARGET_TMPDIR")));
     let mut connection = database.connect(&DatabaseLocation::InMemory).unwrap();
-    let sql = "SELECT TIMESTAMP '2026-03-04 05:06:07.25' AS ts, \
-               TIMESTAMP '1969-12-31 23:59:59' AS old, \
-               TIMESTAMPTZ '2026-03-04 05:06:07.000001+00' AS tz, \
-               DATE '2026-03-04' AS day, 42::BIGINT AS n, 12.50::DECIMAL(10,2) AS amount, \
-               'abc' AS name";
-    let values = connection.query_arrow(sql, &[]).unwrap();
     connection.execute("SET TimeZone = 'UTC'", &[]).ok();
-    let columns = ["ts", "old", "tz", "day", "n", "amount", "name"]
-        .map(|column| ["CAST(", column, " AS VARCHAR) AS ", column].concat())
-        .join(", ");
-    let query = ["SELECT ", &columns, " FROM (", sql, ")"].concat();
-    let cast = connection.query_arrow(&query, &[]).unwrap();
-    for column in ["ts", "old", "tz", "day", "n", "amount", "name"] {
-        let ours = watermark_of(&values, column).unwrap().unwrap();
-        let text = cast[0].column_by_name(column).unwrap();
-        let theirs = text.as_string::<i32>().value(0);
-        assert_eq!(ours, theirs, "{column}");
+    for statement in [
+        "CREATE SCHEMA erp",
+        "CREATE TABLE erp.sales (sale_id BIGINT, ts TIMESTAMP, tz TIMESTAMPTZ, d DOUBLE, \
+         day DATE, amount DECIMAL(10,2), name VARCHAR, none BIGINT)",
+        "INSERT INTO erp.sales VALUES \
+         (1, '2026-03-04 05:06:07.25', '2026-03-04 05:06:07.000001+00', 1e20, '2026-03-04', \
+          12.50, 'abc', NULL), \
+         (2, '1969-12-31 23:59:59', '2026-03-04 07:06:07+02', 0.1, '1999-01-01', 3.00, 'b', NULL), \
+         (3, NULL, NULL, NULL, NULL, NULL, NULL, NULL)",
+    ] {
+        connection.execute(statement, &[]).unwrap();
     }
+    let mut attached = AttachedSource {
+        connection,
+        alias: "erp".to_owned(),
+        identity: EngineIdentity {
+            engine: DatabaseEngine::DuckDb,
+            version: "v1.4.2".to_owned(),
+        },
+    };
+    let rows = attached
+        .connection
+        .query_arrow("SELECT * FROM erp.sales", &[])
+        .unwrap();
+    for column in ["ts", "tz", "d", "day", "amount", "name", "none"] {
+        let query = ["SELECT CAST(max(", column, ") AS VARCHAR) FROM erp.sales"].concat();
+        let theirs = attached.connection.query_arrow(&query, &[]).unwrap();
+        let theirs = theirs[0].column(0).as_string::<i32>();
+        let theirs = (!theirs.is_null(0)).then(|| theirs.value(0).to_owned());
+        let source = source(json!({ "key": "sale_id", "incremental": column }), None);
+        let table = declared(&source);
+        let mut reader =
+            IncrementalReader::open(&mut attached, &source, &table, Start::default()).unwrap();
+        assert_eq!(reader.watermark(&rows).unwrap(), theirs, "{column}");
+    }
+}
+
+#[test]
+fn mg_req_0413_temporal_text_round_trips() {
     for (temporal, text) in [
         (Temporal::Timestamp, "2026-03-04 05:06:07.25"),
         (Temporal::TimestampTz, "2026-03-04 05:06:07.000001+00"),
@@ -190,6 +195,24 @@ fn mg_req_0413_watermark_text_is_duckdb_cast() {
     assert_eq!(
         Temporal::TimestampTz.parse("2026-03-04 07:06:07+02:00"),
         Temporal::TimestampTz.parse("2026-03-04 05:06:07+00")
+    );
+}
+
+#[test]
+fn mg_req_0415_window_needs_a_date_or_time_incremental() {
+    let table = json!({ "key": "sale_id", "incremental": "mark", "deletes": "compare",
+                        "delete_window": "7d" });
+    let source = source(table, None);
+    let database = describe(&[("sale_id", "BIGINT"), ("mark", "BIGINT")]);
+    let mut attached = attach(&database);
+    let error =
+        IncrementalReader::open(&mut attached, &source, &declared(&source), Start::default())
+            .unwrap_err();
+    assert_eq!(error.code(), Some("MG-0413"));
+    assert_eq!(
+        error.to_string(),
+        "table `sales` of source `erp` declares `delete_window` but its incremental column is \
+         missing or not a date or time column"
     );
 }
 

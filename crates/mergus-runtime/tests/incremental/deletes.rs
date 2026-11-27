@@ -111,8 +111,11 @@ fn mg_req_0415_compare_follows_delete_check() {
         .load(&mut attached, &source, &table, None, None)
         .unwrap();
     assert_eq!(versions(&world.current()), [(1, 10, false), (2, 20, false)]);
+    // A load that ran no compare records NULL; the last compare stays the first load's
+    // (MG-REQ-0415.3).
     let checked = texts(&world.registry(), "deletes_checked_at");
-    assert_eq!(checked[0], checked[1]);
+    assert!(checked[0].is_some());
+    assert_eq!(checked[1], None);
     // 24 hours after the first compare, it is due.
     world.clock.advance(Duration::from_secs(24 * 3_600));
     let mut attached = attach(&second, None, DEFAULT_OVERLAP, None, &ALL);
@@ -164,7 +167,7 @@ fn mg_req_0415_missing_delete_column_fails() {
         error,
         LoadError::Source(ExtractError::MissingDeleteColumn { .. })
     ));
-    assert_eq!(error.code(), Some("MG-0410"));
+    assert_eq!(error.code(), Some("MG-0411"));
     assert_eq!(
         error.to_string(),
         "table `sales` of source `erp` declares `deletes = \"column:removed\"` but the source \
@@ -174,5 +177,5 @@ fn mg_req_0415_missing_delete_column_fails() {
     assert_eq!(world.raw.commits(), 0);
     let registry = world.registry();
     assert_eq!(texts(&registry, "result"), [Some("failed".to_owned())]);
-    assert_eq!(texts(&registry, "error_code"), [Some("MG-0410".to_owned())]);
+    assert_eq!(texts(&registry, "error_code"), [Some("MG-0411".to_owned())]);
 }

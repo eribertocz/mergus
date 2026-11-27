@@ -69,6 +69,34 @@ pub enum SourceProblem {
         /// The table name.
         table: String,
     },
+    /// A table declares a delete detection it cannot run: `compare` without `key`, or
+    /// `delete_window` without `incremental` (MG-REQ-0415.4).
+    #[error(
+        "`{path}` line {line}: table `{table}` of source `{source_name}` declares `{option}` \
+         but {}",
+        delete_problem(option)
+    )]
+    DeletesNotRunnable {
+        /// The path of the source file.
+        path: String,
+        /// The line of the option, from 1.
+        line: usize,
+        /// The source name.
+        source_name: String,
+        /// The table name.
+        table: String,
+        /// `deletes` for `compare` without `key`, `delete_window` without `incremental`.
+        option: &'static str,
+    },
+}
+
+/// Why the delete detection named by `option` cannot run.
+fn delete_problem(option: &str) -> &'static str {
+    if option == "deletes" {
+        "no `key`; `compare` compares the keys of the source with raw"
+    } else {
+        "no `incremental`; the window is counted on a date or time incremental column"
+    }
 }
 
 /// What is wrong with the engine of a source of `kind` read in `mode`.
@@ -114,6 +142,7 @@ impl SourceProblem {
             Self::IncrementalWithoutKey { .. } => "MG-0401",
             Self::EngineNotAllowed { .. } => "MG-0402",
             Self::NoDeletePolicy { .. } => "MG-0403",
+            Self::DeletesNotRunnable { .. } => "MG-0413",
         }
     }
 
@@ -121,7 +150,9 @@ impl SourceProblem {
     #[must_use]
     pub fn severity(&self) -> Severity {
         match self {
-            Self::IncrementalWithoutKey { .. } | Self::EngineNotAllowed { .. } => Severity::Error,
+            Self::IncrementalWithoutKey { .. }
+            | Self::EngineNotAllowed { .. }
+            | Self::DeletesNotRunnable { .. } => Severity::Error,
             Self::NoDeletePolicy { .. } => Severity::Warning,
         }
     }
@@ -132,7 +163,8 @@ impl SourceProblem {
         match self {
             Self::IncrementalWithoutKey { path, .. }
             | Self::EngineNotAllowed { path, .. }
-            | Self::NoDeletePolicy { path, .. } => path,
+            | Self::NoDeletePolicy { path, .. }
+            | Self::DeletesNotRunnable { path, .. } => path,
         }
     }
 
@@ -142,7 +174,8 @@ impl SourceProblem {
         match self {
             Self::IncrementalWithoutKey { line, .. }
             | Self::EngineNotAllowed { line, .. }
-            | Self::NoDeletePolicy { line, .. } => *line,
+            | Self::NoDeletePolicy { line, .. }
+            | Self::DeletesNotRunnable { line, .. } => *line,
         }
     }
 
@@ -153,6 +186,7 @@ impl SourceProblem {
             Self::IncrementalWithoutKey { table, .. } | Self::NoDeletePolicy { table, .. } => {
                 format!("tables.{table}.incremental")
             }
+            Self::DeletesNotRunnable { table, option, .. } => format!("tables.{table}.{option}"),
             Self::EngineNotAllowed {
                 engine: None,
                 mode: Mode::Copy,

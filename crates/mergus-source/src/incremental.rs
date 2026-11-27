@@ -83,6 +83,8 @@ impl<'a> IncrementalReader<'a> {
     ///
     /// - [`ExtractError::MissingDeleteColumn`] when the table declares `column:<name>` and
     ///   the source has no such column (MG-REQ-0415.2);
+    /// - [`ExtractError::DeletesNotRunnable`] for `compare` without `key`, or `delete_window`
+    ///   without an incremental column of a date or time type (MG-REQ-0415.4);
     /// - [`ExtractError::Port`] when a statement fails, the watermark is not a value of the
     ///   incremental column's type, or `resume_after` lacks a key column.
     pub fn open(
@@ -102,6 +104,7 @@ impl<'a> IncrementalReader<'a> {
                 column: column.clone(),
             });
         }
+        refuse_unrunnable(source, table, &options, &columns)?;
         let since = match (&table.incremental, &start.watermark) {
             (Some(column), Some(watermark)) => {
                 Some(read_since(&columns, column, watermark, &options)?)
@@ -253,44 +256,38 @@ fn read_since(
     }
 }
 
-/// The text of the largest non-NULL value of `column` in `batches`, the watermark of the rows
-/// a load committed (MG-REQ-0412.1), in the text DuckDB gives for `CAST(value AS VARCHAR)`
-/// (MG-REQ-0413); `None` when every value is NULL or there is no row.
-///
-/// # Errors
-///
-/// Fails with [`PortError::Failed`] when a batch lacks the column or its values cannot be
-/// compared.
-pub fn watermark_of(batches: &[RecordBatch], column: &str) -> Result<Option<String>, PortError> {
-    let failed = |error: arrow::error::ArrowError| PortError::Failed(error.to_string());
-    let mut best: Option<(arrow::row::OwnedRow, String)> = None;
-    let mut converter: Option<arrow::row::RowConverter> = None;
-    for batch in batches {
-        let values = batch.column_by_name(column).ok_or_else(|| {
-            PortError::Failed(format!("the rows have no incremental column `{column}`"))
-        })?;
-        let converter = match &mut converter {
-            Some(converter) => converter,
-            None => converter.insert(
-                arrow::row::RowConverter::new(vec![arrow::row::SortField::new(
-                    values.data_type().clone(),
-                )])
-                .map_err(failed)?,
-            ),
-        };
-        let rows = converter
-            .convert_columns(std::slice::from_ref(values))
-            .map_err(failed)?;
-        for index in 0..values.len() {
-            if values.is_null(index) {
-                continue;
-            }
-            let row = rows.row(index);
-            if best.as_ref().is_none_or(|(known, _)| row > known.row()) {
-                let text = crate::temporal::value_text(values.as_ref(), index)?;
-                best = Some((row.owned(), text));
-            }
-        }
+/// Refuses `compare` on a table without `key`, and `delete_window` on a table whose
+/// incremental column is missing or not a `DATE`, `TIMESTAMP` or `TIMESTAMPTZ`
+/// (MG-REQ-0415.4).
+fn refuse_unrunnable(
+    source: &Source,
+    table: &DeclaredTable,
+    options: &LoadOptions,
+    columns: &[SourceColumn],
+) -> Result<(), ExtractError> {
+    let refuse = |option, reason: &str| ExtractError::DeletesNotRunnable {
+        source_name: source.name.clone(),
+        table: table.name.clone(),
+        option,
+        reason: reason.to_owned(),
+    };
+    if options.deletes == DeletePolicy::Compare && table.key.is_empty() {
+        return Err(refuse("deletes", "it has no `key` to compare"));
     }
-    Ok(best.map(|(_, text)| text))
+    if options.delete_window.is_none() {
+        return Ok(());
+    }
+    let temporal = table.incremental.as_ref().and_then(|column| {
+        columns
+            .iter()
+            .find(|known| &known.name == column)
+            .and_then(|known| Temporal::of(&known.data_type))
+    });
+    match temporal {
+        Some(_) => Ok(()),
+        None => Err(refuse(
+            "delete_window",
+            "its incremental column is missing or not a date or time column",
+        )),
+    }
 }

@@ -13,11 +13,10 @@ use mergus_ports::{Clock, Random};
 use mergus_project::Source;
 use mergus_source::{AttachedSource, DeclaredTable, IncrementalReader, LateRows, Start};
 
-use crate::chunk_rows::{Current, finished, read_or_none, rows_of, stamped, unfinished};
-use crate::chunk_step::{Shape, Step, finish, record_failed};
+use crate::chunk_rows::{Unfinished, finalized, finished, read_or_none, rows_of, unfinished};
+use crate::chunk_step::{Step, finish, record_failed, record_only};
 use crate::load_error::LoadError;
-use crate::raw_rows::{METADATA, Metadata, raw_schema};
-use crate::registry::micros;
+use crate::raw_rows::METADATA;
 use crate::registry_read::{TableLoads, table_loads};
 use crate::{RAW_ALIAS, RawError};
 
@@ -84,11 +83,12 @@ pub struct LoadOutcome {
 ///
 /// A load that fails before any commit is recorded as `failed` with its code; one that fails
 /// later is left unfinished for the next load to resume, not recorded as failed
-/// (MG-REQ-0418.2).
+/// (MG-REQ-0418.2), except a repeated key, recorded `failed` with `MG-0504` (MG-REQ-0518.3).
+/// When the resumed load had made its last commit, only its `ops.loads` row is written.
 ///
 /// # Errors
 ///
-/// - [`LoadError::Source`] when the source cannot be read, `MG-0410` among them;
+/// - [`LoadError::Source`] when the source cannot be read, `MG-0411` and `MG-0413` among them;
 /// - [`LoadError::Raw`] when raw or `ops.loads` cannot be read or written.
 pub fn load_table(
     stores: &mut Stores<'_>,
@@ -98,37 +98,46 @@ pub fn load_table(
     let names = load.table.raw(&load.source.name);
     let changes = in_catalog(&names.changes);
     let current = in_catalog(&names.current);
-    let (step, resume_after) = prepare(stores, load, &changes)?;
+    let (step, resume) = prepare(stores, load, &changes)?;
+    let current_rows = read_or_none(stores.raw, &current, load.raw_version.as_ref())?;
+    let prior = resume.as_ref().map(|resume| resume.rows.clone());
+    let done = match &prior {
+        Some(prior) => finalized(current_rows.as_ref(), prior, &step.load_id, &load.table.key)
+            .map_err(|error| rows_error(load, error))?,
+        None => false,
+    };
     let start = Start {
         chunk_rows: load.chunk_rows,
         watermark: step.before.clone(),
-        resume_after,
+        resume_after: resume.map(|resume| resume.last),
     };
     let mut reader = match IncrementalReader::open(attached, load.source, load.table, start) {
         Ok(reader) => reader,
         Err(error) => return Err(record_failed(stores, &step, step.resumed, error.into())),
     };
-    let current_rows = read_or_none(stores.raw, &current, load.raw_version.as_ref())?;
-    let (shape, raw_version) =
-        read_chunks(stores, &mut reader, &step, current_rows.as_ref(), &changes)?;
-    finish(
+    if let (true, Some(prior)) = (done, &prior) {
+        // The last commit was made before the crash: only the registry row is missing
+        // (MG-REQ-0418.2).
+        return record_only(stores, &mut reader, &step, prior);
+    }
+    let progress = crate::chunk_read::read_chunks(
         stores,
         &mut reader,
         &step,
-        shape,
-        raw_version,
+        current_rows.as_ref(),
         &changes,
-        &current,
-    )
+        prior,
+    )?;
+    finish(stores, &mut reader, &step, progress, &changes, &current)
 }
 
 /// The load to run: a new one, or the unfinished one of `changes` to resume, with the key
-/// its read resumes after (MG-REQ-0418.2).
+/// its read resumes after and the rows it committed (MG-REQ-0418.2).
 fn prepare<'a>(
     stores: &Stores<'_>,
     load: &'a TableLoad<'a>,
     changes: &str,
-) -> Result<(Step<'a>, Option<RecordBatch>), LoadError> {
+) -> Result<(Step<'a>, Option<Unfinished>), LoadError> {
     let loads = match &load.ops_version {
         Some(version) => registry(stores.ops, version, load)?,
         None => TableLoads::default(),
@@ -139,7 +148,6 @@ fn prepare<'a>(
             .map_err(|error| rows_error(load, error))?,
         _ => None,
     };
-    let last = loads.last.as_ref();
     let (load_id, extracted_at) = match &resume {
         Some(resume) => (resume.load_id.clone(), resume.extracted_at),
         None => (
@@ -151,61 +159,14 @@ fn prepare<'a>(
         load,
         load_id,
         extracted_at,
-        before: last.and_then(|last| last.watermark_after.clone()),
-        checked: last.and_then(|last| last.deletes_checked_at),
+        before: loads
+            .last
+            .as_ref()
+            .and_then(|last| last.watermark_after.clone()),
+        checked: loads.deletes_checked_at,
         resumed: resume.is_some(),
     };
-    Ok((step, resume.map(|resume| resume.last)))
-}
-
-/// Reads every chunk of `reader`, appending and committing what each changes to `changes`
-/// before the read moves on (MG-REQ-0418.1). Returns the shape of the rows, `None` when no
-/// schema is known, and the latest version of raw.
-fn read_chunks(
-    stores: &mut Stores<'_>,
-    reader: &mut IncrementalReader<'_>,
-    step: &Step<'_>,
-    current_rows: Option<&RecordBatch>,
-    changes: &str,
-) -> Result<(Option<Shape>, Option<VersionRef>), LoadError> {
-    let load = step.load;
-    let mut raw_version = load.raw_version.clone();
-    let mut committed = step.resumed;
-    let mut shape: Option<Shape> = None;
-    let metadata = Metadata {
-        load_id: step.load_id.clone(),
-        extracted_at: micros(step.extracted_at),
-    };
-    loop {
-        let chunk = match reader.next_chunk() {
-            Ok(Some(chunk)) => chunk,
-            Ok(None) => return Ok((shape, raw_version)),
-            Err(error) => return Err(record_failed(stores, step, committed, error.into())),
-        };
-        if shape.is_none()
-            && let Some(source) = source_schema(&chunk.rows, &chunk.deleted, current_rows)
-        {
-            let schema = raw_schema(&source);
-            let count = source.fields().len();
-            let rows = Current::new(current_rows, &schema, count, &load.table.key)
-                .map_err(|error| rows_error(load, error))?;
-            shape = Some((source, schema, rows));
-        }
-        if let Some((source, schema, rows)) = &shape {
-            let appended = chunk_changes(load, rows, source, schema, &metadata, &chunk)
-                .map_err(|error| rows_error(load, error))?;
-            if appended.num_rows() > 0 {
-                match append(stores.raw, changes, appended) {
-                    Ok(version) => raw_version = Some(version),
-                    Err(error) => {
-                        return Err(record_failed(stores, step, committed, error.into()));
-                    }
-                }
-                committed = true;
-            }
-        }
-        reader.committed();
-    }
+    Ok((step, resume))
 }
 
 /// The loads of the table recorded at `version` of the ops store; none when `ops.loads` does
@@ -223,30 +184,9 @@ fn registry(
     }
 }
 
-/// The rows a chunk appends to `__changes`: for a keyed table, its rows that are not the
-/// current row of their key (MG-REQ-0412.3) and its deleted rows whose key is current, as
-/// deletes (MG-REQ-0415.2); for a table without `key`, every row read.
-fn chunk_changes(
-    load: &TableLoad<'_>,
-    current: &Current,
-    source: &SchemaRef,
-    schema: &SchemaRef,
-    metadata: &Metadata,
-    chunk: &mergus_source::Chunk,
-) -> Result<RecordBatch, ArrowError> {
-    let rows = stamped(&chunk.rows, source, schema, metadata, false)?;
-    let deleted = stamped(&chunk.deleted, source, schema, metadata, true)?;
-    if load.table.key.is_empty() {
-        return arrow::compute::concat_batches(schema, &[rows, deleted]);
-    }
-    let rows = current.changed(&rows)?;
-    let deleted = current.present(&deleted)?;
-    arrow::compute::concat_batches(schema, &[rows, deleted])
-}
-
 /// The schema of the source's columns: that of the rows read, else that of the current
 /// table without its metadata columns.
-fn source_schema(
+pub(crate) fn source_schema(
     rows: &[RecordBatch],
     deleted: &[RecordBatch],
     current: Option<&RecordBatch>,
@@ -314,8 +254,8 @@ fn in_catalog(name: &str) -> String {
 }
 
 /// The rows of `raw.<source>__<table>__changes` at `raw_version` that readers see: those of
-/// the loads recorded in `ops.loads` at `ops_version`. The rows of an unfinished load are
-/// ignored (MG-REQ-0518.1, MG-REQ-0418.3). `None` when the table has no row yet.
+/// the loads recorded `ok` in `ops.loads` at `ops_version`. The rows of an unfinished or a
+/// failed load are ignored (MG-REQ-0518.1, MG-REQ-0418.3). `None` when the table has no row yet.
 ///
 /// # Errors
 ///
@@ -341,7 +281,7 @@ pub fn finished_changes(
         },
         None => TableLoads::default(),
     }
-    .recorded;
+    .ok;
     let rows = finished(&history, &recorded).map_err(|error| RawError::Rows {
         table: changes,
         error,

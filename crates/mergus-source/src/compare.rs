@@ -16,9 +16,10 @@ use mergus_ports::{PortError, SqlValue, Timestamp};
 
 use crate::incremental::IncrementalReader;
 use crate::incremental_error::{ExtractError, LateRows};
+use crate::marks::extreme;
 use crate::options::DeletePolicy;
 use crate::read::quote_identifier;
-use crate::temporal::{Temporal, value_text};
+use crate::temporal::Temporal;
 
 /// What a `compare` found.
 #[derive(Clone, Debug, Default)]
@@ -143,7 +144,7 @@ impl IncrementalReader<'_> {
     /// The source rows missing from raw whose incremental value is older than `since`
     /// (MG-REQ-0420.1).
     fn late_rows(
-        &self,
+        &mut self,
         source_rows: &[RecordBatch],
         keys: &Keys,
         raw_keys: &BTreeSet<OwnedRow>,
@@ -167,7 +168,10 @@ impl IncrementalReader<'_> {
         if count == 0 {
             return Ok(None);
         }
-        let oldest = oldest(&late, column)?.unwrap_or_default();
+        let oldest = match extreme(&late, column, false)? {
+            Some(value) => self.duckdb_text(column, value.as_ref())?,
+            None => String::new(),
+        };
         Ok(Some(LateRows {
             source_name: self.source_name.clone(),
             table: self.table.name.clone(),
@@ -247,29 +251,6 @@ fn older_than(
     let bound = cast(&StringArray::from(vec![since]), values.data_type()).map_err(failed)?;
     let older = lt(values, &Scalar::new(bound)).map_err(failed)?;
     Ok(older.iter().map(|value| value == Some(true)).collect())
-}
-
-/// The text of the smallest non-NULL value of `column` in `batches`.
-fn oldest(batches: &[RecordBatch], column: &str) -> Result<Option<String>, PortError> {
-    let failed = |error: ArrowError| PortError::Failed(error.to_string());
-    let mut best: Option<(OwnedRow, String)> = None;
-    for batch in batches {
-        let values = batch
-            .column_by_name(column)
-            .ok_or_else(|| PortError::Failed(format!("the rows have no column `{column}`")))?;
-        let converter =
-            RowConverter::new(vec![SortField::new(values.data_type().clone())]).map_err(failed)?;
-        let rows = converter
-            .convert_columns(std::slice::from_ref(values))
-            .map_err(failed)?;
-        for index in (0..values.len()).filter(|index| !values.is_null(*index)) {
-            let row = rows.row(index);
-            if best.as_ref().is_none_or(|(known, _)| row < known.row()) {
-                best = Some((row.owned(), value_text(values.as_ref(), index)?));
-            }
-        }
-    }
-    Ok(best.map(|(_, text)| text))
 }
 
 /// The key columns of a table, and the comparable form of their values.

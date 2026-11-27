@@ -4,7 +4,9 @@ use mergus_source::DEFAULT_OVERLAP;
 use serde_json::json;
 
 use crate::ALL;
-use crate::fixture::{Row, attach, declared, row, source};
+use mergus_ports::SqlValue;
+
+use crate::fixture::{Row, attach, attach_with, declared, row, source};
 use crate::world::{World, flags, texts, versions};
 
 #[cfg(test)]
@@ -81,64 +83,178 @@ fn mg_req_0418_table_without_key_reads_again() {
 }
 
 #[cfg(test)]
-/// The source of the exactly-once scenario: chunks of 2, a compare at every run.
-fn scenario() -> (mergus_project::Source, [Vec<Row>; 2]) {
-    let source = source(json!({ "deletes": "column:removed", "delete_check": "every_run" }));
+/// The two loads of an exactly-once scenario, read in chunks of 2: row 1 is unchanged inside
+/// the overlap, row 3 is marked removed, row 5 is gone and rows 6 and 7 are new.
+fn loads() -> [Vec<Row>; 2] {
     let first = rows(5, 10);
     let mut second: Vec<Row> = rows(7, 11);
-    // Row 1 is unchanged inside the overlap, row 3 is marked removed, row 5 is gone.
     second[0] = row(1, 10, Some(10));
     second[2].removed = true;
     second.remove(4);
-    (source, [first, second])
+    [first, second]
 }
 
 #[cfg(test)]
-/// Runs both loads of the scenario, the second crashing after `crash` commits and then
-/// resumed by a new process.
-fn run(crash: Option<usize>) -> World {
-    let (source, loads) = scenario();
+/// Runs both loads with `options`, the load `crash.0` crashing after `crash.1` commits and
+/// then run again by a new process.
+fn run(options: &serde_json::Value, crash: Option<(usize, usize)>) -> World {
+    let source = source(options.clone());
     let table = declared(&source);
     let mut world = World::new();
-    let mut attached = attach(&loads[0], Some(2), DEFAULT_OVERLAP, None, &ALL);
-    world
-        .load(&mut attached, &source, &table, Some(2), None)
-        .unwrap();
-    if let Some(crash) = crash {
-        let mut attached = attach(&loads[1], Some(2), DEFAULT_OVERLAP, None, &ALL);
+    for (index, rows) in loads().iter().enumerate() {
+        if let Some((_, after)) = crash.filter(|(load, _)| *load == index) {
+            let mut attached = attach(rows, Some(2), DEFAULT_OVERLAP, None, &ALL);
+            world
+                .load(&mut attached, &source, &table, Some(2), Some(after))
+                .unwrap_err();
+        }
+        let mut attached = attach(rows, Some(2), DEFAULT_OVERLAP, None, &ALL);
         world
-            .load(&mut attached, &source, &table, Some(2), Some(crash))
-            .unwrap_err();
+            .load(&mut attached, &source, &table, Some(2), None)
+            .unwrap();
     }
-    let mut attached = attach(&loads[1], Some(2), DEFAULT_OVERLAP, None, &ALL);
     world
-        .load(&mut attached, &source, &table, Some(2), None)
-        .unwrap();
-    world
+}
+
+/// One row of `__changes` or of the current table, its load told by its rank in `ops.loads`.
+type Seen = (i64, i64, bool, usize, bool);
+
+/// The rows of `__changes`, of the current table, and each load's watermark and compare.
+type Snapshot = (Vec<Seen>, Vec<Seen>, Vec<(Option<String>, bool)>);
+
+#[cfg(test)]
+/// What readers see of `world`: every row with the rank of its load and whether
+/// `_deleted_at` is its load's `_extracted_at` exactly for deletes, then each load's
+/// `watermark_after` and whether it compared.
+fn snapshot(world: &World) -> Snapshot {
+    let registry = world.registry();
+    let ids = texts(&registry, "load_id");
+    let rank = |id: &Option<String>| ids.iter().position(|known| known == id).unwrap();
+    let rows = |batch: &arrow::array::RecordBatch| -> Vec<Seen> {
+        let loads = texts(batch, "_load_id");
+        let (at, deleted_at) = (texts(batch, "_extracted_at"), texts(batch, "_deleted_at"));
+        versions(batch)
+            .into_iter()
+            .enumerate()
+            .map(|(row, (id, amount, deleted))| {
+                let stamped = if deleted {
+                    deleted_at[row] == at[row]
+                } else {
+                    deleted_at[row].is_none()
+                };
+                (id, amount, deleted, rank(&loads[row]), stamped)
+            })
+            .collect()
+    };
+    let table = declared(&source(json!({})));
+    let marks = texts(&registry, "watermark_after")
+        .into_iter()
+        .zip(texts(&registry, "deletes_checked_at"))
+        .map(|(mark, checked)| (mark, checked.is_some()))
+        .collect();
+    (rows(&world.changes(&table)), rows(&world.current()), marks)
 }
 
 #[test]
 fn mg_req_0143_resume_is_exactly_once() {
-    let whole = run(None);
-    let (source, _) = scenario();
-    let table = declared(&source);
-    let expected = (versions(&whole.changes(&table)), versions(&whole.current()));
-    // Each load commits 3 chunks, the last commit of raw and its `ops.loads` row; the
-    // second load's last chunk is empty and commits nothing.
-    assert_eq!(whole.raw.commits() + whole.ops.commits(), 10);
-    for crash in 0..5 {
-        let world = run(Some(crash));
-        let changes = world.changes(&table);
-        assert_eq!(
-            (versions(&changes), versions(&world.current())),
-            expected,
-            "crash after {crash} commits of the second load"
-        );
+    // The delete column, then a `compare` at every run.
+    let policies = [
+        json!({ "deletes": "column:removed" }),
+        json!({ "deletes": "compare", "delete_check": "every_run" }),
+    ];
+    for options in &policies {
+        let whole = run(options, None);
+        let expected = snapshot(&whole);
+        assert_eq!(texts(&whole.registry(), "result").len(), 2);
         assert!(
-            flags(&world.current(), "_deleted")
+            flags(&whole.current(), "_deleted")
                 .iter()
                 .all(|deleted| !deleted)
         );
-        assert_eq!(texts(&world.registry(), "result").len(), 2);
+        // Each load commits its chunks, the last commit of raw and its `ops.loads` row.
+        let total = whole.raw.commits() + whole.ops.commits();
+        let firsts = commits_of_first(options);
+        for (load, commits) in [(0, firsts), (1, total - firsts)] {
+            for crash in 0..commits {
+                let world = run(options, Some((load, crash)));
+                assert_eq!(
+                    snapshot(&world),
+                    expected,
+                    "{options}: load {load}, crash after {crash}"
+                );
+                assert_eq!(texts(&world.registry(), "result").len(), 2);
+            }
+        }
     }
+}
+
+#[cfg(test)]
+/// The commits of the first load of the scenario, raw and ops together.
+fn commits_of_first(options: &serde_json::Value) -> usize {
+    let source = source(options.clone());
+    let table = declared(&source);
+    let mut world = World::new();
+    let mut attached = attach(&loads()[0], Some(2), DEFAULT_OVERLAP, None, &ALL);
+    world
+        .load(&mut attached, &source, &table, Some(2), None)
+        .unwrap();
+    world.raw.commits() + world.ops.commits()
+}
+
+#[test]
+fn mg_req_0418_last_commit_made_only_records() {
+    let source = source(json!({ "deletes": "none" }));
+    let table = declared(&source);
+    let mut world = World::new();
+    let data = rows(3, 10);
+    // 2 chunks and the last commit of raw are made; the crash comes before `ops.loads`.
+    let mut attached = attach(&data, Some(2), DEFAULT_OVERLAP, None, &ALL);
+    world
+        .load(&mut attached, &source, &table, Some(2), Some(3))
+        .unwrap_err();
+    assert_eq!((world.raw.commits(), world.ops.commits()), (3, 0));
+    let mut attached = attach(&data, Some(2), DEFAULT_OVERLAP, None, &ALL);
+    let outcome = world
+        .load(&mut attached, &source, &table, Some(2), None)
+        .unwrap();
+    // Only the registry row is written (MG-REQ-0418.2).
+    assert!(outcome.resumed);
+    assert_eq!((world.raw.commits(), world.ops.commits()), (3, 1));
+    assert_eq!(outcome.watermark, Some(crate::fixture::at(10)));
+    assert_eq!(versions(&world.changes(&table)).len(), 3);
+}
+
+#[test]
+fn mg_req_0518_key_repeated_across_chunks_fails_the_load() {
+    let source = source(json!({ "deletes": "none" }));
+    let table = declared(&source);
+    let mut world = World::new();
+    let data = rows(3, 10);
+    // The second chunk returns key 2 again, already read by the first.
+    let after =
+        "SELECT * FROM \"erp\".\"sales\" WHERE \"sale_id\" > ? ORDER BY \"sale_id\" LIMIT ?";
+    let again = vec![crate::fixture::batch(&[
+        row(2, 20, Some(10)),
+        row(3, 30, Some(10)),
+    ])];
+    let bound = vec![SqlValue::Integer(2), SqlValue::Integer(2)];
+    let first = vec![(after.to_owned(), bound, again)];
+    let mut attached = attach_with(&data, Some(2), DEFAULT_OVERLAP, None, &ALL, first);
+    let error = world
+        .load(&mut attached, &source, &table, Some(2), None)
+        .unwrap_err();
+    assert_eq!(error.code(), Some("MG-0504"));
+    // The first chunk was committed, but the load is recorded `failed`: readers ignore it.
+    assert_eq!(world.every_change().num_rows(), 2);
+    let registry = world.registry();
+    assert_eq!(texts(&registry, "result"), [Some("failed".to_owned())]);
+    assert_eq!(texts(&registry, "error_code"), [Some("MG-0504".to_owned())]);
+    assert_eq!(world.changes(&table).num_rows(), 0);
+    // The next load is a new one, not a resume of the failed load.
+    let mut attached = attach(&data, Some(2), DEFAULT_OVERLAP, None, &ALL);
+    let outcome = world
+        .load(&mut attached, &source, &table, Some(2), None)
+        .unwrap();
+    assert!(!outcome.resumed);
+    assert_eq!(versions(&world.changes(&table)).len(), 3);
 }

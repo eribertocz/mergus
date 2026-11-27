@@ -15,8 +15,8 @@ pub struct Watermarks {
     pub before: Option<String>,
     /// `watermark_after`.
     pub after: Option<String>,
-    /// `deletes_checked_at`: the load's `_extracted_at` when it compared, else that of the
-    /// table's previous row (MG-REQ-0415.3).
+    /// `deletes_checked_at`: the load's `_extracted_at` when it ran a `compare`, else `None`
+    /// (MG-REQ-0415.3).
     pub deletes_checked_at: Option<Timestamp>,
 }
 

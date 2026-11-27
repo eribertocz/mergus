@@ -51,9 +51,11 @@ Run cycle and scheduling; wires ports to crates.
   `__changes` the rows that differ from the current row of their key and the rows the delete
   column marks deleted; the last commit appends the deletes of a due `compare` and rewrites
   the current table; only then is the `ops.loads` row written, with the largest incremental
-  value of the committed rows as `watermark_after` and, after a compare, its time as
-  `deletes_checked_at`. A load id of `__changes` with no `ops.loads` row is resumed with the
-  same id after its largest key; without `key` it is ignored and the table read again.
+  value of the committed rows as `watermark_after`, the rows read as `rows` and, after a
+  compare, its time as `deletes_checked_at`, NULL otherwise. A key read twice across the
+  chunks is `MG-0504`, recorded `failed`; readers see only loads recorded `ok`. A load id of `__changes` with no `ops.loads` row is resumed with the
+  same id after its largest key, or only recorded when its last commit was made; without
+  `key` it is ignored and the table read again.
   `finished_changes` gives the rows of `__changes` readers see.
 
 ## What it does not

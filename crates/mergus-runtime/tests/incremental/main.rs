@@ -25,19 +25,22 @@ fn mg_req_0412_overlap_rereads_without_duplicates() {
     let source = source(json!({ "deletes": "none" }));
     let table = declared(&source);
     let mut world = first_load(&source, &table);
-    // From `10:00 − 1h`: row 2 is re-read unchanged, row 3 changed, row 5 is new; row 1,
-    // older, is not read. Only rows 3 and 5 are new versions (MG-REQ-0412.3).
+    // From `10:00 − 1h`: row 2 is re-read unchanged; row 6, changed inside the overlap, is
+    // seen only because of it; row 3 changed and row 5 is new; row 1, older, is not read.
+    // Rows 3, 5 and 6 are new versions, row 2 is not (MG-REQ-0412.3).
     let second = [
         row(1, 10, Some(8)),
         row(2, 20, Some(9)),
         row(3, 31, Some(10)),
         row(5, 50, Some(11)),
+        row(6, 61, Some(9)),
     ];
     let mut attached = attach(&second, None, DEFAULT_OVERLAP, None, &ALL);
     let outcome = world
         .load(&mut attached, &source, &table, None, None)
         .unwrap();
-    assert_eq!(outcome.rows, 2);
+    // `rows` counts the rows read, not those appended (MG-REQ-0514).
+    assert_eq!(outcome.rows, 4);
     assert_eq!(outcome.watermark, Some(at(11)));
     assert_eq!(
         versions(&world.changes(&table)),
@@ -47,7 +50,9 @@ fn mg_req_0412_overlap_rereads_without_duplicates() {
             (3, 30, false),
             (3, 31, false),
             (4, 40, false),
-            (5, 50, false)
+            (5, 50, false),
+            (6, 60, false),
+            (6, 61, false)
         ]
     );
     assert_eq!(
@@ -57,7 +62,8 @@ fn mg_req_0412_overlap_rereads_without_duplicates() {
             (2, 20, false),
             (3, 31, false),
             (4, 40, false),
-            (5, 50, false)
+            (5, 50, false),
+            (6, 61, false)
         ]
     );
     assert_registry(&world);
@@ -73,6 +79,7 @@ fn first_load(source: &mergus_project::Source, table: &mergus_source::DeclaredTa
         row(2, 20, Some(9)),
         row(3, 30, Some(10)),
         row(4, 40, None),
+        row(6, 60, Some(9)),
     ];
     let mut attached = attach(&first, None, DEFAULT_OVERLAP, None, &ALL);
     let outcome = world
@@ -169,7 +176,7 @@ fn mg_req_0420_very_late_rows_reported() {
         (late.count, late.since.as_str(), late.oldest.as_str()),
         (2, "2026-01-01 09:00:00", "2026-01-01 05:00:00")
     );
-    assert_eq!(late.code(), "MG-0411");
+    assert_eq!(late.code(), "MG-0412");
     assert_eq!(
         late.to_string(),
         "table erp.sales: 2 rows older than 2026-01-01 09:00:00 arrived late; run mergus \
