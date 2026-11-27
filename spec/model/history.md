@@ -65,6 +65,9 @@ current version has `_valid_to = 9999-12-31 00:00:00` so that one range test fin
    typed error with the next free `MG-06xx` code, raised before any row is written.
 7. MG-REQ-0663.7: a key that appears more than once in a run's input that is not a changes view
    fails the run with a typed error. Nothing is written.
+8. MG-REQ-0663.8: a row with a NULL in any `key` column fails the run with a typed error, and
+   nothing is written. A raw delete row with a NULL `_deleted_at` uses the run's detection
+   time.
 
 - Kind: behavior
 - Verify: test `mg_req_0663_validity_columns`
