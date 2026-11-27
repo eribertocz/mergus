@@ -4,6 +4,7 @@ use std::io::Write;
 use std::path::{Path, PathBuf};
 
 use arrow::datatypes::SchemaRef;
+use arrow::error::ArrowError;
 use arrow::ipc::reader::FileReader;
 use arrow::ipc::writer::FileWriter;
 use arrow::record_batch::RecordBatch;
@@ -49,7 +50,7 @@ pub struct Boundary {
 }
 
 /// Writes `batches`, of `schema`, as the Arrow IPC file at `path`, one batch at a time through
-/// a stream of the file system.
+/// a stream of the file system. When a write fails, the partial file is removed.
 pub(crate) fn write_arrow(
     files: &dyn FileSystem,
     path: &Path,
@@ -57,17 +58,28 @@ pub(crate) fn write_arrow(
     batches: &[RecordBatch],
 ) -> Result<(), EngineError> {
     let stream = files.create(path)?;
-    let mut writer = FileWriter::try_new(stream, schema).map_err(|error| boundary(path, &error))?;
-    for batch in batches {
-        writer
-            .write(batch)
-            .map_err(|error| boundary(path, &error))?;
+    let written = stream_arrow(stream, schema, batches).map_err(|error| boundary(path, &error));
+    if written.is_err() {
+        // The write error is the one reported; the partial file is removed on a best effort,
+        // so that no reader finds a truncated boundary.
+        files.remove_file(path).ok();
     }
-    writer.finish().map_err(|error| boundary(path, &error))?;
-    let mut stream = writer
-        .into_inner()
-        .map_err(|error| boundary(path, &error))?;
-    stream.flush().map_err(|error| boundary(path, &error))
+    written
+}
+
+/// Writes `batches` as an Arrow IPC file to `stream`, then flushes it.
+fn stream_arrow(
+    stream: Box<dyn Write + Send>,
+    schema: &SchemaRef,
+    batches: &[RecordBatch],
+) -> Result<(), ArrowError> {
+    let mut writer = FileWriter::try_new(stream, schema)?;
+    for batch in batches {
+        writer.write(batch)?;
+    }
+    writer.finish()?;
+    writer.into_inner()?.flush()?;
+    Ok(())
 }
 
 /// Opens the Arrow IPC file at `path` as a reader that decodes one batch at a time through a

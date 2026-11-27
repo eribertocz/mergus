@@ -22,11 +22,15 @@ Execute DuckDB steps.
   with `MG-0101` (MG-REQ-0180): every declared schema is checked before the session opens
   (types DuckDB holds exactly, no column twice), a shared-memory input is conformed batch by
   batch, a Parquet input and the step's result are described and every declared column must
-  have its declared type whatever the number of rows, and the output is conformed before it
-  is written. Decimals keep their precision, NULL stays NULL,
+  have its declared type whatever the number of rows (a result column may also have a type
+  the declared one widens exactly: a wider integer, `DOUBLE` for `FLOAT`, `DECIMAL(p',s)` for
+  `DECIMAL(p,s)` with `p' >= p`), and the output is conformed before it is written. Decimals keep their precision, NULL stays NULL,
   and a value that would overflow or lose a digit is never rounded, truncated or cast.
 - Fails with `MG-0102` when the session has the `icu` extension loaded, checked with
-  `duckdb_extensions()` on every session.
+  `duckdb_extensions()` when the session opens, after the macros and before the result is
+  read.
+- Removes a shared-memory boundary file whose write failed, so that no reader finds it
+  truncated.
 - Keeps time zones: an input must carry its declared zone, and DuckDB's `TIMESTAMPTZ`, which
   keeps only the instant and gives it back in UTC (the port never loads `icu`), gets the
   declared zone back on the same instants, whatever the host's zone.
@@ -41,6 +45,10 @@ Execute DuckDB steps.
   plan records it.
 - It does not wire a run: `mergus-runtime` maps the plan onto `Segment` and calls it.
 - It does not read the `[resources]` section: the budget is fixed until phase 0.9.
-- It does not memory-map Arrow IPC files: streaming keeps peak memory at one batch plus what
-  DuckDB holds, with no `unsafe`.
+- It does not memory-map Arrow IPC files. Reading streams them, so peak memory is one batch
+  plus what DuckDB holds, with no `unsafe`.
+- It does not stream the step's result: `query_arrow` returns every batch of it, for both
+  transports. A shared-memory output stays within the 1 GiB budget because the plan sends
+  larger boundaries to Parquet; a Parquet output is still gathered in memory once before
+  `COPY` writes it (see the comment on #243).
 - It prints nothing and keeps no state between segments.

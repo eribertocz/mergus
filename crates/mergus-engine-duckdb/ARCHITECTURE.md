@@ -18,15 +18,18 @@
 Segment ─► check every declared schema                  (MG-REQ-0180)
         ─► Database::connect (in memory) ─► no `icu` loaded (duckdb_extensions())
         ─► execute each macro text                      (MG-REQ-0643)
+        ─► no `icu` loaded
         ─► each input:
-             SharedMemory: CREATE TABLE <name> ─► FileSystem::open ─► per Arrow IPC batch:
+             SharedMemory: FileSystem::open ─► CREATE TABLE <name> ─► per Arrow IPC batch:
                            conform to schema (MG-REQ-0180) ─► append_arrow
              Parquet:      SET VARIABLE ─► DESCRIBE, check declared types (MG-REQ-0180)
                            ─► CREATE VIEW <name> AS SELECT <columns> FROM read_parquet(...)
-        ─► DESCRIBE <SQL>, check declared types ─► query_arrow(SQL, parameters)
+        ─► DESCRIBE <SQL>, check declared or exactly widened types
+        ─► no `icu` loaded ─► query_arrow(SQL, parameters)
         ─► conform to the output schema, zones restored
         ─► output:
              SharedMemory: FileSystem::create ─► Arrow IPC, one batch at a time
+                           (on failure: FileSystem::remove_file)
              Parquet:      CREATE TABLE mergus_output[_…] ─► append_arrow ─► COPY TO <path>
 ```
 

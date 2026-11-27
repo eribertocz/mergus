@@ -184,3 +184,25 @@ fn mg_req_0180_sessions_have_no_icu_on_duckdb() {
         .unwrap();
     assert!(loaded.iter().all(|batch| batch.num_rows() == 0));
 }
+
+#[test]
+fn mg_req_0180_exact_widening_is_accepted_on_duckdb() {
+    let dir = scratch();
+    let schema = Arc::new(Schema::new(vec![
+        Field::new("id", DataType::Int64, true),
+        Field::new("amount", DataType::Decimal128(14, 1), true),
+    ]));
+    let out = dir.join("widened.arrow");
+    let output = table("widened", schema.clone(), Transport::SharedMemory, &out);
+    let sql = "SELECT 1 AS id, 1.5 AS amount";
+    run(&dir, &segment(sql, vec![], output)).unwrap();
+    let (read_schema, batches) = read_ipc(&out);
+    assert_eq!(read_schema, schema);
+    assert_eq!(batches.iter().map(RecordBatch::num_rows).sum::<usize>(), 1);
+
+    let narrow = Arc::new(Schema::new(vec![Field::new("id", DataType::Int32, true)]));
+    let out = dir.join("narrowed.arrow");
+    let output = table("narrowed", narrow, Transport::SharedMemory, &out);
+    let error = run(&dir, &segment("SELECT 1::BIGINT AS id", vec![], output)).unwrap_err();
+    assert_eq!(error.code(), Some("MG-0101"), "{error}");
+}

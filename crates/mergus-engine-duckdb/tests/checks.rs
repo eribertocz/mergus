@@ -1,14 +1,19 @@
 //! MG-REQ-0180: the checks of a segment before it reads or writes a row, with the simulated
 //! ports.
 
+use std::io::{self, Write};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 
-use arrow::array::{ArrayRef, StringArray};
+use arrow::array::{Array, ArrayRef, Int32Array, Int64Array, StringArray};
 use arrow::datatypes::{DataType, Field, Schema, SchemaRef};
 use arrow::record_batch::RecordBatch;
 use mergus_engine_duckdb::{Boundary, EngineError, Segment, Table, Transport, run_segment};
-use mergus_ports::{FileSystem, SqlValue};
+use mergus_ports::{
+    Database, DatabaseConnection, DatabaseLocation, Extension, FileSystem, LoadedExtension,
+    PortError, SeekRead, SqlValue,
+};
 use mergus_sim::{DatabaseFaults, SimDatabase, SimFileSystem};
 
 const SQL: &str = "SELECT id FROM orders";
@@ -85,7 +90,7 @@ fn work() -> SimFileSystem {
 #[test]
 fn mg_req_0180_zero_rows_of_another_type_fail() {
     let files = work();
-    let wrong = database(false, "INTEGER");
+    let wrong = database(false, "HUGEINT");
     let error = run_segment(&wrong, &files, &segment(arrow_output(), vec![])).unwrap_err();
     assert_eq!(error.code(), Some("MG-0101"), "{error}");
     assert!(
@@ -181,4 +186,169 @@ fn mg_req_0633_output_table_never_takes_an_input_name() {
     let executed = database.executed();
     assert!(executed.contains(&(create.to_owned(), vec![])));
     assert!(executed.contains(&(copy.to_owned(), vec![out])));
+}
+
+#[test]
+fn mg_req_0180_result_widened_exactly_is_accepted() {
+    let files = work();
+    let database = database(false, "INTEGER");
+    let small: ArrayRef = Arc::new(Int32Array::from(vec![Some(1), None]));
+    let rows = RecordBatch::try_from_iter([("id", small)]).unwrap();
+    database.record_query(SQL, vec![], vec![rows]);
+    run_segment(&database, &files, &segment(arrow_output(), vec![])).unwrap();
+    let bytes = files.read(Path::new("/work/out.arrow")).unwrap();
+    let reader =
+        arrow::ipc::reader::FileReader::try_new(std::io::Cursor::new(bytes), None).unwrap();
+    let batches: Vec<RecordBatch> = reader.map(|batch| batch.unwrap()).collect();
+    let expected = Int64Array::from(vec![Some(1), None]);
+    assert_eq!(batches[0].column(0).to_data(), expected.to_data());
+}
+
+/// A connection that loads `icu` when it runs `LOAD icu;`, as a macro file could.
+struct Loading {
+    inner: Box<dyn DatabaseConnection>,
+    icu: Arc<AtomicBool>,
+}
+
+impl DatabaseConnection for Loading {
+    fn execute(&mut self, sql: &str, params: &[SqlValue]) -> Result<usize, PortError> {
+        if sql == "LOAD icu;" {
+            self.icu.store(true, Ordering::SeqCst);
+            return Ok(0);
+        }
+        self.inner.execute(sql, params)
+    }
+
+    fn query_arrow(
+        &mut self,
+        sql: &str,
+        params: &[SqlValue],
+    ) -> Result<Vec<RecordBatch>, PortError> {
+        if sql == LOADED_ICU && self.icu.load(Ordering::SeqCst) {
+            let name: ArrayRef = Arc::new(StringArray::from(vec!["icu"]));
+            let loaded = RecordBatch::try_from_iter([("extension_name", name)])
+                .map_err(|error| PortError::Failed(error.to_string()))?;
+            return Ok(vec![loaded]);
+        }
+        self.inner.query_arrow(sql, params)
+    }
+
+    fn append_arrow(&mut self, table: &str, batch: &RecordBatch) -> Result<(), PortError> {
+        self.inner.append_arrow(table, batch)
+    }
+
+    fn attach_ducklake(
+        &mut self,
+        catalog: &mergus_ports::DuckLakeCatalog,
+    ) -> Result<(), PortError> {
+        self.inner.attach_ducklake(catalog)
+    }
+
+    fn load_extension(&mut self, extension: Extension) -> Result<(), PortError> {
+        self.inner.load_extension(extension)
+    }
+
+    fn loaded_extensions(&self) -> Vec<LoadedExtension> {
+        self.inner.loaded_extensions()
+    }
+}
+
+struct LoadingDatabase(SimDatabase);
+
+impl Database for LoadingDatabase {
+    fn connect(
+        &self,
+        location: &DatabaseLocation,
+    ) -> Result<Box<dyn DatabaseConnection>, PortError> {
+        let inner = self.0.connect(location)?;
+        Ok(Box::new(Loading {
+            inner,
+            icu: Arc::new(AtomicBool::new(false)),
+        }))
+    }
+}
+
+#[test]
+fn mg_req_0180_icu_loaded_by_a_macro_fails() {
+    let files = work();
+    let database = LoadingDatabase(database(false, "BIGINT"));
+    let mut loads = segment(arrow_output(), vec![]);
+    loads.macros.push("LOAD icu;".to_owned());
+    let error = run_segment(&database, &files, &loads).unwrap_err();
+    assert_eq!(error.code(), Some("MG-0102"), "{error}");
+    assert!(!files.exists(Path::new("/work/out.arrow")).unwrap());
+}
+
+/// A file system whose streams fail after `limit` bytes.
+struct Failing {
+    inner: SimFileSystem,
+    limit: usize,
+}
+
+struct FailingWriter {
+    inner: Box<dyn Write + Send>,
+    left: usize,
+}
+
+impl Write for FailingWriter {
+    fn write(&mut self, bytes: &[u8]) -> io::Result<usize> {
+        if bytes.len() > self.left {
+            return Err(io::Error::other("the disk is full"));
+        }
+        self.left -= bytes.len();
+        self.inner.write(bytes)
+    }
+
+    fn flush(&mut self) -> io::Result<()> {
+        self.inner.flush()
+    }
+}
+
+impl FileSystem for Failing {
+    fn read(&self, path: &Path) -> Result<Vec<u8>, PortError> {
+        self.inner.read(path)
+    }
+    fn open(&self, path: &Path) -> Result<Box<dyn SeekRead>, PortError> {
+        self.inner.open(path)
+    }
+    fn create(&self, path: &Path) -> Result<Box<dyn Write + Send>, PortError> {
+        let inner = self.inner.create(path)?;
+        Ok(Box::new(FailingWriter {
+            inner,
+            left: self.limit,
+        }))
+    }
+    fn write(&self, path: &Path, contents: &[u8]) -> Result<(), PortError> {
+        self.inner.write(path, contents)
+    }
+    fn remove_file(&self, path: &Path) -> Result<(), PortError> {
+        self.inner.remove_file(path)
+    }
+    fn create_dir_all(&self, path: &Path) -> Result<(), PortError> {
+        self.inner.create_dir_all(path)
+    }
+    fn list_dir(&self, path: &Path) -> Result<Vec<PathBuf>, PortError> {
+        self.inner.list_dir(path)
+    }
+    fn exists(&self, path: &Path) -> Result<bool, PortError> {
+        self.inner.exists(path)
+    }
+}
+
+#[test]
+fn mg_req_0633_failed_boundary_write_leaves_no_file() {
+    let files = Failing {
+        inner: work(),
+        limit: 16,
+    };
+    let database = database(false, "BIGINT");
+    let ids: ArrayRef = Arc::new(Int64Array::from(vec![1, 2, 3]));
+    database.record_query(
+        SQL,
+        vec![],
+        vec![RecordBatch::try_from_iter([("id", ids)]).unwrap()],
+    );
+    let error = run_segment(&database, &files, &segment(arrow_output(), vec![])).unwrap_err();
+    assert!(matches!(error, EngineError::Boundary { .. }), "{error}");
+    assert!(!files.exists(Path::new("/work/out.arrow")).unwrap());
 }

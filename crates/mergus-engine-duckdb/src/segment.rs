@@ -46,8 +46,10 @@ pub struct Table {
 /// (MG-REQ-0633).
 ///
 /// Every declared schema is checked first. The session must not have `icu` loaded, so that
-/// DuckDB gives zoned timestamps back in UTC. The step's result is described before it runs,
-/// and every declared column must have its declared type even when there are no rows.
+/// DuckDB gives zoned timestamps back in UTC: it is checked when the session opens, after the
+/// macros and before the result is read. The step's result is described before it runs, and
+/// every declared column must have its declared type, or a type it widens exactly, even when
+/// there are no rows.
 ///
 /// A shared-memory input is read as Arrow, conformed to its schema and appended to a table of
 /// its name. A Parquet input is described first, every declared column must have its declared
@@ -81,18 +83,15 @@ pub fn run_segment(
     for text in &segment.macros {
         session.execute(text, &[])?;
     }
+    without_icu(session.as_mut())?;
     for (index, input) in segment.inputs.iter().enumerate() {
         open_input(session.as_mut(), files, index, input)?;
     }
     let output = &segment.output;
     let describe = format!("DESCRIBE {}", segment.sql);
-    described(
-        session.as_mut(),
-        &describe,
-        &segment.params,
-        output,
-        "the step's result",
-    )?;
+    let result = ("the step's result", true);
+    described(session.as_mut(), &describe, &segment.params, output, result)?;
+    without_icu(session.as_mut())?;
     let batches = session
         .query_arrow(&segment.sql, &segment.params)?
         .iter()
@@ -155,7 +154,7 @@ fn open_input(
             session.execute(&set, &[path_value(&input.boundary)?])?;
             let file = format!("read_parquet(getvariable('{variable}'))");
             let describe = format!("DESCRIBE SELECT * FROM {file}");
-            described(session, &describe, &[], input, "the Parquet file")?;
+            described(session, &describe, &[], input, ("the Parquet file", false))?;
             let name = quote_identifier(&input.name);
             let columns = input
                 .schema
