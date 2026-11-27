@@ -27,8 +27,11 @@ Deterministic simulator.
 ## What it does not
 
 - It does not touch the outside world: time is virtual and sleeping returns at once.
-- It does not run the real runtime yet: the caller gives the scenario. Running the runtime,
-  and a `mergus-sim` command, come with later phases.
+- It holds no scenario: the caller gives it. The scenario of INV-04 (MG-REQ-0143) is a test
+  of `mergus-runtime`, in `crates/mergus-runtime/tests/incremental/simulation.rs`, that runs
+  the real runtime on these ports. `cargo xtask simulation` runs it over 1,000 seeds on every
+  pull request and in the release campaign (MG-REQ-0198); a `mergus-sim` command comes with
+  later phases.
 - It does not inject process crashes, concurrent writers or simultaneous triggers; they come
   in later phases.
 - It is never a normal dependency of a product crate (MG-REQ-0126.8).

@@ -1,0 +1,56 @@
+# The release campaign of the invariants under `mergus-sim` (MG-REQ-0198.2, decision 0050):
+# started by hand on `main`, it chains four jobs of at most six hours, about 24 hours in all,
+# each running new seeds from where the last one stopped. Its successful run is the evidence
+# of the Invariants gate; its summary records the seeds run and the commit.
+name: simulation-campaign
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  part-1:
+    # Seeds start at `run_id × 10⁸`: no campaign repeats another's, nor the 1,000 seeds of
+    # pull requests.
+    uses: ./.github/workflows/simulation-campaign-part.yml
+    with:
+      part: 1
+      first: ${{ format('{0}00000000', github.run_id) }}
+  part-2:
+    needs: part-1
+    uses: ./.github/workflows/simulation-campaign-part.yml
+    with:
+      part: 2
+      first: ${{ needs.part-1.outputs.next }}
+  part-3:
+    needs: part-2
+    uses: ./.github/workflows/simulation-campaign-part.yml
+    with:
+      part: 3
+      first: ${{ needs.part-2.outputs.next }}
+  part-4:
+    needs: part-3
+    uses: ./.github/workflows/simulation-campaign-part.yml
+    with:
+      part: 4
+      first: ${{ needs.part-3.outputs.next }}
+  summary:
+    name: summary
+    needs: [part-1, part-4]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Record the seeds run and the commit
+        run: |
+          {
+            echo "## Simulation campaign"
+            echo
+            echo "- Commit: \`$COMMIT\`"
+            echo "- Seeds: $FIRST..$NEXT, all passed"
+          } >> "$GITHUB_STEP_SUMMARY"
+        env:
+          COMMIT: ${{ github.sha }}
+          FIRST: ${{ format('{0}00000000', github.run_id) }}
+          NEXT: ${{ needs.part-4.outputs.next }}

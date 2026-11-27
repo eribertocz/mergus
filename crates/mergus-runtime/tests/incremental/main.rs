@@ -1,6 +1,6 @@
 //! Tests of incremental loads by chunks, written through storage adapters in memory, from a
 //! source answered by the simulated `Database` port (MG-REQ-0412, MG-REQ-0413, MG-REQ-0415,
-//! MG-REQ-0418, MG-REQ-0420, MG-REQ-0143).
+//! MG-REQ-0418, MG-REQ-0420, MG-REQ-0143), and INV-04 under `mergus-sim` (MG-REQ-0198).
 
 #[path = "../raw/memory.rs"]
 mod memory;
@@ -8,6 +8,7 @@ mod memory;
 mod deletes;
 mod fixture;
 mod resume;
+mod simulation;
 mod world;
 
 use std::time::Duration;

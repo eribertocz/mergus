@@ -1,0 +1,73 @@
+# One job of the simulation campaign (MG-REQ-0198.2): new seeds from `first` until the job
+# nears its six hours, then the next seed for the following job.
+name: simulation-campaign-part
+
+on:
+  workflow_call:
+    inputs:
+      part:
+        type: number
+        required: true
+      first:
+        type: string
+        required: true
+    outputs:
+      next:
+        description: The first seed this job did not run.
+        value: ${{ jobs.simulate.outputs.next }}
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: never
+  CARGO_INCREMENTAL: 0
+
+jobs:
+  simulate:
+    name: simulate (part ${{ inputs.part }} of 4)
+    runs-on: ubuntu-latest
+    # The longest job GitHub runs; the seeds stop ten minutes before it.
+    timeout-minutes: 360
+    outputs:
+      next: ${{ steps.simulate.outputs.next }}
+    steps:
+      - name: Start on main only
+        run: |
+          echo "started=$(date +%s)" >> "$GITHUB_ENV"
+          if [ "$REF" != "refs/heads/main" ]; then
+            echo "::error::The campaign runs on main, not $REF (MG-REQ-0198.2)."
+            exit 1
+          fi
+        env:
+          REF: ${{ github.ref }}
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install the toolchain
+        run: rustup toolchain install
+      - name: Cache the build
+        uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+        with:
+          shared-key: simulation-campaign
+      - name: Build the scenarios
+        run: cargo test --locked --package mergus-runtime --test incremental --no-run
+      - name: Run new seeds until the job nears six hours
+        id: simulate
+        shell: bash
+        run: |
+          minutes=$(( (started + 350 * 60 - $(date +%s)) / 60 ))
+          cargo xtask simulation --first "$FIRST" --minutes "$minutes" | tee simulation.log
+          next="$(sed -n 's/^next seed: //p' simulation.log)"
+          echo "next=$next" >> "$GITHUB_OUTPUT"
+          {
+            echo "## Simulation campaign, part $PART of 4"
+            echo
+            echo "- Commit: \`$COMMIT\`"
+            echo "- Seeds: $FIRST..$next, all passed"
+          } >> "$GITHUB_STEP_SUMMARY"
+        env:
+          COMMIT: ${{ github.sha }}
+          FIRST: ${{ inputs.first }}
+          PART: ${{ inputs.part }}
