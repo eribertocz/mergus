@@ -3,8 +3,10 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::num::NonZeroU32;
 
-use mergus_project::{Effective, Identifier, ModelOptions};
+use mergus_project::{Effective, Identifier, ModelOptions, Publication};
 use serde_json::Value;
+
+use crate::{Engine, ModelStep};
 
 /// The `max_parallel` the planner uses when the caller sets none (MG-REQ-0744.1).
 pub const DEFAULT_MAX_PARALLEL: NonZeroU32 = NonZeroU32::MIN.saturating_add(3);
@@ -23,12 +25,18 @@ pub struct PlanModel {
     /// The tables it reads, resolved: lowercase, a model bare, a raw table as `raw.<table>`.
     /// A Python model reads none in 0.2.
     pub inputs: BTreeSet<String>,
+    /// Whether it is published (MG-REQ-0304).
+    pub published: bool,
+    /// Its steps, in execution order: one step named like the model for a `.sql` model
+    /// (MG-REQ-0631.2). A model with none gets no segments.
+    pub steps: Vec<ModelStep>,
 }
 
 impl PlanModel {
     /// Builds the model from what `mergus-project` read: its effective options, its
     /// identifier, the text of its file and its resolved references
-    /// ([`mergus_project::read_sql_references`]; none for a Python model).
+    /// ([`mergus_project::read_sql_references`]; none for a Python model). A `.sql` model is
+    /// one DuckDB step named like the model (MG-REQ-0631.2); a Python model gets no step here.
     #[must_use]
     pub fn from_project(
         options: &ModelOptions,
@@ -42,7 +50,25 @@ impl PlanModel {
             code: lf_text(code),
             config: effective_config(options),
             inputs: references.iter().cloned().collect(),
+            published: options.publication != Publication::Intermediate,
+            steps: sql_step(options),
         }
+    }
+}
+
+/// The one step of a `.sql` model, named like the model, on DuckDB (MG-REQ-0631.2); none for
+/// a Python model, whose steps the caller gives.
+fn sql_step(options: &ModelOptions) -> Vec<ModelStep> {
+    if options.path.ends_with(".sql") {
+        vec![ModelStep {
+            name: options.name.clone(),
+            engine: Engine::Duckdb,
+            columns: Vec::new(),
+            reads: Vec::new(),
+            detected: Vec::new(),
+        }]
+    } else {
+        Vec::new()
     }
 }
 
@@ -88,11 +114,14 @@ pub struct PlanRequest {
     pub versions: BTreeMap<String, String>,
     /// The version of each engine, by name.
     pub engines: BTreeMap<String, String>,
+    /// The estimated rows each model's boundaries carry, by model name, when the caller has
+    /// an estimate (MG-REQ-0633).
+    pub rows: BTreeMap<String, u64>,
 }
 
 impl PlanRequest {
     /// A request for `selected` with the default `max_parallel`, no available result, no
-    /// input version and no engine version.
+    /// input version, no engine version and no row estimate.
     #[must_use]
     pub fn new(mergus_version: &str, environment: &str, selected: BTreeSet<String>) -> Self {
         Self {
@@ -103,6 +132,7 @@ impl PlanRequest {
             available: BTreeSet::new(),
             versions: BTreeMap::new(),
             engines: BTreeMap::new(),
+            rows: BTreeMap::new(),
         }
     }
 }

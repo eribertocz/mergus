@@ -20,6 +20,8 @@ pub fn model(name: &str, inputs: &[&str]) -> PlanModel {
         code: format!("model {name} reads {}\n", inputs.join(", ")),
         config: BTreeMap::from([("refresh".to_owned(), Value::from("full"))]),
         inputs: inputs.iter().map(|input| (*input).to_owned()).collect(),
+        published: false,
+        steps: Vec::new(),
     }
 }
 
@@ -70,4 +72,43 @@ pub fn groups(plan: &Plan) -> Vec<(String, i64)> {
         .iter()
         .map(|step| (step.model.clone(), step.parallel_group))
         .collect()
+}
+
+/// A step `name` on `engine` that outputs `columns`, each `<name> <DuckDB type>`, and reads
+/// `reads` as `(step, column)`.
+pub fn step(
+    name: &str,
+    engine: mergus_plan::Engine,
+    columns: &[&str],
+    reads: &[(&str, &str)],
+) -> mergus_plan::ModelStep {
+    mergus_plan::ModelStep {
+        name: name.to_owned(),
+        engine,
+        columns: columns
+            .iter()
+            .map(|column| {
+                let (name, data_type) = column.split_once(' ').unwrap();
+                mergus_plan::OutputColumn {
+                    name: name.to_owned(),
+                    data_type: data_type.to_owned(),
+                }
+            })
+            .collect(),
+        reads: reads
+            .iter()
+            .map(|(step, column)| mergus_plan::ColumnRead {
+                step: (*step).to_owned(),
+                column: (*column).to_owned(),
+            })
+            .collect(),
+        detected: Vec::new(),
+    }
+}
+
+/// The model `name`, with no input, made of `steps`.
+pub fn with_steps(name: &str, steps: Vec<mergus_plan::ModelStep>) -> PlanModel {
+    let mut made = model(name, &[]);
+    made.steps = steps;
+    made
 }

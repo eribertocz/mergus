@@ -19,18 +19,34 @@
 //! [`RequiredSecret`], the [`Existence`] the caller found, and never sees a value
 //! (MG-REQ-0721).
 //!
+//! Each model with [`ModelStep`]s gets its segments: consecutive steps of one [`Engine`]
+//! fused (MG-REQ-0631); [`segment`] also finds the columns that cross between segments, and
+//! only those (MG-REQ-0632). Each boundary crosses as Arrow up to 1 GiB of estimated data,
+//! as Parquet above or without an estimate (MG-REQ-0633), and each Polars segment runs at the
+//! highest level available (MG-REQ-0635).
+//!
+//! [`type_passport`] and [`determinism`] return the errors of the `Type passport` and
+//! `Determinism` gates (MG-REQ-0634, MG-REQ-0637), for the caller to give to [`evaluate`];
+//! [`detect_sql`] finds the non-deterministic operations of a SQL text on its parsed tree.
+//!
 //! The crate is pure: it performs no I/O (MG-REQ-0004).
 
 #![forbid(unsafe_code)]
 
 mod build;
+mod determinism;
 mod error;
+mod execution;
 mod fingerprint;
 mod gate;
 mod graph;
 mod input;
+mod passport;
+mod segment;
+mod types;
 
 pub use build::{Plan, plan};
+pub use determinism::{Detected, Operation, detect_sql, determinism};
 pub use error::PlanError;
 pub use fingerprint::{FingerprintInputs, fingerprint};
 pub use gate::{
@@ -38,3 +54,7 @@ pub use gate::{
     RequiredSecret, evaluate,
 };
 pub use input::{DEFAULT_MAX_PARALLEL, PlanModel, PlanRequest, effective_config, lf_text};
+pub use passport::type_passport;
+pub use segment::{
+    ColumnRead, Crossing, CrossingColumn, Engine, Fused, ModelStep, OutputColumn, Segments, segment,
+};

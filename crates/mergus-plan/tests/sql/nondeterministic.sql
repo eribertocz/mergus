@@ -1,0 +1,4 @@
+SELECT id, RANDOM() AS r, now() AS at
+FROM (SELECT id FROM orders LIMIT 10) AS o
+ORDER BY id
+LIMIT 5

@@ -10,6 +10,7 @@ use serde_json::Value;
 
 use mergus_contracts::hash::sha256_hex;
 
+use crate::execution;
 use crate::fingerprint::{FingerprintInputs, fingerprint};
 use crate::graph::Graph;
 use crate::{PlanError, PlanModel, PlanRequest};
@@ -53,7 +54,8 @@ impl Plan {
 /// # Errors
 ///
 /// Fails with [`PlanError::UnknownSelected`] when a selected name is not a model of `models`,
-/// with [`PlanError::Cycle`] when models read one another in a cycle, and with
+/// with [`PlanError::Cycle`] when models read one another in a cycle, with
+/// [`PlanError::ExecutionFields`] when a step's execution fields break MG-REQ-0747.4, and with
 /// [`PlanError::Emit`] when the plan does not match its contract.
 pub fn plan(models: &[PlanModel], request: &PlanRequest) -> Result<Plan, PlanError> {
     let graph = Graph::new(models)?;
@@ -65,6 +67,8 @@ pub fn plan(models: &[PlanModel], request: &PlanRequest) -> Result<Plan, PlanErr
         return Err(PlanError::UnknownSelected(unknown.clone()));
     }
     let fingerprints = fingerprints(&graph, request);
+    let steps = steps(&graph, request, &fingerprints);
+    execution::check(&steps)?;
     let mut document = MergusPlan {
         contract: MergusPlan::NAME.to_owned(),
         contract_version: i64::from(MergusPlan::VERSION),
@@ -73,7 +77,7 @@ pub fn plan(models: &[PlanModel], request: &PlanRequest) -> Result<Plan, PlanErr
         environment: request.environment.clone(),
         max_parallel: i64::from(request.max_parallel.get()),
         selected: request.selected.iter().cloned().collect(),
-        steps: steps(&graph, request, &fingerprints),
+        steps,
         stale_upstream: stale_upstream(&graph, request, &fingerprints),
         gates: None,
     };
@@ -133,7 +137,8 @@ fn steps(
             for name in chunk {
                 if let Some(model) = graph.models.get(name) {
                     let print = fingerprints.get(name).cloned().unwrap_or_default();
-                    steps.push(step(model, print, group, &request.available));
+                    let rows = request.rows.get(*name).copied();
+                    steps.push(step(model, print, group, &request.available, rows));
                 }
             }
         }
@@ -141,8 +146,16 @@ fn steps(
     steps
 }
 
-/// The step of `model`, whose fingerprint is `print`, in the parallel group `group`.
-fn step(model: &PlanModel, print: String, group: i64, available: &BTreeSet<String>) -> Step {
+/// The step of `model`, whose fingerprint is `print`, in the parallel group `group`, whose
+/// boundaries carry about `rows` rows.
+fn step(
+    model: &PlanModel,
+    print: String,
+    group: i64,
+    available: &BTreeSet<String>,
+    rows: Option<u64>,
+) -> Step {
+    let (segments, boundaries) = execution::fields(model, rows);
     let (action, reason) = if available.contains(&print) {
         (StepAction::Skip, StepReason::ResultAvailable)
     } else {
@@ -158,8 +171,8 @@ fn step(model: &PlanModel, print: String, group: i64, available: &BTreeSet<Strin
         refresh: StepRefresh::Full,
         parallel_group: group,
         incremental: None,
-        segments: None,
-        boundaries: None,
+        segments,
+        boundaries,
         periods: None,
     }
 }
