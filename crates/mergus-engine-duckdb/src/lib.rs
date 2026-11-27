@@ -14,6 +14,7 @@ mod checks;
 mod error;
 mod exact;
 mod hash;
+mod output;
 mod segment;
 mod transport;
 

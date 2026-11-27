@@ -104,6 +104,11 @@ fn staged() -> (PathBuf, PathBuf) {
     let output = table("staged", schema, Transport::Parquet, &staged);
     let sql = "SELECT twice(id) // 2 AS id, amount, \"at\" FROM events";
     run(&dir, &segment(sql, vec![input], output)).unwrap();
+    assert!(
+        !RealFileSystem
+            .exists(&dir.join("staged.parquet.duckdb"))
+            .unwrap()
+    );
     (dir, staged)
 }
 
@@ -205,4 +210,26 @@ fn mg_req_0180_exact_widening_is_accepted_on_duckdb() {
     let output = table("narrowed", narrow, Transport::SharedMemory, &out);
     let error = run(&dir, &segment("SELECT 1::BIGINT AS id", vec![], output)).unwrap_err();
     assert_eq!(error.code(), Some("MG-0101"), "{error}");
+}
+
+#[test]
+fn mg_req_0633_duckdb_streams_batches_one_at_a_time() {
+    let dir = scratch();
+    let database = RealDatabase::new(&dir.join("cache"));
+    let mut session = database.connect(&DatabaseLocation::InMemory).unwrap();
+    let mut calls = 0;
+    let mut rows = 0;
+    session
+        .query_arrow_each(
+            "SELECT range AS id FROM range(?)",
+            &[SqlValue::Integer(10_000)],
+            &mut |batch| {
+                calls += 1;
+                rows += batch.num_rows();
+                Ok(())
+            },
+        )
+        .unwrap();
+    assert_eq!(rows, 10_000);
+    assert!(calls > 1, "{calls} batches");
 }

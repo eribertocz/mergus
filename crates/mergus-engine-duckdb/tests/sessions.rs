@@ -1,13 +1,12 @@
 //! MG-REQ-0643: every DuckDB session that runs a segment loads the project's macros first.
 
 use std::path::{Path, PathBuf};
-use std::sync::Arc;
-use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::{Arc, Mutex};
 
 use arrow::array::{ArrayRef, Int64Array, StringArray};
 use arrow::datatypes::{DataType, Field, Schema};
 use arrow::record_batch::RecordBatch;
-use mergus_engine_duckdb::{Boundary, Segment, Table, Transport, run_segment};
+use mergus_engine_duckdb::{Boundary, Segment, Table, Transport, run_segment, table_hash};
 use mergus_ports::{
     Database, DatabaseConnection, DatabaseLocation, FileSystem, PortError, SqlValue,
 };
@@ -81,10 +80,10 @@ fn segment() -> Segment {
     }
 }
 
-/// A database that counts its connections.
+/// A database that records the location of each connection.
 struct Counted {
     inner: SimDatabase,
-    connections: AtomicUsize,
+    locations: Mutex<Vec<DatabaseLocation>>,
 }
 
 impl Database for Counted {
@@ -92,7 +91,9 @@ impl Database for Counted {
         &self,
         location: &DatabaseLocation,
     ) -> Result<Box<dyn DatabaseConnection>, PortError> {
-        self.connections.fetch_add(1, Ordering::SeqCst);
+        if let Ok(mut locations) = self.locations.lock() {
+            locations.push(location.clone());
+        }
         self.inner.connect(location)
     }
 }
@@ -103,11 +104,18 @@ fn mg_req_0643_macros_loaded_in_each_session() {
     files.create_dir_all(Path::new("/zone/work")).unwrap();
     let database = Counted {
         inner: database(),
-        connections: AtomicUsize::new(0),
+        locations: Mutex::new(Vec::new()),
     };
     run_segment(&database, &files, &segment()).unwrap();
     run_segment(&database, &files, &segment()).unwrap();
-    assert_eq!(database.connections.load(Ordering::SeqCst), 2);
+    // Each segment runs in its own in-memory session; its Parquet output is gathered in a
+    // second session, on a scratch file, which runs no step SQL.
+    let scratch = DatabaseLocation::File(PathBuf::from("/zone/work/a.parquet.duckdb"));
+    let expected = [DatabaseLocation::InMemory, scratch];
+    assert_eq!(
+        *database.locations.lock().unwrap(),
+        [expected.clone(), expected].concat()
+    );
     let session = [MACROS[0], MACROS[1], CREATE_OUTPUT, COPY];
     let expected: Vec<String> = session
         .iter()
@@ -121,4 +129,33 @@ fn mg_req_0643_macros_loaded_in_each_session() {
         .map(|(sql, _)| sql)
         .collect();
     assert_eq!(executed, expected);
+}
+
+#[test]
+fn mg_req_0633_parquet_output_streams_through_a_scratch_file() {
+    let files = SimFileSystem::new();
+    files.create_dir_all(Path::new("/zone/work")).unwrap();
+    // A scratch file left by an earlier run is replaced, and removed at the end.
+    let scratch = Path::new("/zone/work/a.parquet.duckdb");
+    files.write(scratch, b"stale").unwrap();
+    files
+        .write(Path::new("/zone/work/a.parquet.duckdb.wal"), b"stale")
+        .unwrap();
+    let database = database();
+    let id = |values: Vec<i64>| {
+        let ids: ArrayRef = Arc::new(Int64Array::from(values));
+        RecordBatch::try_from_iter([("id", ids)]).unwrap()
+    };
+    let parts = vec![id(vec![1]), id(vec![2, 3]), id(vec![4])];
+    database.record_query(SQL, vec![], parts.clone());
+    run_segment(&database, &files, &segment()).unwrap();
+    let appended = database.appended("mergus_output");
+    assert_eq!(appended.len(), 3);
+    assert_eq!(table_hash(&appended).unwrap(), table_hash(&parts).unwrap());
+    assert!(!files.exists(scratch).unwrap());
+    assert!(
+        !files
+            .exists(Path::new("/zone/work/a.parquet.duckdb.wal"))
+            .unwrap()
+    );
 }

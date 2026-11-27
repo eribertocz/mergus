@@ -49,37 +49,43 @@ pub struct Boundary {
     pub path: PathBuf,
 }
 
-/// Writes `batches`, of `schema`, as the Arrow IPC file at `path`, one batch at a time through
-/// a stream of the file system. When a write fails, the partial file is removed.
-pub(crate) fn write_arrow(
-    files: &dyn FileSystem,
-    path: &Path,
-    schema: &SchemaRef,
-    batches: &[RecordBatch],
-) -> Result<(), EngineError> {
-    let stream = files.create(path)?;
-    let written = stream_arrow(stream, schema, batches).map_err(|error| boundary(path, &error));
-    if written.is_err() {
-        // The write error is the one reported; the partial file is removed on a best effort,
-        // so that no reader finds a truncated boundary.
-        files.remove_file(path).ok();
-    }
-    written
+/// An Arrow IPC file being written one batch at a time through a stream of the file system.
+pub(crate) struct ArrowSink {
+    path: PathBuf,
+    writer: FileWriter<Box<dyn Write + Send>>,
 }
 
-/// Writes `batches` as an Arrow IPC file to `stream`, then flushes it.
-fn stream_arrow(
-    stream: Box<dyn Write + Send>,
-    schema: &SchemaRef,
-    batches: &[RecordBatch],
-) -> Result<(), ArrowError> {
-    let mut writer = FileWriter::try_new(stream, schema)?;
-    for batch in batches {
-        writer.write(batch)?;
+impl ArrowSink {
+    /// Creates the Arrow IPC file at `path` for batches of `schema`.
+    pub(crate) fn create(
+        files: &dyn FileSystem,
+        path: &Path,
+        schema: &SchemaRef,
+    ) -> Result<Self, EngineError> {
+        let stream = files.create(path)?;
+        let writer = FileWriter::try_new(stream, schema).map_err(|error| boundary(path, &error))?;
+        Ok(Self {
+            path: path.to_path_buf(),
+            writer,
+        })
     }
-    writer.finish()?;
-    writer.into_inner()?.flush()?;
-    Ok(())
+
+    /// Writes `batch` to the file.
+    pub(crate) fn write(&mut self, batch: &RecordBatch) -> Result<(), EngineError> {
+        let path = &self.path;
+        self.writer
+            .write(batch)
+            .map_err(|error| boundary(path, &error))
+    }
+
+    /// Ends the file and flushes it.
+    pub(crate) fn finish(mut self) -> Result<(), EngineError> {
+        let path = self.path.clone();
+        let fail = |error: ArrowError| boundary(&path, &error);
+        self.writer.finish().map_err(fail)?;
+        let mut stream = self.writer.into_inner().map_err(fail)?;
+        stream.flush().map_err(|error| boundary(&path, &error))
+    }
 }
 
 /// Opens the Arrow IPC file at `path` as a reader that decodes one batch at a time through a

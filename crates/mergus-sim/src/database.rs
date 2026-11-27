@@ -195,6 +195,19 @@ impl DatabaseConnection for SimConnection {
         }
     }
 
+    /// Replays the recorded batches one by one, each `each` call before the next batch.
+    fn query_arrow_each(
+        &mut self,
+        sql: &str,
+        params: &[SqlValue],
+        each: &mut dyn FnMut(RecordBatch) -> Result<(), PortError>,
+    ) -> Result<(), PortError> {
+        for batch in self.query_arrow(sql, params)? {
+            each(batch)?;
+        }
+        Ok(())
+    }
+
     fn append_arrow(&mut self, table: &str, batch: &RecordBatch) -> Result<(), PortError> {
         self.shared.enter(table)?;
         lock(&self.shared.appended)

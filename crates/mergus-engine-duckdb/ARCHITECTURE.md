@@ -25,18 +25,18 @@ Segment ─► check every declared schema                  (MG-REQ-0180)
              Parquet:      SET VARIABLE ─► DESCRIBE, check declared types (MG-REQ-0180)
                            ─► CREATE VIEW <name> AS SELECT <columns> FROM read_parquet(...)
         ─► DESCRIBE <SQL>, check declared or exactly widened types
-        ─► no `icu` loaded ─► query_arrow(SQL, parameters)
-        ─► conform to the output schema, zones restored
-        ─► output:
-             SharedMemory: FileSystem::create ─► Arrow IPC, one batch at a time
+        ─► no `icu` loaded ─► query_arrow_each(SQL, parameters), per batch:
+             conform to the output schema, zones restored, then
+             SharedMemory: write to the Arrow IPC file of FileSystem::create
                            (on failure: FileSystem::remove_file)
-             Parquet:      CREATE TABLE mergus_output[_…] ─► append_arrow ─► COPY TO <path>
+             Parquet:      append_arrow to mergus_output of a second session on
+                           <output>.duckdb ─► COPY TO <path> ─► remove <output>.duckdb
 ```
 
 `exact` maps each Arrow type to the type DuckDB describes for the column that holds it
 exactly, converts a column only when every value survives the round trip unchanged, and puts
 a declared time zone back on DuckDB's UTC instants. `transport` streams the Arrow IPC
-files batch by batch. `hash` writes each row as canonical JSON with `mergus-contracts` and hashes
+files batch by batch; `output` streams the step's result to either transport. `hash` writes each row as canonical JSON with `mergus-contracts` and hashes
 it with its SHA-256.
 
 ## Dependencies

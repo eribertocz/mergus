@@ -146,6 +146,24 @@ impl DatabaseConnection for RealConnection {
         Ok(batches)
     }
 
+    /// Drives DuckDB's lazy Arrow iterator: each batch is produced only when the one before
+    /// it has been handled.
+    fn query_arrow_each(
+        &mut self,
+        sql: &str,
+        params: &[SqlValue],
+        each: &mut dyn FnMut(RecordBatch) -> Result<(), PortError>,
+    ) -> Result<(), PortError> {
+        let mut statement = self.connection.prepare(sql).map_err(failed)?;
+        let batches = statement
+            .query_arrow(duckdb::params_from_iter(params.iter().map(value)))
+            .map_err(failed)?;
+        for batch in batches {
+            each(batch)?;
+        }
+        Ok(())
+    }
+
     fn append_arrow(&mut self, table: &str, batch: &RecordBatch) -> Result<(), PortError> {
         let mut appender = self.connection.appender(table).map_err(failed)?;
         appender

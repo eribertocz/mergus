@@ -147,7 +147,7 @@ fn mg_req_0180_undeclarable_output_fails_before_the_session() {
 }
 
 #[test]
-fn mg_req_0633_output_table_never_takes_an_input_name() {
+fn mg_req_0633_output_table_is_apart_from_an_input_of_its_name() {
     let files = work();
     let database = database(false, "BIGINT");
     let input = table(
@@ -171,9 +171,9 @@ fn mg_req_0633_output_table_never_takes_an_input_name() {
     let view = "CREATE VIEW \"mergus_output\" AS SELECT \"id\" FROM \
                 read_parquet(getvariable('mergus_input_0'))";
     database.record_execute(view, vec![], 0);
-    let create = "CREATE TABLE \"mergus_output_\" (\"id\" BIGINT)";
+    let create = "CREATE TABLE \"mergus_output\" (\"id\" BIGINT)";
     database.record_execute(create, vec![], 0);
-    let copy = "COPY \"mergus_output_\" TO ? (FORMAT parquet)";
+    let copy = "COPY \"mergus_output\" TO ? (FORMAT parquet)";
     let out = SqlValue::Text("/w/o.parquet".to_owned());
     database.record_execute(copy, vec![out.clone()], 0);
     let output = table(

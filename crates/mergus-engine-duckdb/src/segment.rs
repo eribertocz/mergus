@@ -2,17 +2,13 @@
 //! step's SQL and leaves its rows at its output boundary.
 
 use arrow::datatypes::{Schema, SchemaRef};
-use arrow::record_batch::RecordBatch;
 use mergus_ports::{Database, DatabaseConnection, DatabaseLocation, FileSystem, SqlValue};
 
 use crate::checks::{declared, described, without_icu};
-use crate::exact::{Zones, conform, duckdb_type, nullable, unrepresentable};
-use crate::transport::{boundary, open_arrow, write_arrow};
+use crate::exact::{Zones, conform, duckdb_type, unrepresentable};
+use crate::output::{write_parquet, write_shared};
+use crate::transport::{boundary, open_arrow};
 use crate::{Boundary, EngineError, Transport};
-
-/// The table a Parquet output is gathered in before it is written, with `_` added until no
-/// input has its name.
-const OUTPUT_TABLE: &str = "mergus_output";
 
 /// What a segment runs: the input of this crate, onto which the runtime maps the plan.
 #[derive(Clone, Debug, PartialEq)]
@@ -54,7 +50,9 @@ pub struct Table {
 /// A shared-memory input is read as Arrow, conformed to its schema and appended to a table of
 /// its name. A Parquet input is described first, every declared column must have its declared
 /// type, then it becomes a view of its name that reads the file lazily. A shared-memory output
-/// is written as an Arrow IPC file; a Parquet output by DuckDB's `COPY`. Both keep the
+/// is written as an Arrow IPC file; a Parquet output is gathered in a second DuckDB session
+/// backed by a scratch file next to it, then written by DuckDB's `COPY`. Either way the rows
+/// are streamed out of DuckDB one batch at a time, so Rust never holds more than one batch. Both keep the
 /// declared columns when there are no rows, and the declared time zones: DuckDB keeps only the
 /// instant of a `TIMESTAMPTZ` and, without the `icu` extension, which the port never loads,
 /// gives it back in UTC whatever the host's zone; the declared zone is put back on the same
@@ -92,42 +90,10 @@ pub fn run_segment(
     let result = ("the step's result", true);
     described(session.as_mut(), &describe, &segment.params, output, result)?;
     without_icu(session.as_mut())?;
-    let batches = session
-        .query_arrow(&segment.sql, &segment.params)?
-        .iter()
-        .map(|batch| conform(&output.name, batch, &output.schema, Zones::Restore))
-        .collect::<Result<Vec<_>, _>>()?;
     match output.boundary.transport {
-        Transport::SharedMemory => {
-            let schema: SchemaRef = nullable(&output.schema);
-            write_arrow(files, &output.boundary.path, &schema, &batches)
-        }
-        Transport::Parquet => write_parquet(session.as_mut(), segment, &batches),
+        Transport::SharedMemory => write_shared(session.as_mut(), files, segment),
+        Transport::Parquet => write_parquet(session.as_mut(), database, files, segment),
     }
-}
-
-/// Writes `batches`, the rows of the output of `segment`, as its Parquet file: gathered in a
-/// table whose name no input of the segment has, then copied by DuckDB.
-fn write_parquet(
-    session: &mut dyn DatabaseConnection,
-    segment: &Segment,
-    batches: &[RecordBatch],
-) -> Result<(), EngineError> {
-    let output = &segment.output;
-    let mut table = OUTPUT_TABLE.to_owned();
-    while segment.inputs.iter().any(|input| input.name == table) {
-        table.push('_');
-    }
-    create_table(session, &output.name, &table, &output.schema)?;
-    for batch in batches {
-        session.append_arrow(&table, batch)?;
-    }
-    let path = path_value(&output.boundary)?;
-    let quoted = quote_identifier(&table);
-    // sql: identifiers quoted by quote_identifier
-    let copy = format!("COPY {quoted} TO ? (FORMAT parquet)");
-    session.execute(&copy, &[path])?;
-    Ok(())
 }
 
 /// Makes `input`, the `index`-th of its segment, readable by its name.
@@ -173,7 +139,7 @@ fn open_input(
 
 /// Creates the table `table` with the columns of `schema`, each in the DuckDB type that holds
 /// it exactly. `label` names the input or output in errors.
-fn create_table(
+pub(crate) fn create_table(
     session: &mut dyn DatabaseConnection,
     label: &str,
     table: &str,
@@ -194,7 +160,7 @@ fn create_table(
 }
 
 /// Returns the path of `boundary` as a bound value.
-fn path_value(boundary: &Boundary) -> Result<SqlValue, EngineError> {
+pub(crate) fn path_value(boundary: &Boundary) -> Result<SqlValue, EngineError> {
     boundary
         .path
         .to_str()
@@ -206,6 +172,6 @@ fn path_value(boundary: &Boundary) -> Result<SqlValue, EngineError> {
 }
 
 /// Quotes `identifier` for DuckDB: in double quotes, with each double quote doubled.
-fn quote_identifier(identifier: &str) -> String {
+pub(crate) fn quote_identifier(identifier: &str) -> String {
     format!("\"{}\"", identifier.replace('"', "\"\""))
 }

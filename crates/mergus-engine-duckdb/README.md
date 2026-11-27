@@ -14,8 +14,13 @@ Execute DuckDB steps.
   - `SharedMemory`: an Arrow IPC file in the run's work directory, written and read one
     record batch at a time through the streaming `FileSystem::create` and `FileSystem::open`
     of the port, each batch appended to DuckDB before the next is decoded;
-  - `Parquet`: a Parquet file in the work zone, written by DuckDB's `COPY` and read lazily
-    through a view over `read_parquet` of the declared columns.
+  - `Parquet`: a Parquet file in the work zone, read lazily through a view over
+    `read_parquet` of the declared columns. It is written by DuckDB's `COPY` from a table of
+    a second session backed by `<output file>.duckdb` next to it, so the rows sit on disk,
+    not in memory; that file is removed when the segment ends.
+  The step's result is streamed out of DuckDB one batch at a time
+  (`DatabaseConnection::query_arrow_each`) to either transport, so Rust never holds more
+  than one batch of it.
   `Transport::for_size` gives the rule: shared memory up to `MEMORY_BUDGET`, 1 GiB of Arrow
   per boundary, and Parquet above it.
 - Passes every table across a boundary in the types its schema declares, or fails the step
@@ -47,8 +52,4 @@ Execute DuckDB steps.
 - It does not read the `[resources]` section: the budget is fixed until phase 0.9.
 - It does not memory-map Arrow IPC files. Reading streams them, so peak memory is one batch
   plus what DuckDB holds, with no `unsafe`.
-- It does not stream the step's result: `query_arrow` returns every batch of it, for both
-  transports. A shared-memory output stays within the 1 GiB budget because the plan sends
-  larger boundaries to Parquet; a Parquet output is still gathered in memory once before
-  `COPY` writes it (see the comment on #243).
 - It prints nothing and keeps no state between segments.
