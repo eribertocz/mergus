@@ -4,6 +4,7 @@
 
 mod cycle;
 mod known;
+mod step;
 mod tree;
 
 use std::collections::BTreeMap;
@@ -13,6 +14,7 @@ use mergus_ports::{FileSystem, SqlParser};
 use serde_json::Value;
 
 pub use known::KnownTables;
+pub use step::{RunParameters, SqlStep, read_sql_step, sql_schema};
 
 use crate::{Configuration, Layout, LayoutError, ModelLanguage, ProjectError};
 
@@ -112,6 +114,8 @@ fn walk_sql(
         return Ok(tree::Checked {
             problems: vec![forbidden(path, at, "text that is not UTF-8".to_owned())],
             references: std::collections::BTreeMap::new(),
+            parameters: Vec::new(),
+            instants: Vec::new(),
         });
     };
     let tree = parser.parse(text)?;

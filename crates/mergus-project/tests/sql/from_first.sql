@@ -1,0 +1,1 @@
+FROM stg_orders
