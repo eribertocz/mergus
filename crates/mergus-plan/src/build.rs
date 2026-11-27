@@ -240,6 +240,8 @@ mod tests {
             code: "SELECT safe_div(1, 2) FROM raw.seed__countries\n".to_owned(),
             config: BTreeMap::new(),
             inputs: inputs.iter().map(|input| (*input).to_owned()).collect(),
+            published: false,
+            steps: Vec::new(),
         };
         let selected = BTreeSet::from(["fact_margin".to_owned()]);
         let mut request = PlanRequest::new("0.4.0", "dev", selected);
