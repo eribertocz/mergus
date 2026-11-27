@@ -15,7 +15,3 @@ thiserror = "2.0.21"
 
 [lints]
 workspace = true
-
-[dev-dependencies]
-mergus-security = { path = "../mergus-security" }
-mergus-sim = { path = "../mergus-sim" }

@@ -4,6 +4,8 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
 
+use crate::PlanError;
+
 /// The code of a required secret that does not resolve (MG-REQ-0721).
 const MISSING_SECRET: &str = "MG-0701";
 
@@ -103,8 +105,11 @@ pub enum GateResult {
     Passed,
     /// The gate was checked and blocks, with every error it found.
     Blocked(Vec<GateError>),
-    /// The gate passes because its check belongs to a later phase.
-    Deferred,
+    /// The gate's checks belong to a later phase: it does not block.
+    NotApplicable {
+        /// The phase whose checks the gate waits for.
+        phase: String,
+    },
 }
 
 impl GateResult {
@@ -115,44 +120,63 @@ impl GateResult {
     }
 }
 
-/// Shows `passes`, `passes, its check belongs to a later phase`, or `blocks: <n> errors`.
+/// Shows `passes`, `blocks: <n> errors`, or `not_applicable until phase <phase>`.
 impl fmt::Display for GateResult {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Passed => formatter.write_str("passes"),
-            Self::Deferred => formatter.write_str("passes, its check belongs to a later phase"),
             Self::Blocked(errors) => write!(formatter, "blocks: {}", count(errors.len(), "error")),
+            Self::NotApplicable { phase } => {
+                write!(formatter, "not_applicable until phase {phase}")
+            }
         }
     }
 }
 
-/// A secret a step needs: the name of `secret:<name>`, never a value.
+/// What the caller found for one gate other than [`Gate::Credentials`].
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum GateCheck {
+    /// The gate was checked: every error it found, none when it passed.
+    Checked(Vec<GateError>),
+    /// The gate's checks belong to the later phase `phase`.
+    NotApplicable {
+        /// The phase whose checks the gate waits for.
+        phase: String,
+    },
+}
+
+/// Whether a secret reference resolves, as the caller's existence check found it. It holds
+/// no value.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Existence {
+    /// The reference resolves.
+    Resolves,
+    /// The reference does not resolve.
+    Missing,
+}
+
+/// A secret reference a step needs, as written: `secret:<name>`, never a value.
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub struct RequiredSecret {
-    /// The name of the secret.
-    pub name: String,
+    /// The reference, as written.
+    pub reference: String,
     /// The model whose step needs it.
     pub model: String,
     /// The step that needs it, when there is one.
     pub step: Option<String>,
 }
 
-/// The existence check of a secret, given by the caller: `mergus-security`'s `origin`, the
-/// check of `mergus doctor` (MG-REQ-1004). It answers whether a reference resolves and gives
-/// no value.
-pub trait SecretCheck {
-    /// Whether the reference `secret:<name>` resolves.
-    fn resolves(&self, name: &str) -> bool;
-}
-
 /// What the caller gives to stage 4.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct GateInput {
-    /// The errors found by each gate the caller checked, empty when it passed. A gate that is
-    /// not here, other than [`Gate::Credentials`], belongs to a later phase.
-    pub checked: BTreeMap<Gate, Vec<GateError>>,
-    /// Every secret the steps need, checked by the credentials gate.
-    pub secrets: Vec<RequiredSecret>,
+    /// What the caller found for each gate other than [`Gate::Credentials`], whose entry, if
+    /// any, is not read.
+    pub checks: BTreeMap<Gate, GateCheck>,
+    /// Every secret reference the steps need.
+    pub required: Vec<RequiredSecret>,
+    /// Whether each required reference resolves, from the existence check that never reads a
+    /// value (MG-REQ-0721).
+    pub existence: BTreeMap<String, Existence>,
 }
 
 /// The result of every gate of stage 4, in the order of the table.
@@ -186,7 +210,7 @@ impl GateReport {
             .iter()
             .filter_map(|(_, result)| match result {
                 GateResult::Blocked(errors) => Some(errors.iter().cloned()),
-                GateResult::Passed | GateResult::Deferred => None,
+                GateResult::Passed | GateResult::NotApplicable { .. } => None,
             })
             .flatten()
             .collect();
@@ -246,58 +270,62 @@ impl fmt::Display for Blocked {
     }
 }
 
-/// Evaluates every gate of stage 4 (MG-REQ-0720). The credentials gate asks `secrets` once
-/// per required name whether it resolves, and never sees a value (MG-REQ-0721). A gate that
-/// `input` does not list as checked passes as [`GateResult::Deferred`]. Every error of every
-/// gate is kept (MG-REQ-0722).
-#[must_use]
-pub fn evaluate(input: &GateInput, secrets: &dyn SecretCheck) -> GateReport {
-    let mut credentials = input
-        .checked
-        .get(&Gate::Credentials)
-        .cloned()
-        .unwrap_or_default();
-    credentials.extend(missing_secrets(&input.secrets, secrets));
-    let results = Gate::ALL
-        .iter()
-        .map(|&gate| {
-            let errors = if gate == Gate::Credentials {
-                Some(credentials.clone())
-            } else {
-                input.checked.get(&gate).cloned()
-            };
-            let result = match errors {
-                None => GateResult::Deferred,
-                Some(errors) if errors.is_empty() => GateResult::Passed,
-                Some(errors) => GateResult::Blocked(errors),
-            };
-            (gate, result)
-        })
-        .collect();
-    GateReport { results }
+/// Evaluates every gate of stage 4 (MG-REQ-0720). The credentials gate blocks on each
+/// required reference that `input.existence` marks missing, and sees no value (MG-REQ-0721).
+/// Every error of every gate is kept (MG-REQ-0722).
+///
+/// # Errors
+///
+/// Fails with an internal [`PlanError`] when `input.checks` lacks a gate other than
+/// [`Gate::Credentials`], or `input.existence` lacks a required reference.
+pub fn evaluate(input: &GateInput) -> Result<GateReport, PlanError> {
+    let mut results = Vec::with_capacity(Gate::ALL.len());
+    for gate in Gate::ALL {
+        let check = if gate == Gate::Credentials {
+            GateCheck::Checked(missing_secrets(input)?)
+        } else {
+            input
+                .checks
+                .get(&gate)
+                .cloned()
+                .ok_or(PlanError::GateNotGiven(gate))?
+        };
+        let result = match check {
+            GateCheck::NotApplicable { phase } => GateResult::NotApplicable { phase },
+            GateCheck::Checked(errors) if errors.is_empty() => GateResult::Passed,
+            GateCheck::Checked(errors) => GateResult::Blocked(errors),
+        };
+        results.push((gate, result));
+    }
+    Ok(GateReport { results })
 }
 
-/// One `MG-0701` error per required secret that does not resolve, in name, model and step
-/// order. Each name is asked once.
-fn missing_secrets(required: &[RequiredSecret], secrets: &dyn SecretCheck) -> Vec<GateError> {
-    let required: BTreeSet<&RequiredSecret> = required.iter().collect();
-    let names: BTreeSet<&str> = required.iter().map(|secret| secret.name.as_str()).collect();
-    let missing: BTreeSet<&str> = names
-        .into_iter()
-        .filter(|name| !secrets.resolves(name))
-        .collect();
-    required
-        .into_iter()
-        .filter(|secret| missing.contains(secret.name.as_str()))
-        .map(|secret| GateError {
-            gate: Gate::Credentials,
-            code: MISSING_SECRET,
-            model: Some(secret.model.clone()),
-            step: secret.step.clone(),
-            message: format!("the secret `secret:{}` does not resolve", secret.name),
-            fix: format!("run `mergus secret set {}`", secret.name),
-        })
-        .collect()
+/// One `MG-0701` error per required reference marked missing, in reference, model and step
+/// order.
+fn missing_secrets(input: &GateInput) -> Result<Vec<GateError>, PlanError> {
+    let required: BTreeSet<&RequiredSecret> = input.required.iter().collect();
+    let mut errors = Vec::new();
+    for secret in required {
+        let existence = input
+            .existence
+            .get(&secret.reference)
+            .ok_or_else(|| PlanError::ExistenceNotGiven(secret.reference.clone()))?;
+        if *existence == Existence::Missing {
+            let name = secret
+                .reference
+                .strip_prefix("secret:")
+                .unwrap_or(&secret.reference);
+            errors.push(GateError {
+                gate: Gate::Credentials,
+                code: MISSING_SECRET,
+                model: Some(secret.model.clone()),
+                step: secret.step.clone(),
+                message: format!("the secret `{}` does not resolve", secret.reference),
+                fix: format!("run `mergus secret set {name}`"),
+            });
+        }
+    }
+    Ok(errors)
 }
 
 /// `<n> <noun>`, with an `s` unless `n` is 1.
