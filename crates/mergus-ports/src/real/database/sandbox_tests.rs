@@ -83,7 +83,7 @@ fn mg_req_0644_macro_definitions_parse_back() {
         let body = if found.table {
             found.definition.clone()
         } else {
-            format!("SELECT {}", found.definition)
+            ["SELECT ", found.definition.as_str()].concat()
         };
         let tree = parser.parse(&body).unwrap();
         assert!(tree.starts_with("{\"error\":false"), "{body}: {tree}");

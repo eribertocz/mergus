@@ -131,10 +131,12 @@ pub fn read_macros(
     }
     let names: BTreeSet<String> = read.macros.keys().cloned().collect();
     for found in read.macros.values_mut() {
+        // MG-REQ-0644.1: the text is only parsed, never run; a scalar macro's definition is
+        // an expression, read as the select list of `SELECT <definition>`.
         let body = if found.table {
             found.definition.clone()
         } else {
-            format!("SELECT {}", found.definition)
+            ["SELECT ", found.definition.as_str()].concat()
         };
         found.calls = sql_calls(parser, &body)?
             .intersection(&names)

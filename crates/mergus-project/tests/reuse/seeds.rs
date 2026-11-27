@@ -76,6 +76,13 @@ fn mg_req_0645_seed_declared_typed_and_hashed() {
     let changed = self::read(PROJECT, &changed);
     assert_ne!(changed.unwrap().seeds[0].hash, seed.hash);
 
+    assert_declaration_problems(&read);
+    assert!(read.warnings.is_empty());
+}
+
+/// Checks the problems of the declarations of [`PROJECT`] (MG-REQ-0645.2): an unknown type,
+/// an undeclared CSV and a declaration without CSV.
+fn assert_declaration_problems(read: &Seeds) {
     let shown: Vec<(&str, Option<usize>, String)> = read
         .problems
         .iter()
@@ -101,7 +108,6 @@ fn mg_req_0645_seed_declared_typed_and_hashed() {
         }
     );
     assert_eq!(shown[2].0, "MG-0607");
-    assert!(read.warnings.is_empty());
 }
 
 #[test]
