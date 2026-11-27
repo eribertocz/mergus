@@ -10,6 +10,7 @@ use arrow::record_batch::RecordBatch;
 
 use crate::PortError;
 use crate::column::{ResultColumn, is_column_type};
+use crate::macros::MacroRun;
 use crate::session::protected_connection;
 
 /// A value bound to a parameter of a SQL statement. Values are always bound, never
@@ -126,6 +127,25 @@ pub trait Database: Send + Sync {
         &self,
         location: &DatabaseLocation,
     ) -> Result<Box<dyn DatabaseConnection>, PortError>;
+
+    /// Runs `script`, the text of one macro file, in a fresh in-memory session opened with
+    /// external access off and the configuration locked, so that no file, network, `ATTACH`,
+    /// `INSTALL`, `LOAD` or `SET` can succeed (MG-REQ-0641.1); and returns what the session
+    /// shows before and after it ran (MG-REQ-0641.2, MG-REQ-0641.3, MG-REQ-0642.2). A refused
+    /// statement is part of the answer, not a failure.
+    ///
+    /// The default fails: only a database that can open such a session implements it.
+    ///
+    /// # Errors
+    ///
+    /// Fails with [`PortError::Failed`] when the session cannot be opened or its catalog
+    /// cannot be read.
+    fn run_macros(&self, script: &str) -> Result<MacroRun, PortError> {
+        let _ = script;
+        Err(PortError::Failed(
+            "this database cannot run macro files".to_owned(),
+        ))
+    }
 }
 
 /// An open DuckDB connection.

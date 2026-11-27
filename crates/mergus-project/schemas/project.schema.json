@@ -27,6 +27,17 @@
     "ops": {
       "description": "The storage of the ops zone.",
       "$ref": "#/$defs/zone"
+    },
+    "seeds": {
+      "description": "The seeds: each seeds/<name>.csv by its name, a lowercase identifier, loaded as raw.seed__<name> (MG-REQ-0645).",
+      "type": "object",
+      "additionalProperties": false,
+      "patternProperties": {
+        "^[a-z][a-z0-9_]{0,62}$": {
+          "description": "One seed.",
+          "$ref": "#/$defs/seed"
+        }
+      }
     }
   },
   "$defs": {
@@ -74,6 +85,36 @@
           }
         }
       ]
+    },
+    "seed": {
+      "description": "A seed: its column types, delimiter and header (MG-REQ-0645.1). Other keys are reported as MG-0608.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["columns"],
+      "properties": {
+        "columns": {
+          "description": "Each column name to its DuckDB type name, as DESCRIBE writes it.",
+          "type": "object",
+          "additionalProperties": false,
+          "patternProperties": {
+            "^.+$": {
+              "description": "The DuckDB type name of the column, such as BIGINT or VARCHAR.",
+              "type": "string"
+            }
+          }
+        },
+        "delimiter": {
+          "description": "The one character between values.",
+          "type": "string",
+          "pattern": "^.$",
+          "default": ","
+        },
+        "header": {
+          "description": "Whether the first line holds the column names.",
+          "type": "boolean",
+          "default": true
+        }
+      }
     },
     "secret": {
       "description": "A secret reference secret:<name>, the name of MG-REQ-0305 (MG-REQ-1001).",

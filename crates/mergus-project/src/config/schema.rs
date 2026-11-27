@@ -25,6 +25,7 @@ pub(crate) fn validate(
     let validator = jsonschema::draft202012::new(&schema)
         .map_err(|_| LayoutError::Schema(kind.schema_path()))?;
     let report = Report {
+        kind,
         path,
         file,
         schema: &schema,
@@ -36,6 +37,7 @@ pub(crate) fn validate(
 }
 
 struct Report<'a> {
+    kind: ConfigKind,
     path: &'a str,
     file: &'a Converted,
     schema: &'a Value,
@@ -53,18 +55,7 @@ impl Report<'_> {
             .collect();
         match error.kind() {
             ValidationErrorKind::AdditionalProperties { unexpected } => {
-                let allowed = self.allowed_keys(error.schema_path().as_str());
-                for key in unexpected {
-                    let mut child = at.clone();
-                    child.push(Segment::Key(key.clone()));
-                    problems.push(ProjectError::UnknownKey {
-                        path: self.path.to_owned(),
-                        line: self.line(&child, true),
-                        key: dotted(&child),
-                        suggestion: closest_name(key, allowed.iter().map(String::as_str))
-                            .map(str::to_owned),
-                    });
-                }
+                self.push_unknown(error, &at, unexpected, problems);
             }
             ValidationErrorKind::Required { property } => {
                 let mut child = at.clone();
@@ -129,6 +120,49 @@ impl Report<'_> {
             }
             _ => false,
         }
+    }
+
+    /// Reports each key of `unexpected`, found at `at` by `error`, with the closest allowed
+    /// key; a key of a `[seeds.<name>]` as [`ProjectError::UnknownSeedKey`] (MG-REQ-0645.2).
+    fn push_unknown(
+        &self,
+        error: &ValidationError<'_>,
+        at: &[Segment],
+        unexpected: &[String],
+        problems: &mut Vec<ProjectError>,
+    ) {
+        let allowed = self.allowed_keys(error.schema_path().as_str());
+        for key in unexpected {
+            let mut child = at.to_vec();
+            child.push(Segment::Key(key.clone()));
+            let path = self.path.to_owned();
+            let line = self.line(&child, true);
+            let suggestion =
+                closest_name(key, allowed.iter().map(String::as_str)).map(str::to_owned);
+            let key = dotted(&child);
+            problems.push(if self.is_seed_key(&child) {
+                ProjectError::UnknownSeedKey {
+                    path,
+                    line,
+                    key,
+                    suggestion,
+                }
+            } else {
+                ProjectError::UnknownKey {
+                    path,
+                    line,
+                    key,
+                    suggestion,
+                }
+            });
+        }
+    }
+
+    /// Whether `at` is a key of a `[seeds.<name>]` of `project.toml`, which MG-REQ-0645.2
+    /// reports with its own code.
+    fn is_seed_key(&self, at: &[Segment]) -> bool {
+        self.kind == ConfigKind::Project
+            && matches!(at, [Segment::Key(seeds), Segment::Key(_), Segment::Key(_)] if seeds == "seeds")
     }
 
     /// Whether the value at `at` is an object.
