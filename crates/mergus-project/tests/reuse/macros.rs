@@ -138,15 +138,18 @@ fn mg_req_0642_macro_name_clash_rejected() {
     let first = "CREATE MACRO Safe_Div(a, b) AS a / b;\n";
     let second = "CREATE MACRO safe_div(a, b) AS a / b;\n";
     let builtin = "CREATE MACRO SUM(a) AS a;\n";
+    let reserved = "CREATE MACRO As_Of(t) AS t;\n";
     let runs = [
         (first, created(vec![scalar("Safe_Div", "(a / b)")])),
         (second, created(vec![scalar("safe_div", "(a / b)")])),
         (builtin, created(vec![scalar("SUM", "a")])),
+        (reserved, created(vec![scalar("As_Of", "t")])),
     ];
     let files = [
         ("macros/a.sql", first),
         ("macros/b.sql", second),
         ("macros/c.sql", builtin),
+        ("macros/d.sql", reserved),
     ];
     let found = problems!(read(&files, &runs, &SimSqlParser::new()));
     assert_eq!(
@@ -161,6 +164,11 @@ fn mg_req_0642_macro_name_clash_rejected() {
                 name: "sum".to_owned(),
                 path: "macros/c.sql".to_owned(),
                 builtin: "sum".to_owned(),
+            },
+            ProjectError::MacroShadowsBuiltin {
+                name: "as_of".to_owned(),
+                path: "macros/d.sql".to_owned(),
+                builtin: "as_of".to_owned(),
             },
         ]
     );

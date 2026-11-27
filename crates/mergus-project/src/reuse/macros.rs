@@ -10,6 +10,9 @@ use serde_json::Value;
 
 use crate::{LayoutError, ProjectError};
 
+/// The names of Mergus's own macros, reserved like built-ins (MG-REQ-0642.4).
+const RESERVED: [&str; 1] = ["as_of"];
+
 /// The prefix of the fingerprint input of a macro (MG-REQ-0644.2).
 const INPUT_PREFIX: &str = "macro:";
 
@@ -186,9 +189,11 @@ impl Read {
             )));
             return Ok(());
         }
-        let builtins: BTreeMap<String, &String> = run
+        let builtins: BTreeMap<String, &str> = run
             .builtins
             .iter()
+            .map(String::as_str)
+            .chain(RESERVED)
             .map(|name| (name.to_lowercase(), name))
             .collect();
         for found in grouped(path, &run.macros) {
@@ -196,7 +201,7 @@ impl Read {
                 self.problems.push(ProjectError::MacroShadowsBuiltin {
                     name: found.name.clone(),
                     path: path.to_owned(),
-                    builtin: (*builtin).clone(),
+                    builtin: (*builtin).to_owned(),
                 });
             } else if let Some(first) = self.macros.get(&found.name) {
                 self.problems.push(ProjectError::DuplicateMacro {

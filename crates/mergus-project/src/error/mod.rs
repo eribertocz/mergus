@@ -298,15 +298,15 @@ pub enum ProjectError {
         /// The path of the later file.
         path: String,
     },
-    /// A macro has the name of a DuckDB built-in function, compared without case
-    /// (MG-REQ-0642).
-    #[error("`{path}`: macro `{name}` shadows the DuckDB built-in function `{builtin}`")]
+    /// A macro has the name of a DuckDB built-in function or of a macro of Mergus, such as
+    /// `as_of`, compared without case (MG-REQ-0642).
+    #[error("`{path}`: macro `{name}` shadows the built-in function `{builtin}`")]
     MacroShadowsBuiltin {
         /// The name of the macro.
         name: String,
         /// The path of its file.
         path: String,
-        /// The name of the built-in, as DuckDB gives it.
+        /// The name of the built-in, as DuckDB or Mergus gives it.
         builtin: String,
     },
     /// A `seeds/<name>.csv` has no `[seeds.<name>]` in `project.toml` (MG-REQ-0645.2).
