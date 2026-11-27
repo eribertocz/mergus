@@ -47,11 +47,13 @@ const ALLOWED: [&str; 11] = [
 const SET_BY_THE_CHILD: [&str; 2] = ["LC_CTYPE", "_RJEM_MALLOC_CONF"];
 
 /// What the step saw, read from its working directory.
+#[cfg(test)]
 fn seen(dir: &Path) -> serde_json::Value {
     serde_json::from_str(&read(&dir.join("seen.json"))).unwrap()
 }
 
 /// Fails when a file of `dir` holds the secret.
+#[cfg(test)]
 fn no_secret_in_files(dir: &Path) {
     for file in RealFileSystem.list_dir(dir).unwrap() {
         let bytes = RealFileSystem.read(&file).unwrap();

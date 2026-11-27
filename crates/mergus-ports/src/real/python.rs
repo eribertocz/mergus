@@ -280,7 +280,7 @@ mod tests {
     use std::time::{Duration, Instant};
 
     use super::RealPython;
-    use crate::{PortError, ProcessOutput, Python, PythonTree};
+    use crate::{PortError, Python, PythonTree};
 
     fn scratch(name: &str) -> PathBuf {
         let dir = std::env::temp_dir()
