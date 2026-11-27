@@ -45,6 +45,8 @@ Macro names MUST be unique in the project and MUST NOT shadow a DuckDB built-in 
    built-ins.
 3. MG-REQ-0642.3: each clash is a validation error naming both files, or the file and the
    built-in. Its code is the next free `MG-06xx`.
+4. MG-REQ-0642.4: the names of Mergus's own macros, `as_of` (MG-REQ-0666), are reserved like
+   built-ins. A project macro with a reserved name is the same validation error.
 
 - Kind: behavior
 - Verify: test `mg_req_0642_macro_name_clash_rejected`
