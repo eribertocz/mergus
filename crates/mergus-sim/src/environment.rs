@@ -82,13 +82,6 @@ impl Environment for SimEnvironment {
         self.vars.get(name).cloned()
     }
 
-    fn vars(&self) -> Vec<(String, String)> {
-        self.vars
-            .iter()
-            .map(|(name, value)| (name.clone(), value.clone()))
-            .collect()
-    }
-
     fn config_dir(&self) -> Option<PathBuf> {
         self.config_dir.clone()
     }

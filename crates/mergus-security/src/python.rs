@@ -2,54 +2,36 @@
 
 use mergus_ports::Environment;
 
-/// The prefix of the variables that hold secret values (MG-REQ-1001.1).
-const SECRET_PREFIX: &str = "MERGUS_SECRET_";
+/// The variables of the current environment that reach the Python process, when set and
+/// valid Unicode. No other variable does.
+const PASSED: [&str; 6] = ["PATH", "LANG", "LC_ALL", "TZ", "SYSTEMROOT", "VIRTUAL_ENV"];
 
-/// The credential variables of known cloud SDKs, removed from the environment of the Python
-/// process (MG-REQ-1003): AWS, Azure, Google and PostgreSQL clients.
-pub const CLOUD_CREDENTIAL_VARIABLES: [&str; 20] = [
-    "AWS_ACCESS_KEY_ID",
-    "AWS_SECRET_ACCESS_KEY",
-    "AWS_SESSION_TOKEN",
-    "AWS_SECURITY_TOKEN",
-    "AWS_WEB_IDENTITY_TOKEN_FILE",
-    "AWS_CONTAINER_CREDENTIALS_FULL_URI",
-    "AWS_CONTAINER_AUTHORIZATION_TOKEN",
-    "AZURE_CLIENT_SECRET",
-    "AZURE_CLIENT_CERTIFICATE_PATH",
-    "AZURE_CLIENT_CERTIFICATE_PASSWORD",
-    "AZURE_PASSWORD",
-    "AZURE_STORAGE_KEY",
-    "AZURE_STORAGE_CONNECTION_STRING",
-    "AZURE_STORAGE_SAS_TOKEN",
-    "GOOGLE_APPLICATION_CREDENTIALS",
-    "GOOGLE_OAUTH_ACCESS_TOKEN",
-    "CLOUDSDK_AUTH_ACCESS_TOKEN",
-    "CLOUDSDK_AUTH_CREDENTIAL_FILE_OVERRIDE",
-    "PGPASSWORD",
-    "PGPASSFILE",
-];
+/// The variables Mergus sets itself, whatever the current environment holds.
+const SET: [(&str, &str); 2] = [("PYTHONHASHSEED", "0"), ("PYTHONNOUSERSITE", "1")];
 
-/// Returns the environment the Python process starts with (MG-REQ-1003): every variable of
-/// `environment`, sorted by name, except each `MERGUS_SECRET_*` variable and each variable of
-/// [`CLOUD_CREDENTIAL_VARIABLES`]. Names are compared in ASCII upper case, because Windows
-/// reads variable names without regard to case.
+/// The variables that point to the work directory of the run.
+const TEMPORARY: [&str; 3] = ["TMP", "TEMP", "TMPDIR"];
+
+/// Returns the environment the Python process starts with, sorted by name. It is an
+/// allowlist: `PATH`, `LANG`, `LC_ALL`, `TZ`, `SYSTEMROOT` and `VIRTUAL_ENV`, read from
+/// `environment` when set, then `PYTHONHASHSEED=0`, `PYTHONNOUSERSITE=1`, and `TMP`, `TEMP`
+/// and `TMPDIR` set to `work_dir`, the run's work directory. No `MERGUS_SECRET_*` variable
+/// and no cloud SDK credential can reach Python (MG-REQ-1003).
 ///
 /// The process must start with only these variables (`ProcessCommand::clear_env`), so that
 /// nothing is inherited around them (MG-REQ-0006).
 #[must_use]
-pub fn python_environment(environment: &dyn Environment) -> Vec<(String, String)> {
-    let mut vars: Vec<(String, String)> = environment
-        .vars()
-        .into_iter()
-        .filter(|(name, _)| !is_credential(name))
-        .collect();
+pub fn python_environment(environment: &dyn Environment, work_dir: &str) -> Vec<(String, String)> {
+    let passed = PASSED
+        .iter()
+        .filter_map(|name| Some(((*name).to_owned(), environment.var(name)?)));
+    let set = SET
+        .iter()
+        .map(|(name, value)| ((*name).to_owned(), (*value).to_owned()));
+    let temporary = TEMPORARY
+        .iter()
+        .map(|name| ((*name).to_owned(), work_dir.to_owned()));
+    let mut vars: Vec<(String, String)> = passed.chain(set).chain(temporary).collect();
     vars.sort();
     vars
-}
-
-/// Whether the variable `name` may hold a secret or a cloud SDK credential.
-fn is_credential(name: &str) -> bool {
-    let upper = name.to_ascii_uppercase();
-    upper.starts_with(SECRET_PREFIX) || CLOUD_CREDENTIAL_VARIABLES.contains(&upper.as_str())
 }

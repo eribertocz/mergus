@@ -17,9 +17,11 @@ Secret resolution, PII handling, hash chains.
   `StoreError::Empty` (`MG-1001`) and a keychain that cannot be written with
   `StoreError::Unwritable` (`MG-1002`); nothing is stored then, and the error never holds
   the value (MG-REQ-1007). `check` makes the same check without writing, for `--dry-run`. `check` makes the same check without writing, for `--dry-run`.
-- Builds the environment of the Python process with `python_environment`: the current one,
-  read through the `Environment` port, without any `MERGUS_SECRET_*` variable or cloud SDK
-  credential variable of `CLOUD_CREDENTIAL_VARIABLES` (MG-REQ-1003). The caller starts Python
+- Builds the environment of the Python process with `python_environment`, an allowlist:
+  `PATH`, `LANG`, `LC_ALL`, `TZ`, `SYSTEMROOT` and `VIRTUAL_ENV` from the current environment,
+  read through the `Environment` port, then `PYTHONHASHSEED=0`, `PYTHONNOUSERSITE=1` and
+  `TMP`, `TEMP` and `TMPDIR` set to the run's work directory. No `MERGUS_SECRET_*` variable
+  and no cloud SDK credential is in it (MG-REQ-1003). The caller starts Python
   with only that environment (`ProcessCommand::clear_env`), so no secret reaches it
   (MG-REQ-0006).
 - Returns every value as a `SecretString` (`secrecy`), which cannot be printed, formatted,

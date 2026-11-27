@@ -24,10 +24,6 @@ pub trait Environment: Send + Sync {
     /// is not valid Unicode.
     fn var(&self, name: &str) -> Option<String>;
 
-    /// Returns every environment variable whose name and value are valid Unicode, sorted by
-    /// name.
-    fn vars(&self) -> Vec<(String, String)>;
-
     /// Returns the user configuration directory, or `None` when there is none.
     fn config_dir(&self) -> Option<PathBuf>;
 

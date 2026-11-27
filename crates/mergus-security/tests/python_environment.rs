@@ -3,10 +3,11 @@
 
 use mergus_ports::real::{RealEnvironment, RealProcess};
 use mergus_ports::{Environment, PortError, Process, ProcessCommand, ProcessOutput};
-use mergus_security::{CLOUD_CREDENTIAL_VARIABLES, python_environment};
+use mergus_security::python_environment;
 use mergus_sim::{SimEnvironment, SimProcess};
 
-/// The cloud SDK credential variables of MG-REQ-1003, as the specifier listed them on #241.
+/// The cloud SDK credential variables of MG-REQ-1003, as the specifier listed them on #241:
+/// none may reach Python.
 const LISTED: [&str; 20] = [
     "AWS_ACCESS_KEY_ID",
     "AWS_SECRET_ACCESS_KEY",
@@ -30,13 +31,38 @@ const LISTED: [&str; 20] = [
     "PGPASSFILE",
 ];
 
-/// Variables that are neither secrets nor credentials, and must reach Python unchanged.
-const KEPT: [(&str, &str); 4] = [
+/// The variables of the allowlist, all set in the test environment.
+const PASSED: [(&str, &str); 6] = [
     ("PATH", "/usr/bin"),
+    ("LANG", "en_US.UTF-8"),
+    ("LC_ALL", "C.UTF-8"),
+    ("TZ", "UTC"),
+    ("SYSTEMROOT", "C:\\Windows"),
+    ("VIRTUAL_ENV", "/project/.venv"),
+];
+
+/// Variables outside the allowlist that are neither secrets nor credentials, and variables
+/// Mergus sets itself with other values: none reaches Python as it is.
+const DROPPED: [(&str, &str); 7] = [
     ("HOME", "/home/user"),
     ("MERGUS_PROFILE", "dev"),
     ("AWS_REGION", "eu-west-1"),
+    ("PYTHONPATH", "/elsewhere"),
+    ("PYTHONHASHSEED", "random"),
+    ("PYTHONNOUSERSITE", ""),
+    ("TMPDIR", "/tmp"),
 ];
+
+/// The run's work directory given to `python_environment`.
+const WORK_DIR: &str = "/project/target/run-1/work";
+
+/// Returns `pairs` as owned pairs.
+fn owned(pairs: &[(&str, &str)]) -> Vec<(String, String)> {
+    pairs
+        .iter()
+        .map(|(name, value)| ((*name).to_owned(), (*value).to_owned()))
+        .collect()
+}
 
 /// Returns every secret and credential variable, each with a distinct value.
 fn secrets() -> Vec<(String, String)> {
@@ -62,20 +88,45 @@ fn with_secrets(environment: impl IntoIterator<Item = (String, String)>) -> SimE
     SimEnvironment::new(environment.into_iter().chain(secrets()), None)
 }
 
+/// Asserts that `env` holds no `MERGUS_SECRET_*` variable and no listed credential variable,
+/// whatever the case of its names.
+fn assert_denylist_holds(env: &[(String, String)]) {
+    for (name, _) in env {
+        let upper = name.to_ascii_uppercase();
+        assert!(
+            !upper.starts_with("MERGUS_SECRET_"),
+            "`{name}` reached Python"
+        );
+        assert!(!LISTED.contains(&upper.as_str()), "`{name}` reached Python");
+    }
+}
+
 #[test]
 fn mg_req_1003_python_env_has_no_credentials() {
-    assert_eq!(CLOUD_CREDENTIAL_VARIABLES, LISTED);
-    let kept = KEPT.map(|(name, value)| (name.to_owned(), value.to_owned()));
-    let environment = with_secrets(kept.clone());
-    let mut expected = kept.to_vec();
+    let environment = with_secrets(owned(&PASSED).into_iter().chain(owned(&DROPPED)));
+    let mut expected = owned(&PASSED);
+    expected.extend(owned(&[
+        ("PYTHONHASHSEED", "0"),
+        ("PYTHONNOUSERSITE", "1"),
+        ("TMP", WORK_DIR),
+        ("TEMP", WORK_DIR),
+        ("TMPDIR", WORK_DIR),
+    ]));
     expected.sort();
-    assert_eq!(python_environment(&environment), expected);
-    // An environment with nothing to remove passes through whole.
-    let clean = SimEnvironment::new(kept.clone(), None);
-    assert_eq!(python_environment(&clean), expected);
+    let env = python_environment(&environment, WORK_DIR);
+    assert_eq!(env, expected);
+    assert_denylist_holds(&env);
+    // A variable of the allowlist that is not set is not added.
+    let empty = python_environment(&SimEnvironment::default(), WORK_DIR);
     assert_eq!(
-        python_environment(&SimEnvironment::default()),
-        Vec::<(String, String)>::new()
+        empty,
+        owned(&[
+            ("PYTHONHASHSEED", "0"),
+            ("PYTHONNOUSERSITE", "1"),
+            ("TEMP", WORK_DIR),
+            ("TMP", WORK_DIR),
+            ("TMPDIR", WORK_DIR),
+        ])
     );
 }
 
@@ -88,13 +139,13 @@ fn assert_no_secret_in(text: &str) {
 
 #[test]
 fn mg_req_0006_python_sees_no_secret() {
-    let environment = with_secrets(KEPT.map(|(name, value)| (name.to_owned(), value.to_owned())));
+    let environment = with_secrets(owned(&PASSED).into_iter().chain(owned(&DROPPED)));
     let process = SimProcess::new();
     process.register("python3", ProcessOutput::default());
     let command = ProcessCommand {
         program: "python3".to_owned(),
         args: vec!["-c".to_owned(), "pass".to_owned()],
-        env: python_environment(&environment),
+        env: python_environment(&environment, WORK_DIR),
         clear_env: true,
         ..ProcessCommand::default()
     };
@@ -105,6 +156,7 @@ fn mg_req_0006_python_sees_no_secret() {
         runs[0].clear_env,
         "the child must not inherit the environment"
     );
+    assert_denylist_holds(&runs[0].env);
     assert_no_secret_in(&format!("{:?}", runs[0]));
     // A real `python3`, when one is installed. In CI (`CI` set), a missing one fails.
     let (env, output) = run_real_python();
@@ -141,7 +193,7 @@ fn run_real_python() -> (Vec<(String, String)>, Result<ProcessOutput, PortError>
     let passed = ["PATH", "SYSTEMROOT"]
         .into_iter()
         .filter_map(|name| Some((name.to_owned(), real.var(name)?)));
-    let env = python_environment(&with_secrets(passed));
+    let env = python_environment(&with_secrets(passed), env!("CARGO_TARGET_TMPDIR"));
     let command = ProcessCommand {
         program: "python3".to_owned(),
         args: vec![
