@@ -259,6 +259,19 @@ impl DatabaseConnection for SimConnection {
         }
     }
 
+    /// Replays the recorded batches one by one, each `each` call before the next batch.
+    fn query_arrow_each(
+        &mut self,
+        sql: &str,
+        params: &[SqlValue],
+        each: &mut dyn FnMut(RecordBatch) -> Result<(), PortError>,
+    ) -> Result<(), PortError> {
+        for batch in self.query_arrow(sql, params)? {
+            each(batch)?;
+        }
+        Ok(())
+    }
+
     /// Fails with [`PortError::NotFound`] when nothing was recorded for `sql` with `params`,
     /// and with [`PortError::Refused`] when a refusal was.
     fn describe(&mut self, sql: &str, params: &[SqlValue]) -> Result<Vec<ResultColumn>, PortError> {
