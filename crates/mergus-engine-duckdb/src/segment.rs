@@ -108,8 +108,8 @@ fn open_input(
             let set = format!("SET VARIABLE {variable} = ?");
             session.execute(&set, &[path_value(&input.boundary)?])?;
             let name = quote_identifier(&input.name);
-            // sql: identifiers quoted by quote_identifier
             let view = format!(
+                // sql: identifiers quoted by quote_identifier
                 "CREATE VIEW {name} AS SELECT * FROM read_parquet(getvariable('{variable}'))"
             );
             session.execute(&view, &[])?;
