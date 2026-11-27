@@ -83,18 +83,32 @@ fn no_secret_reaches_python(first: &serde_json::Value, run: &Path, dir: &Path) {
     no_secret_in_files(dir);
 }
 
-#[test]
-fn mg_req_0636_server_mode_isolates_python() {
-    let root = scratch("isolation");
-    write(&root.join("models").join("model.py"), MODEL);
+/// The search path and locale of this process, and secret values in variables that hold
+/// credentials.
+#[cfg(test)]
+fn with_secrets() -> SimEnvironment {
     let mut vars: Vec<(String, String)> = ["PATH", "VIRTUAL_ENV", "LANG"]
         .iter()
         .filter_map(|name| Some(((*name).to_owned(), RealEnvironment.var(name)?)))
         .collect();
-    vars.push(("WAREHOUSE_TOKEN".to_owned(), SECRET.to_owned()));
-    vars.push(("AWS_SECRET_ACCESS_KEY".to_owned(), SECRET.to_owned()));
-    vars.push(("PGPASSWORD".to_owned(), SECRET.to_owned()));
-    let environment = SimEnvironment::new(vars, None);
+    for name in ["WAREHOUSE_TOKEN", "AWS_SECRET_ACCESS_KEY", "PGPASSWORD"] {
+        vars.push((name.to_owned(), SECRET.to_owned()));
+    }
+    SimEnvironment::new(vars, None)
+}
+
+/// Whether the step's directory held nothing an earlier call left when the step ran.
+#[cfg(test)]
+fn was_fresh(seen: &serde_json::Value) -> bool {
+    let before = seen["before"].as_array().unwrap();
+    before.iter().all(|file| file != "leftover")
+}
+
+#[test]
+fn mg_req_0636_server_mode_isolates_python() {
+    let root = scratch("isolation");
+    write(&root.join("models").join("model.py"), MODEL);
+    let environment = with_secrets();
     let first_run = root.join("run-1");
     let Some(python) = python_with(&root, &first_run, &environment) else {
         return;
@@ -113,24 +127,11 @@ fn mg_req_0636_server_mode_isolates_python() {
     no_secret_reaches_python(&first, &first_run, &dir);
     // The step ran in its own directory under the run's work directory, which was empty.
     assert_eq!(first["cwd"], dir.display().to_string());
-    assert!(
-        first["before"]
-            .as_array()
-            .unwrap()
-            .iter()
-            .all(|file| file != "leftover")
-    );
+    assert!(was_fresh(&first));
 
     // Called again in the same run, the step starts from a fresh directory.
     plan_step(&python, &RealFileSystem, &spy, &parameters, &first_run).unwrap();
-    let again = seen(&dir);
-    assert!(
-        again["before"]
-            .as_array()
-            .unwrap()
-            .iter()
-            .all(|file| file != "leftover")
-    );
+    assert!(was_fresh(&seen(&dir)));
 
     // Another step has its own directory.
     plan_step(&python, &RealFileSystem, &other, &parameters, &first_run).unwrap();
