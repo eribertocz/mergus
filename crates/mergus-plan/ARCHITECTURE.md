@@ -8,9 +8,14 @@
 | `PlanRequest` | What the caller gives: selection, available results, versions, environment, budget |
 | `FingerprintInputs` | Every part of a fingerprint, and nothing else |
 | `Plan` | The plan: its contract type and its validated document; read-only |
+| `Gate` | One gate of stage 4, in the order of the gate table |
+| `GateInput` | What the caller gives stage 4: the errors of the gates it checked, the required secrets |
+| `GateReport`, `GateResult` | Every gate with `Passed`, `Blocked` (its errors) or `Deferred` (a later phase) |
+| `Cleared`, `Blocked` | The clearance stage 5 needs, or every error of every blocking gate |
+| `SecretCheck`, `RequiredSecret` | The caller's existence check, and a secret a step needs |
 | `PlanError` | An internal error: an unknown selected model, a cycle, a broken contract |
 
-Functions: `plan`, `fingerprint`, `effective_config` and `lf_text`.
+Functions: `plan`, `fingerprint`, `effective_config`, `lf_text` and `evaluate`.
 
 ## Data flow
 
@@ -30,6 +35,13 @@ Functions: `plan`, `fingerprint`, `effective_config` and `lf_text`.
    `plan_id`, and the document with `plan_id` is validated again. `Plan::bytes` is its
    canonical JSON.
 
+Stage 4: `evaluate` takes, for each gate, the errors the caller found, or nothing when the
+gate's check belongs to a later phase (`Deferred`). The credentials gate is always checked:
+each required name is asked once of `SecretCheck`, which answers only whether it resolves,
+and every model and step that needs a missing one gets an `MG-0701` error, in name, model and
+step order. `GateReport::clear` collects the errors of every blocking gate into `Blocked`, or
+returns `Cleared`, which only this crate can build.
+
 Only `BTreeMap` and `BTreeSet` are used, so no output depends on hash order (MG-REQ-0005).
 
 ## Dependencies
@@ -38,4 +50,6 @@ Only `BTreeMap` and `BTreeSet` are used, so no output depends on hash order (MG-
   `hash::sha256_hex`, the SHA-256 behind a Mergus interface (MG-REQ-0186).
 - `mergus-project`: the read project (`ModelOptions`, `Effective`, `Identifier`).
 - `serde_json`: the JSON values of options and documents.
-- `thiserror`: derives `PlanError`.
+- `thiserror`: derives `PlanError` and `Blocked`.
+- Dev-dependencies on `mergus-security`, for the existence check `origin` of `mergus doctor`,
+  and on `mergus-sim`, for the simulated environment and keychain.

@@ -22,12 +22,22 @@ Resolve, order and fingerprint the work; produce the plan.
   identified by `plan_id`, the SHA-256 of its canonical JSON without `plan_id`
   (MG-REQ-0714, MG-REQ-0742, MG-REQ-0743). The same inputs give the same bytes
   (MG-REQ-0005, MG-REQ-0715).
+- Evaluates every gate of stage 4 with `evaluate` and returns each gate's result in the
+  order of the gate table; stage 5 needs the `Cleared` that `GateReport::clear` refuses,
+  with the errors of every blocking gate in one output, when any gate blocks (MG-REQ-0720,
+  MG-REQ-0722). A gate the caller did not check passes, saying its check belongs to a later
+  phase.
+- The credentials gate asks the caller's `SecretCheck` once per required secret whether it
+  resolves, and reports each one that does not as `MG-0701`; it never sees a value
+  (MG-REQ-0721).
 
 ## What it does not
 
 - It performs no I/O: the caller reads the project with `mergus-project` and passes the
   models (MG-REQ-0004).
 - It executes nothing, stores nothing and writes no file; `mergus plan` (MG-REQ-0746) does.
+- It checks no gate other than credentials: the caller gives the errors of the gates it
+  checked, and the existence check of the secrets (`mergus-security`'s `origin`).
 - It parses no selector: the caller gives the selected model names.
 - It plans no segments, boundaries, Polars levels, write strategies or publication contents
   yet (phase 0.2).
