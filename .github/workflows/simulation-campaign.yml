@@ -1,7 +1,8 @@
 # The release campaign of the invariants under `mergus-sim` (MG-REQ-0198.2, decision 0050):
-# started by hand on `main`, it chains four jobs of at most six hours, about 24 hours in all,
-# each running new seeds from where the last one stopped. Its successful run is the evidence
-# of the Invariants gate; its summary records the seeds run and the commit.
+# started by hand on `main`, it chains five jobs of at most six hours. Each simulates for
+# 288 minutes, its build not counted, so the campaign simulates at least 24 hours, each job
+# running new seeds from where the last one stopped. Its successful run is the evidence of
+# the Invariants gate; its summary records the seeds run, the time simulated and the commit.
 name: simulation-campaign
 
 on:
@@ -36,21 +37,38 @@ jobs:
     with:
       part: 4
       first: ${{ needs.part-3.outputs.next }}
+  part-5:
+    needs: part-4
+    uses: ./.github/workflows/simulation-campaign-part.yml
+    with:
+      part: 5
+      first: ${{ needs.part-4.outputs.next }}
   summary:
     name: summary
-    needs: [part-1, part-4]
+    needs: [part-1, part-2, part-3, part-4, part-5]
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - name: Record the seeds run and the commit
+      - name: Record the seeds run, the time simulated and the commit
         run: |
+          seconds=$(( S1 + S2 + S3 + S4 + S5 ))
+          if [ "$seconds" -lt 86400 ]; then
+            echo "::error::The campaign simulated $seconds seconds, less than 24 hours (MG-REQ-0198.2)."
+            exit 1
+          fi
           {
             echo "## Simulation campaign"
             echo
             echo "- Commit: \`$COMMIT\`"
             echo "- Seeds: $FIRST..$NEXT, all passed"
+            echo "- Time simulated: $seconds seconds ($(( seconds / 3600 )) h $(( seconds % 3600 / 60 )) min), builds not counted"
           } >> "$GITHUB_STEP_SUMMARY"
         env:
           COMMIT: ${{ github.sha }}
           FIRST: ${{ format('{0}00000000', github.run_id) }}
-          NEXT: ${{ needs.part-4.outputs.next }}
+          NEXT: ${{ needs.part-5.outputs.next }}
+          S1: ${{ needs.part-1.outputs.seconds }}
+          S2: ${{ needs.part-2.outputs.seconds }}
+          S3: ${{ needs.part-3.outputs.seconds }}
+          S4: ${{ needs.part-4.outputs.seconds }}
+          S5: ${{ needs.part-5.outputs.seconds }}

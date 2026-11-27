@@ -8,7 +8,8 @@
 //! - `--seed <seed> [--commit <sha>]`: replays one seed step by step, on the commit that
 //!   failed (MG-REQ-0162);
 //! - `--first <seed> --minutes <m>`: runs batches of new seeds from `first` until `m` minutes
-//!   have passed, as each job of the release campaign does (MG-REQ-0198.2).
+//!   of simulation have passed, the build not counted, as each job of the release campaign
+//!   does (MG-REQ-0198.2). It reports the next seed and the seconds it simulated.
 //!
 //! A failing seed fails the command; the scenario prints it with its minimal case and the
 //! command that replays it (MG-REQ-0198.3).
@@ -132,11 +133,12 @@ fn campaign(root: &Path, head: &str, first: u64, minutes: u64) -> Result<(), Fai
             .checked_add(BATCH)
             .ok_or_else(|| Failure::new("the seeds ran past the largest number"))?;
     }
+    let seconds = started.elapsed().as_secs();
     report(&format!(
-        "simulation: campaign ran seeds {first}..{next} in {} minutes",
-        started.elapsed().as_secs() / 60
+        "simulation: campaign ran seeds {first}..{next} in {seconds} seconds"
     ));
     report(&format!("next seed: {next}"));
+    report(&format!("simulated seconds: {seconds}"));
     Ok(())
 }
 

@@ -32,6 +32,7 @@ Deterministic simulator.
   the real runtime on these ports. `cargo xtask simulation` runs it over 1,000 seeds on every
   pull request and in the release campaign (MG-REQ-0198); a `mergus-sim` command comes with
   later phases.
-- It does not inject process crashes, concurrent writers or simultaneous triggers; they come
-  in later phases.
+- Its ports do not inject process crashes: the INV-04 scenario crashes a load itself, after
+  the commit its seed chooses, through the crashing stores of the runtime's tests. Concurrent
+  writers and simultaneous triggers come in later phases.
 - It is never a normal dependency of a product crate (MG-REQ-0126.8).

@@ -2,8 +2,8 @@
 //!
 //! Each seed draws the loads of `sales`, read by chunks, and the commit after which the
 //! process of each load crashes, if it does. After every load, the world that crashed and
-//! resumed must show what an uninterrupted world shows: the rows of `__changes` readers see,
-//! the current table and `ops.loads`.
+//! resumed must show what an uninterrupted world shows: every row of `__changes`, finished or
+//! not, the rows readers see, the current table and `ops.loads`.
 //!
 //! `cargo xtask simulation` chooses the seeds through the environment:
 //! `MERGUS_SIMULATION_FIRST_SEED` and `MERGUS_SIMULATION_SEEDS` (by default 16 seeds from 0),
@@ -19,8 +19,8 @@ use serde_json::{Value, json};
 
 use crate::ALL;
 use crate::fixture::{Row, attach, attach_after, declared, source};
-use crate::resume::snapshot;
-use crate::world::World;
+use crate::resume::{Snapshot, snapshot};
+use crate::world::{World, texts, versions};
 
 /// The seeds of a plain `cargo test`.
 const DEFAULT_SEEDS: u64 = 16;
@@ -151,7 +151,7 @@ fn apply(worlds: &mut Worlds, load: &Load) -> Result<(), Violation> {
         .load(&mut attached, source, table, Some(load.chunk), None)
         .map_err(|error| Violation::new(format!("the resumed load failed: {error}")))?;
     earlier.extend(load.rows.iter().filter_map(|row| row.hour));
-    let (expected, seen) = (snapshot(whole), snapshot(crashed));
+    let (expected, seen) = (shown(whole), shown(crashed));
     if seen == expected {
         Ok(())
     } else {
@@ -177,6 +177,18 @@ fn attached(load: &Load, earlier: &[i64]) -> mergus_source::AttachedSource {
     )
 }
 
+/// [`snapshot`], `(sale_id, amount, _deleted)` of every row of `__changes`, and each load's
+/// `result`.
+type Shown = (Snapshot, Vec<(i64, i64, bool)>, Vec<Option<String>>);
+
+#[cfg(test)]
+/// What `world` shows: [`snapshot`], every row of `__changes`, finished or not, and the
+/// `result` of each row of `ops.loads`.
+fn shown(world: &World) -> Shown {
+    let results = texts(&world.registry(), "result");
+    (snapshot(world), versions(&world.every_change()), results)
+}
+
 #[cfg(test)]
 /// The commits of raw and ops together.
 fn commits(world: &World) -> usize {
@@ -185,7 +197,7 @@ fn commits(world: &World) -> usize {
 
 #[cfg(test)]
 /// Reads the environment variable `name` as a number, or `default` when it is not set.
-#[allow(
+#[expect(
     clippy::disallowed_methods,
     reason = "MG-REQ-0198: `cargo xtask simulation` chooses the seeds of the test through the \
               environment, the only input a test binary takes besides its filters"
@@ -200,7 +212,7 @@ fn number(name: &str, default: u64) -> u64 {
 
 #[cfg(test)]
 /// The commit named in the replay command, when `cargo xtask simulation` gives it.
-#[allow(
+#[expect(
     clippy::disallowed_methods,
     reason = "MG-REQ-0198: `cargo xtask simulation` names the commit under test through the \
               environment"
