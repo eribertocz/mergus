@@ -189,6 +189,13 @@ impl Read {
             )));
             return Ok(());
         }
+        self.record(path, &run);
+        Ok(())
+    }
+
+    /// Records the macros of the file at `path`, which ran as `run`: a name of a built-in or
+    /// of Mergus, or one an earlier file has, is a clash (MG-REQ-0642).
+    fn record(&mut self, path: &str, run: &MacroRun) {
         let builtins: BTreeMap<String, &str> = run
             .builtins
             .iter()
@@ -213,7 +220,6 @@ impl Read {
                 self.macros.insert(found.name.clone(), found);
             }
         }
-        Ok(())
     }
 }
 
