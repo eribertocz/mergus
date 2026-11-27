@@ -1,0 +1,28 @@
+[package]
+name = "mergus-engine-polars"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+description = "Execute Polars steps."
+
+[dependencies]
+# `ipc` writes the Arrow IPC files of a step's inputs and reads those of its output and of its
+# planned schema (MG-REQ-0617.2, MG-REQ-0617.3). The version is the one `mergus-ports` uses.
+arrow = { version = "60.2.0", default-features = false, features = ["ipc"] }
+mergus-ports = { path = "../mergus-ports" }
+# The allowlisted environment of the Python child (MG-REQ-0006, MG-REQ-0617.1).
+mergus-security = { path = "../mergus-security" }
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = "1.0.154"
+thiserror = "2.0.21"
+
+[lints]
+workspace = true
+
+# The tests run the real Python child, with `polars`, on real files.
+# Dev-dependencies are not linked into other crates (MG-REQ-0126.5).
+[dev-dependencies]
+mergus-ports = { path = "../mergus-ports", features = ["real"] }
+mergus-sim = { path = "../mergus-sim" }

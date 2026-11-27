@@ -15,7 +15,10 @@ I/O traits and their real implementations.
   and `RealRandom`, and `RealSqlParser`, DuckDB's parser in an in-memory DuckDB without external
   access that never executes the text (MG-REQ-0193), and `RealPython`, which runs a Python
   interpreter as a child process with `-I -S` and exactly the environment its caller gives,
-  and reads a file's tree with a bundled `ast` script, never importing it (MG-REQ-0611).
+  and reads a file's tree with a bundled `ast` script, never importing it (MG-REQ-0611). Its
+  `run` runs a Python program with arguments in a given working directory, with the same
+  options and environment and no time limit, and returns its exit code and outputs
+  (MG-REQ-0617.1).
 - Holds `RealDatabase`, in-process DuckDB that runs SQL with bound parameters, reads and
   writes Arrow, attaches DuckLake catalogs, and attaches database sources read-only: DuckDB
   files with no extension, and PostgreSQL with the `postgres` extension, its pool and

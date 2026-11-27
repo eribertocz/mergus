@@ -1474,6 +1474,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "mergus-engine-polars"
+version = "0.2.0"
+dependencies = [
+ "arrow",
+ "mergus-ports",
+ "mergus-security",
+ "mergus-sim",
+ "serde",
+ "serde_json",
+ "thiserror",
+]
+
+[[package]]
 name = "mergus-plan"
 version = "0.2.0"
 dependencies = [

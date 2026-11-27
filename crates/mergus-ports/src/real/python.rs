@@ -1,5 +1,5 @@
 //! A Python interpreter run as a child process, which parses files without importing them
-//! (MG-REQ-0611). Python is never embedded.
+//! (MG-REQ-0611) and runs programs (MG-REQ-0617.1). Python is never embedded.
 
 use std::ffi::OsString;
 use std::io::{Read, Write};
@@ -9,7 +9,7 @@ use std::thread::{self, JoinHandle};
 use std::time::{Duration, Instant};
 
 use super::port_error;
-use crate::{PortError, Python, PythonTree};
+use crate::{PortError, ProcessOutput, Python, PythonTree};
 
 /// The script that prints the tree of the file read from standard input. It imports only
 /// `ast`, `json` and `sys`.
@@ -132,6 +132,40 @@ impl Python for RealPython {
         })?;
         PythonTree::from_json(&json)
     }
+
+    fn run(
+        &self,
+        script: &str,
+        args: &[String],
+        current_dir: &Path,
+    ) -> Result<ProcessOutput, PortError> {
+        let shown = self.interpreter.display().to_string();
+        if !current_dir.is_dir() {
+            return Err(PortError::NotFound(current_dir.display().to_string()));
+        }
+        let mut child = Command::new(&self.interpreter)
+            .args(OPTIONS)
+            .arg(script)
+            .args(args)
+            .current_dir(current_dir)
+            .env_clear()
+            .envs(self.env.iter().map(|(name, value)| (name, value)))
+            .stdin(Stdio::null())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()
+            .map_err(|error| port_error(&shown, &error))?;
+        // The outputs are read on their own threads, so a child that fills one pipe while
+        // this process reads the other cannot block.
+        let stdout = drain(child.stdout.take());
+        let stderr = drain(child.stderr.take());
+        let status = child.wait().map_err(|error| port_error(&shown, &error))?;
+        Ok(ProcessOutput {
+            code: status.code(),
+            stdout: joined(stdout, &shown)?,
+            stderr: joined(stderr, &shown)?,
+        })
+    }
 }
 
 /// Waits for `child` until `timeout` has passed, then kills it.
@@ -246,7 +280,7 @@ mod tests {
     use std::time::{Duration, Instant};
 
     use super::RealPython;
-    use crate::{PortError, Python, PythonTree};
+    use crate::{PortError, ProcessOutput, Python, PythonTree};
 
     fn scratch(name: &str) -> PathBuf {
         let dir = std::env::temp_dir()

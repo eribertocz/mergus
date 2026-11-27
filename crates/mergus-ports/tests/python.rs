@@ -263,3 +263,41 @@ fn python_interpreter_not_found_lists_what_was_tried() {
         }
     );
 }
+
+#[test]
+fn mg_req_0617_python_runs_a_program_in_its_directory() {
+    let root = scratch("run");
+    let step = root.join("step");
+    RealFileSystem.create_dir_all(&step).unwrap();
+    let mut env = search_path();
+    env.push(("MERGUS_GIVEN".to_owned(), "1".to_owned()));
+    let python = match RealPython::locate(None, &root, env) {
+        Ok(python) => python,
+        Err(PortError::PythonNotFound { .. }) if RealEnvironment.var("CI").is_none() => return,
+        Err(error) => panic!("no Python interpreter in CI: {error}"),
+    };
+    // Python itself sets `LC_CTYPE` when the locale is C (PEP 538), and macOS adds
+    // `__CF_USER_TEXT_ENCODING`: both are left out.
+    let script = "import json, os, sys\n\
+        env = {k: v for k, v in os.environ.items() \
+               if k not in ('LC_CTYPE', '__CF_USER_TEXT_ENCODING')}\n\
+        open('mark', 'w').close()\n\
+        print(json.dumps([sys.argv[1:], os.path.basename(os.getcwd()), sorted(env)]))\n\
+        sys.stderr.write('done')\n\
+        sys.exit(3)\n";
+    let args = vec!["a b".to_owned(), "--c".to_owned()];
+    let output = python.run(script, &args, &step).unwrap();
+    assert_eq!(output.code, Some(3));
+    assert_eq!(String::from_utf8(output.stderr).unwrap(), "done");
+    let seen: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
+    assert_eq!(
+        seen,
+        serde_json::json!([["a b", "--c"], "step", ["MERGUS_GIVEN", "PATH"]])
+    );
+    // The program ran in `step`, where it left its mark.
+    assert!(RealFileSystem.exists(&step.join("mark")).unwrap());
+    assert!(matches!(
+        python.run(script, &args, &root.join("missing")),
+        Err(PortError::NotFound(_))
+    ));
+}
