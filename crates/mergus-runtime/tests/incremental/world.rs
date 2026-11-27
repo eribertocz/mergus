@@ -18,7 +18,9 @@ use mergus_runtime::{
 use mergus_sim::{ClockFaults, SimClock, SimRandom};
 use mergus_source::{AttachedSource, DeclaredTable};
 
-use crate::fixture::{DAY_ONE, HOUR};
+use serde_json::json;
+
+use crate::fixture::{DAY_ONE, HOUR, declared, source};
 use crate::memory::Memory;
 
 /// The stores of raw and ops, which outlive a process, and the clock of the world.
@@ -92,7 +94,13 @@ impl World {
 
     /// The rows of `__changes` readers see, sorted by key, then `_deleted`, then amount.
     pub fn changes(&self, table: &DeclaredTable) -> RecordBatch {
-        let rows = finished_changes(
+        self.finished(table).unwrap()
+    }
+
+    /// The rows of `__changes` readers see, sorted, or `None` while the table does not
+    /// exist, as before a load wrote a row to it.
+    pub fn finished(&self, table: &DeclaredTable) -> Option<RecordBatch> {
+        finished_changes(
             &self.raw,
             &self.ops,
             "erp",
@@ -101,13 +109,20 @@ impl World {
             self.ops_version().as_ref(),
         )
         .unwrap()
-        .unwrap();
-        sorted(&rows)
+        .map(|rows| sorted(&rows))
     }
 
     /// Every row of `__changes`, finished or not, sorted.
     pub fn every_change(&self) -> RecordBatch {
-        sorted(&self.raw.latest("erp__sales__changes"))
+        self.recorded_changes().unwrap()
+    }
+
+    /// Every row of `__changes`, finished or not, sorted, or `None` while the table does not
+    /// exist.
+    pub fn recorded_changes(&self) -> Option<RecordBatch> {
+        let table = declared(&source(json!({})));
+        self.finished(&table)
+            .map(|_| sorted(&self.raw.latest("erp__sales__changes")))
     }
 
     /// The current rows, sorted.

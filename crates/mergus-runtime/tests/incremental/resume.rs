@@ -121,9 +121,13 @@ fn run(options: &serde_json::Value, crash: Option<(usize, usize)>) -> World {
 /// One row of `__changes` or of the current table, its load told by its rank in `ops.loads`.
 pub type Seen = (i64, i64, bool, usize, bool);
 
-/// The rows of `__changes`, of the current table, and each load's watermark, whether it
-/// compared and its rows read.
-pub type Snapshot = (Vec<Seen>, Vec<Seen>, Vec<(Option<String>, bool, i64)>);
+/// The rows of `__changes`, `None` while the table does not exist, the rows of the current
+/// table, and each load's watermark, whether it compared and its rows read.
+pub type Snapshot = (
+    Option<Vec<Seen>>,
+    Vec<Seen>,
+    Vec<(Option<String>, bool, i64)>,
+);
 
 #[cfg(test)]
 /// What readers see of `world`: every row with the rank of its load and whether
@@ -156,7 +160,8 @@ pub fn snapshot(world: &World) -> Snapshot {
         .zip(crate::world::ints(&registry, "rows"))
         .map(|((mark, checked), rows)| (mark, checked.is_some(), rows))
         .collect();
-    (rows(&world.changes(&table)), rows(&world.current()), marks)
+    let changes = world.finished(&table).as_ref().map(rows);
+    (changes, rows(&world.current()), marks)
 }
 
 #[test]
