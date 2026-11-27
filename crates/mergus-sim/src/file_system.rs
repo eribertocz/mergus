@@ -133,6 +133,18 @@ impl FileSystem for SimFileSystem {
         }
     }
 
+    fn remove_dir_all(&self, path: &Path) -> Result<(), PortError> {
+        let mut nodes = lock(&self.nodes);
+        match nodes.get(path) {
+            Some(Node::Directory) => {
+                nodes.retain(|key, _| !key.starts_with(path));
+                Ok(())
+            }
+            Some(Node::File(_)) => Err(PortError::Failed(format!("`{}` is a file", shown(path)))),
+            None => Err(PortError::NotFound(shown(path))),
+        }
+    }
+
     fn create_dir_all(&self, path: &Path) -> Result<(), PortError> {
         let mut nodes = lock(&self.nodes);
         let mut current = PathBuf::new();

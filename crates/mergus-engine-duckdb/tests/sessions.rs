@@ -6,7 +6,9 @@ use std::sync::{Arc, Mutex};
 use arrow::array::{ArrayRef, Int64Array, StringArray};
 use arrow::datatypes::{DataType, Field, Schema};
 use arrow::record_batch::RecordBatch;
-use mergus_engine_duckdb::{Boundary, Segment, Table, Transport, run_segment, table_hash};
+use mergus_engine_duckdb::{
+    Boundary, EngineError, Segment, Table, Transport, run_segment, table_hash,
+};
 use mergus_ports::{
     Database, DatabaseConnection, DatabaseLocation, FileSystem, PortError, SqlValue,
 };
@@ -141,6 +143,9 @@ fn mg_req_0633_parquet_output_streams_through_a_scratch_file() {
     files
         .write(Path::new("/zone/work/a.parquet.duckdb.wal"), b"stale")
         .unwrap();
+    let spill = Path::new("/zone/work/a.parquet.duckdb.tmp");
+    files.create_dir_all(spill).unwrap();
+    files.write(&spill.join("spill.block"), b"stale").unwrap();
     let database = database();
     let id = |values: Vec<i64>| {
         let ids: ArrayRef = Arc::new(Int64Array::from(values));
@@ -157,5 +162,61 @@ fn mg_req_0633_parquet_output_streams_through_a_scratch_file() {
         !files
             .exists(Path::new("/zone/work/a.parquet.duckdb.wal"))
             .unwrap()
+    );
+    assert!(!files.exists(spill).unwrap());
+}
+
+/// A file system that cannot remove one file, as when another process holds it locked.
+struct Locked {
+    inner: SimFileSystem,
+    locked: PathBuf,
+}
+
+impl FileSystem for Locked {
+    fn read(&self, path: &Path) -> Result<Vec<u8>, PortError> {
+        self.inner.read(path)
+    }
+    fn write(&self, path: &Path, contents: &[u8]) -> Result<(), PortError> {
+        self.inner.write(path, contents)
+    }
+    fn remove_file(&self, path: &Path) -> Result<(), PortError> {
+        if path == self.locked {
+            return Err(PortError::Failed(format!("`{}` is locked", path.display())));
+        }
+        self.inner.remove_file(path)
+    }
+    fn create_dir_all(&self, path: &Path) -> Result<(), PortError> {
+        self.inner.create_dir_all(path)
+    }
+    fn list_dir(&self, path: &Path) -> Result<Vec<PathBuf>, PortError> {
+        self.inner.list_dir(path)
+    }
+    fn exists(&self, path: &Path) -> Result<bool, PortError> {
+        self.inner.exists(path)
+    }
+}
+
+#[test]
+fn mg_req_0633_stale_scratch_that_cannot_be_removed_fails_first() {
+    let scratch = PathBuf::from("/zone/work/a.parquet.duckdb");
+    let files = Locked {
+        inner: SimFileSystem::new(),
+        locked: scratch.clone(),
+    };
+    files.create_dir_all(Path::new("/zone/work")).unwrap();
+    files.write(&scratch, b"stale").unwrap();
+    let database = Counted {
+        inner: database(),
+        locations: Mutex::new(Vec::new()),
+    };
+    let error = run_segment(&database, &files, &segment()).unwrap_err();
+    assert!(
+        matches!(&error, EngineError::Boundary { path, .. } if path == "/zone/work/a.parquet.duckdb"),
+        "{error}"
+    );
+    // The step ran in its own session; the scratch session never opened.
+    assert_eq!(
+        *database.locations.lock().unwrap(),
+        [DatabaseLocation::InMemory]
     );
 }

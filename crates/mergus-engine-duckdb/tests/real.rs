@@ -213,7 +213,7 @@ fn mg_req_0180_exact_widening_is_accepted_on_duckdb() {
 }
 
 #[test]
-fn mg_req_0633_duckdb_streams_batches_one_at_a_time() {
+fn mg_req_0633_duckdb_streams_a_result_in_several_batches() {
     let dir = scratch();
     let database = RealDatabase::new(&dir.join("cache"));
     let mut session = database.connect(&DatabaseLocation::InMemory).unwrap();

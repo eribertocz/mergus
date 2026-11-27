@@ -44,3 +44,27 @@ fn sim_file_system_streams_fail_as_reads_and_writes_do() {
         Err(PortError::Failed(_))
     ));
 }
+
+#[test]
+fn sim_file_system_removes_a_directory_tree() {
+    let files = SimFileSystem::new();
+    files.create_dir_all(Path::new("/work/tree/leaf")).unwrap();
+    files
+        .write(Path::new("/work/tree/leaf/c.txt"), b"three")
+        .unwrap();
+    files
+        .write(Path::new("/work/treetop.txt"), b"kept")
+        .unwrap();
+    files.remove_dir_all(Path::new("/work/tree")).unwrap();
+    assert!(!files.exists(Path::new("/work/tree/leaf/c.txt")).unwrap());
+    assert!(!files.exists(Path::new("/work/tree")).unwrap());
+    assert!(files.exists(Path::new("/work/treetop.txt")).unwrap());
+    assert!(matches!(
+        files.remove_dir_all(Path::new("/work/tree")),
+        Err(PortError::NotFound(_))
+    ));
+    assert!(matches!(
+        files.remove_dir_all(Path::new("/work/treetop.txt")),
+        Err(PortError::Failed(_))
+    ));
+}

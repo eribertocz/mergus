@@ -67,6 +67,21 @@ pub trait FileSystem: Send + Sync {
     /// [`PortError::Failed`] when it cannot be removed.
     fn remove_file(&self, path: &Path) -> Result<(), PortError>;
 
+    /// Removes the directory at `path` with everything in it.
+    ///
+    /// The default fails: a file system that does not implement it cannot remove directories.
+    ///
+    /// # Errors
+    ///
+    /// Fails with [`PortError::NotFound`] when the directory does not exist, and with
+    /// [`PortError::Failed`] when it cannot be removed.
+    fn remove_dir_all(&self, path: &Path) -> Result<(), PortError> {
+        Err(PortError::Failed(format!(
+            "this file system cannot remove the directory `{}`",
+            path.display()
+        )))
+    }
+
     /// Creates the directory at `path` and every missing parent.
     ///
     /// # Errors

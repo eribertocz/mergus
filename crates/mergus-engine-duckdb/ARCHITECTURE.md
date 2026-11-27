@@ -30,7 +30,8 @@ Segment ─► check every declared schema                  (MG-REQ-0180)
              SharedMemory: write to the Arrow IPC file of FileSystem::create
                            (on failure: FileSystem::remove_file)
              Parquet:      append_arrow to mergus_output of a second session on
-                           <output>.duckdb ─► COPY TO <path> ─► remove <output>.duckdb
+                           <output>.duckdb ─► COPY TO <path> ─► remove <output>.duckdb,
+                           its .wal and its .tmp spill directory
 ```
 
 `exact` maps each Arrow type to the type DuckDB describes for the column that holds it

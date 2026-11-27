@@ -17,7 +17,8 @@ Execute DuckDB steps.
   - `Parquet`: a Parquet file in the work zone, read lazily through a view over
     `read_parquet` of the declared columns. It is written by DuckDB's `COPY` from a table of
     a second session backed by `<output file>.duckdb` next to it, so the rows sit on disk,
-    not in memory; that file is removed when the segment ends.
+    not in memory; that file, its `.wal` and its `.tmp` spill directory are removed before
+    and after the segment, and one that cannot be removed fails the segment.
   The step's result is streamed out of DuckDB one batch at a time
   (`DatabaseConnection::query_arrow_each`) to either transport, so Rust never holds more
   than one batch of it.

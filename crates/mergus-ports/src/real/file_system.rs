@@ -40,6 +40,10 @@ impl FileSystem for RealFileSystem {
         fs::remove_file(path).map_err(|error| port_error(&shown(path), &error))
     }
 
+    fn remove_dir_all(&self, path: &Path) -> Result<(), PortError> {
+        fs::remove_dir_all(path).map_err(|error| port_error(&shown(path), &error))
+    }
+
     fn create_dir_all(&self, path: &Path) -> Result<(), PortError> {
         fs::create_dir_all(path).map_err(|error| port_error(&shown(path), &error))
     }
@@ -91,6 +95,15 @@ mod tests {
         );
         fs.remove_file(&dir.join("a.txt")).unwrap();
         assert!(!fs.exists(&dir.join("a.txt")).unwrap());
+        fs.create_dir_all(&dir.join("tree").join("leaf")).unwrap();
+        fs.write(&dir.join("tree").join("leaf").join("c.txt"), b"three")
+            .unwrap();
+        fs.remove_dir_all(&dir.join("tree")).unwrap();
+        assert!(!fs.exists(&dir.join("tree")).unwrap());
+        assert!(matches!(
+            fs.remove_dir_all(&dir.join("tree")),
+            Err(PortError::NotFound(_))
+        ));
         assert!(matches!(
             fs.read(&dir.join("a.txt")),
             Err(PortError::NotFound(_))

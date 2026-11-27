@@ -8,7 +8,7 @@ use mergus_ports::{Database, DatabaseConnection, DatabaseLocation, FileSystem, P
 
 use crate::exact::{Zones, conform, nullable};
 use crate::segment::{create_table, path_value, quote_identifier};
-use crate::transport::ArrowSink;
+use crate::transport::{ArrowSink, boundary};
 use crate::{EngineError, Segment};
 
 /// The table of the output session a Parquet output is gathered in before it is written.
@@ -80,8 +80,8 @@ pub(crate) fn scratch(segment: &Segment) -> PathBuf {
 
 /// Writes the rows of `segment` as its Parquet file without holding them in memory: each
 /// batch is appended to a table of a second DuckDB session backed by [`scratch`], which
-/// DuckDB's `COPY` then writes. The scratch file, and its write-ahead log, are removed
-/// whether the write succeeds or fails.
+/// DuckDB's `COPY` then writes. The scratch file, its write-ahead log and its spill directory
+/// are removed before, and after whether the write succeeds or fails.
 pub(crate) fn write_parquet(
     session: &mut dyn DatabaseConnection,
     database: &dyn Database,
@@ -89,10 +89,12 @@ pub(crate) fn write_parquet(
     segment: &Segment,
 ) -> Result<(), EngineError> {
     let scratch = scratch(segment);
-    remove(files, &scratch);
+    remove(files, &scratch)?;
     let written = gather_and_copy(session, database, segment, &scratch);
-    remove(files, &scratch);
-    written
+    let removed = remove(files, &scratch);
+    // A failure of the segment is the one reported; a failed removal after it is reported
+    // only when the segment succeeded.
+    written.and(removed)
 }
 
 /// Gathers the rows of `segment` in the DuckDB file `scratch` and copies them to the Parquet
@@ -104,6 +106,8 @@ fn gather_and_copy(
     scratch: &Path,
 ) -> Result<(), EngineError> {
     let output = &segment.output;
+    // This session runs no step SQL, only the statements below, so it needs no macros and no
+    // `icu` guard: the port keeps the automatic loading of extensions off.
     let mut gathered = database.connect(&DatabaseLocation::File(scratch.to_path_buf()))?;
     create_table(
         gathered.as_mut(),
@@ -125,15 +129,30 @@ fn gather_and_copy(
     Ok(())
 }
 
-/// Removes the DuckDB file `path` and its write-ahead log, when they exist.
-fn remove(files: &dyn FileSystem, path: &Path) {
-    let mut wal = path.as_os_str().to_os_string();
-    wal.push(".wal");
-    for file in [path.to_path_buf(), PathBuf::from(wal)] {
-        // A file that does not exist needs no removal; any other failure leaves a scratch
-        // file the run's cleanup removes with its work directory.
-        if files.exists(&file).unwrap_or(false) {
-            files.remove_file(&file).ok();
+/// Removes the DuckDB file `path`, its write-ahead log `<path>.wal` and its spill directory
+/// `<path>.tmp`, those that exist.
+///
+/// Fails with [`EngineError::Boundary`] when one exists and cannot be removed, so that a stale
+/// or locked scratch file is reported as itself.
+fn remove(files: &dyn FileSystem, path: &Path) -> Result<(), EngineError> {
+    let with = |suffix: &str| {
+        let mut name = path.as_os_str().to_os_string();
+        name.push(suffix);
+        PathBuf::from(name)
+    };
+    let fail = |file: &Path, error: PortError| boundary(file, &error);
+    for file in [path.to_path_buf(), with(".wal")] {
+        if files.exists(&file).map_err(|error| fail(&file, error))? {
+            files
+                .remove_file(&file)
+                .map_err(|error| fail(&file, error))?;
         }
     }
+    let spill = with(".tmp");
+    if files.exists(&spill).map_err(|error| fail(&spill, error))? {
+        files
+            .remove_dir_all(&spill)
+            .map_err(|error| fail(&spill, error))?;
+    }
+    Ok(())
 }
