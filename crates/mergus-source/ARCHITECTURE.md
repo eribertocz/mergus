@@ -23,6 +23,11 @@
 | `breaking_changes`, `ColumnChange` | The dropped, renamed or retyped columns since the last load (MG-REQ-0407) |
 | `SchemaChange` | A table stopped by breaking changes (`MG-0405`) |
 | `extract_source_timed`, `SourceExtraction`, `TableRead` | A source read with its changes checked and each table's read times and spread (MG-REQ-0419) |
+| `load_options`, `LoadOptions`, `DeletePolicy`, `DeleteCheck` | A table's `overlap`, `deletes`, `delete_check` and `delete_window` |
+| `IncrementalReader`, `Start`, `Chunk` | An incremental read whose position moves on commit (MG-REQ-0412, MG-REQ-0413, MG-REQ-0418) |
+| `watermark_of`, `value_text`, `Temporal` | The watermark of committed rows and DuckDB's text of a value (MG-REQ-0412.1, MG-REQ-0413) |
+| `Comparison` | The deletes and very late rows a `compare` found (MG-REQ-0415.3, MG-REQ-0420) |
+| `ExtractError`, `LateRows` | `MG-0406`, a missing delete column, and the `MG-0407` warning |
 
 ## Data flow
 
@@ -86,6 +91,29 @@
 4. `extract_source` reads the same tables without the check and the times; a run extracts
    with `extract_source_timed`.
 
+## Incremental reads
+
+1. `IncrementalReader::open` reads the table's columns with `DESCRIBE`. A `column:<name>`
+   policy whose column is missing stops here with `MG-0406`.
+2. The start of the reads is computed in Rust, not in SQL: `Temporal` parses the watermark,
+   the text DuckDB gave for the value, subtracts the overlap in microseconds and writes the
+   result back in DuckDB's text; for a `DATE` it is the first date not before that instant,
+   the dates `date >= date − interval` keeps. The text is bound as the `>= ?` parameter,
+   which DuckDB casts to the column's type. Any other type is bound as the watermark itself.
+3. `next_chunk` sends one statement from the committed position and remembers where the next
+   chunk would start; `committed` applies it. Until then a new call reads the same chunk.
+   A chunk shorter than the chunk size is the last.
+4. `watermark_of` orders the values in Arrow's row format, which keeps the order of the
+   values, skips NULL and writes the largest the way DuckDB's `CAST(value AS VARCHAR)` does:
+   dates as `YYYY-MM-DD`, timestamps as `YYYY-MM-DD HH:MM:SS` with the fraction of a second
+   without trailing zeros, `TIMESTAMPTZ` in UTC with `+00`, other types as Arrow writes them.
+   A test checks this text against the real DuckDB.
+5. `compare` sends `SELECT <key>, <incremental> FROM <table>`, with `WHERE <incremental> >= ?`
+   bound to `now − delete_window` for a temporal column. Keys are compared in Arrow's row
+   format, the source's cast to the types of raw. The raw rows inside the window whose key
+   the source lacks are the deletes; the source rows whose key raw lacks and whose value is
+   older than the start of the reads are very late rows.
+
 ## Dependencies
 
 - `mergus-ports`: the `FileSystem`, `Database` and `Clock` ports and `PortError`.
@@ -94,4 +122,6 @@
   `key_line`, the line of a key, so that this crate parses no TOML (MG-REQ-0186).
 - `serde_json`: the JSON values of those files.
 - `thiserror`: derives `SourceProblem`.
-- `mergus-sim`, as a dev-dependency only: the in-memory file system of the tests.
+- `mergus-sim`, as a dev-dependency only: the in-memory file system and the simulated
+  `Database` of the tests. `mergus-ports` with `real`, as a dev-dependency only: the real
+  DuckDB the text of watermarks is checked against.

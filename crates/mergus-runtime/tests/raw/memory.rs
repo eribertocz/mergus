@@ -26,6 +26,9 @@ pub struct Memory {
     pub expired: Vec<Retention>,
     /// Whether `commit` fails, dropping what was staged.
     pub fail_commits: bool,
+    /// The commits left before a crash, shared by the stores of one process; `None` never
+    /// crashes. A commit with none left fails, dropping what was staged.
+    pub crash: Option<Arc<std::sync::atomic::AtomicUsize>>,
 }
 
 #[cfg(test)]
@@ -73,6 +76,14 @@ impl StorageAdapter for Memory {
     }
 
     fn commit(&mut self) -> Result<VersionRef, AdapterError> {
+        if let Some(left) = &self.crash {
+            use std::sync::atomic::Ordering;
+            if left.load(Ordering::SeqCst) == 0 {
+                self.staged.clear();
+                return Err(AdapterError::Storage("the process crashed".into()));
+            }
+            left.fetch_sub(1, Ordering::SeqCst);
+        }
         if self.fail_commits {
             self.staged.clear();
             return Err(AdapterError::Storage("commit refused".into()));

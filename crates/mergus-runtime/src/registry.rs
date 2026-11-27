@@ -6,16 +6,15 @@ use std::fmt::Write as _;
 use std::sync::Arc;
 
 use arrow::array::{
-    Array, ArrayRef, AsArray, Int64Array, RecordBatch, RecordBatchIterator, StringArray,
-    TimestampMicrosecondArray,
+    ArrayRef, Int64Array, RecordBatch, RecordBatchIterator, StringArray, TimestampMicrosecondArray,
 };
-use arrow::compute::cast;
-use arrow::datatypes::{DataType, Field, Schema, SchemaRef, TimeUnit, TimestampMicrosecondType};
+use arrow::datatypes::{DataType, Field, Schema, SchemaRef, TimeUnit};
 use arrow::error::ArrowError;
 use mergus_adapter::{AdapterError, StorageAdapter, VersionRef, WriteMode};
 use mergus_ports::{Clock, Random, Timestamp};
 
 use crate::RawError;
+use crate::registry_read::table_loads;
 
 /// The table of the load registry inside the ops catalog: `ops.loads`.
 pub const LOADS: &str = "loads";
@@ -92,6 +91,10 @@ pub struct LoadRecord {
     pub result: LoadResult,
     /// The `MG-####` code of a failed load.
     pub error_code: Option<String>,
+    /// When the last `compare` of the table ran (MG-REQ-0415.3): this load's `started_at`
+    /// when it compared, else the value of the table's previous row; `None` before the
+    /// first compare.
+    pub deletes_checked_at: Option<Timestamp>,
 }
 
 /// Appends `record` to `ops.loads` through `ops`, the adapter of the ops zone, and commits.
@@ -129,6 +132,7 @@ fn schema() -> SchemaRef {
         Field::new("duration_ms", DataType::Int64, false),
         text("result", false),
         text("error_code", true),
+        Field::new("deletes_checked_at", utc(), true),
     ]))
 }
 
@@ -139,6 +143,8 @@ fn row(record: &LoadRecord) -> Result<RecordBatch, ArrowError> {
         |value: &Option<String>| Arc::new(StringArray::from(vec![value.clone()])) as ArrayRef;
     let started =
         TimestampMicrosecondArray::from(vec![micros(record.started_at)]).with_timezone(UTC);
+    let checked = TimestampMicrosecondArray::from(vec![record.deletes_checked_at.map(micros)])
+        .with_timezone(UTC);
     RecordBatch::try_new(
         schema(),
         vec![
@@ -153,6 +159,7 @@ fn row(record: &LoadRecord) -> Result<RecordBatch, ArrowError> {
             Arc::new(Int64Array::from(vec![record.duration_ms])),
             text(record.result.name()),
             optional(&record.error_code),
+            Arc::new(checked),
         ],
     )
 }
@@ -171,58 +178,12 @@ pub fn last_watermark(
     source: &str,
     table: &str,
 ) -> Result<Option<String>, RawError> {
-    let mut last: Option<(i64, String, Option<String>)> = None;
-    for batch in ops.read_at(LOADS, version).map_err(RawError::Registry)? {
-        let batch = batch.map_err(unreadable)?;
-        let text = |name: &str| {
-            batch
-                .column_by_name(name)
-                .and_then(|column| column.as_string_opt::<i32>().cloned())
-                .ok_or_else(|| missing(name))
-        };
-        let (sources, tables, ids, marks) = (
-            text("source")?,
-            text("table")?,
-            text("load_id")?,
-            text("watermark_after")?,
-        );
-        let started = batch
-            .column_by_name("started_at")
-            .ok_or_else(|| missing("started_at"))?;
-        let started = cast(started, &utc()).map_err(unreadable)?;
-        let started = started.as_primitive::<TimestampMicrosecondType>();
-        for index in 0..batch.num_rows() {
-            if sources.value(index) != source || tables.value(index) != table {
-                continue;
-            }
-            let row = (
-                started.value(index),
-                ids.value(index).to_owned(),
-                (!marks.is_null(index)).then(|| marks.value(index).to_owned()),
-            );
-            if last
-                .as_ref()
-                .is_none_or(|last| (row.0, &row.1) > (last.0, &last.1))
-            {
-                last = Some(row);
-            }
-        }
-    }
-    Ok(last.and_then(|(_, _, mark)| mark))
-}
-
-/// A failure to read `ops.loads`.
-fn unreadable(error: ArrowError) -> RawError {
-    RawError::Registry(AdapterError::Storage(Box::new(error)))
-}
-
-/// `ops.loads` read without the column `name`.
-fn missing(name: &str) -> RawError {
-    unreadable(ArrowError::SchemaError(format!("no column `{name}`")))
+    let loads = table_loads(ops, version, source, table)?;
+    Ok(loads.last.and_then(|last| last.watermark_after))
 }
 
 /// The type of `started_at`: a `TIMESTAMPTZ` in UTC.
-fn utc() -> DataType {
+pub(crate) fn utc() -> DataType {
     DataType::Timestamp(TimeUnit::Microsecond, Some(UTC.into()))
 }
 

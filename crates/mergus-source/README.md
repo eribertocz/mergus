@@ -42,6 +42,24 @@ Extract from databases (ADBC) and files.
 - Records, from the `Clock` port, the start and the end in UTC of each table's read, and the
   spread of the source: the latest end minus the earliest start (MG-REQ-0419).
 
+- Reads an incremental table chunk by chunk with `IncrementalReader`, whose position moves
+  past a chunk only when the caller says it committed it (MG-REQ-0413, MG-REQ-0418). With
+  the watermark of the last load, the read starts at `watermark − overlap` for a `DATE`,
+  `TIMESTAMP` (read as UTC) or `TIMESTAMPTZ` column and at the watermark for any other
+  (MG-REQ-0412.2); the overlap is the table's, else the source's, else `1h`. A resumed read
+  starts after the key the caller gives (MG-REQ-0418.2). `watermark_of` gives the largest
+  non-NULL incremental value of committed rows in the text DuckDB gives for
+  `CAST(value AS VARCHAR)` (MG-REQ-0412.1, MG-REQ-0413).
+- Detects deletes as declared (MG-REQ-0415): `column:<name>` splits each chunk into kept and
+  deleted rows, `true` or any non-NULL value of a non-boolean column being a delete, and a
+  source without the column is `MG-0406`, before any row is read; `compare` reads the key and
+  incremental columns of the source, within `delete_window` back from the load's start, when
+  `delete_check` is due, and returns the raw rows whose key is gone; `none`, or no `deletes`,
+  detects nothing.
+- Reports, from a `compare`, the source rows missing from raw whose incremental value is
+  older than `watermark − overlap`, with the `MG-0407` warning and the suggested
+  `mergus backfill` command (MG-REQ-0420). They are counted, not loaded.
+
 ## What it does not
 
 - It does not check `kind` itself: the schema of `mergus-project` already rejects a missing
@@ -51,3 +69,6 @@ Extract from databases (ADBC) and files.
 - It does not store the columns of the last load, nor show the spread: the caller keeps the
   columns each read returns, and the run report shows the spread.
 - It writes nothing and prints nothing: `mergus validate` reports its problems.
+- It does not commit chunks, drop re-read rows that did not change, or store the watermark:
+  `mergus-runtime` does, through the storage adapters.
+- It runs no `mergus backfill`: the command comes with backfill of raw in a later phase.

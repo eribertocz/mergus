@@ -25,9 +25,17 @@
 //!   `raw = false` and writes nothing to raw; [`last_watermark`] is where the next load starts;
 //! - [`expire_raw`] expires raw, as maintenance only, with [`raw_retention`]: the longest
 //!   retention of the sources that keep raw, 30 days by default.
+//!
+//! [`load_table`] loads an incremental table by chunks, each a commit, records it only once
+//! its last commit is done, and resumes an interrupted load from its last committed chunk
+//! (MG-REQ-0412, MG-REQ-0413, MG-REQ-0415, MG-REQ-0418, MG-REQ-0420, MG-REQ-0143).
 
 #![forbid(unsafe_code)]
 
+mod chunk_load;
+mod chunk_rows;
+mod chunk_step;
+mod load_error;
 mod problem;
 mod raw_error;
 mod raw_load;
@@ -35,10 +43,13 @@ mod raw_open;
 mod raw_rows;
 mod raw_write;
 mod registry;
+mod registry_read;
 mod retention;
 mod separate;
 mod zone;
 
+pub use chunk_load::{LoadOutcome, Stores, TableLoad, finished_changes, load_table};
+pub use load_error::LoadError;
 pub use problem::StorageProblem;
 pub use raw_error::RawError;
 pub use raw_load::{Watermarks, load_raw, load_raw_off, load_raw_off_failed};
@@ -47,6 +58,7 @@ pub use raw_write::{RawLoad, write_raw};
 pub use registry::{
     LOADS, LoadMode, LoadRecord, LoadResult, last_watermark, new_load_id, record_load,
 };
+pub use registry_read::{LastLoad, TableLoads, table_loads};
 pub use retention::{
     DEFAULT_RETENTION, expire_raw, keeps_raw, raw_off_sources, raw_retention, show_retention,
     source_retention,

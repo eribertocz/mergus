@@ -28,26 +28,41 @@
 //! find a dropped or renamed column or a type change since the last load, a [`SchemaChange`]
 //! that stops the table (MG-REQ-0407). [`extract_source_timed`] reads a source with both, and
 //! records the start and the end of each table's read and their spread (MG-REQ-0419).
+//!
+//! [`IncrementalReader`] reads an incremental table from `watermark − overlap`
+//! (MG-REQ-0412), chunk by chunk, and moves past a chunk only once the caller committed it
+//! (MG-REQ-0413, MG-REQ-0418); [`watermark_of`] is the watermark of committed rows. It detects
+//! deletes as [`load_options`] declare them (MG-REQ-0415) and reports very late rows,
+//! [`LateRows`] (MG-REQ-0420).
 
 #![forbid(unsafe_code)]
 
 mod check;
+mod compare;
 mod copied;
 mod engine;
+mod incremental;
+mod incremental_error;
 mod kind;
+mod options;
 mod problem;
 mod read;
 mod schema_change;
 mod snapshot;
 mod table;
+mod temporal;
 
 pub use check::check_sources;
+pub use compare::Comparison;
 pub use copied::copied_tables;
 pub use engine::{
     AttachedSource, ConnectError, DatabaseEngine, EngineIdentity, attach_duckdb_file,
     attach_postgres,
 };
+pub use incremental::{Chunk, IncrementalReader, Start, watermark_of};
+pub use incremental_error::{ExtractError, LateRows};
 pub use kind::{Mode, SourceKind};
+pub use options::{DEFAULT_OVERLAP, DeleteCheck, DeletePolicy, LoadOptions, load_options};
 pub use problem::{Severity, SourceProblem};
 pub use read::{Projection, ReadOptions, TableExtraction, TableReader, extract_source, read_table};
 pub use schema_change::{
@@ -55,3 +70,4 @@ pub use schema_change::{
 };
 pub use snapshot::{SourceExtraction, TableRead, extract_source_timed};
 pub use table::{DeclaredTable, RawTables, declared_tables};
+pub use temporal::{Temporal, value_text};

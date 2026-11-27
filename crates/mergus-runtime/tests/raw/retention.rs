@@ -59,6 +59,7 @@ fn mg_req_0513_loads_are_immutable_versions() {
     let marks = mergus_runtime::Watermarks {
         before: None,
         after: None,
+        deletes_checked_at: None,
     };
     load_raw(
         &mut raw,

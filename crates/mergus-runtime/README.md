@@ -46,6 +46,16 @@ Run cycle and scheduling; wires ports to crates.
   shared raw catalog with the longest of the sources that keep raw (MG-REQ-0516), through the
   adapter's `expire`.
 
+- Loads an incremental table by chunks with `load_table` (MG-REQ-0412, MG-REQ-0413,
+  MG-REQ-0415, MG-REQ-0418, MG-REQ-0420): each chunk is a commit that appends to
+  `__changes` the rows that differ from the current row of their key and the rows the delete
+  column marks deleted; the last commit appends the deletes of a due `compare` and rewrites
+  the current table; only then is the `ops.loads` row written, with the largest incremental
+  value of the committed rows as `watermark_after` and, after a compare, its time as
+  `deletes_checked_at`. A load id of `__changes` with no `ops.loads` row is resumed with the
+  same id after its largest key; without `key` it is ignored and the table read again.
+  `finished_changes` gives the rows of `__changes` readers see.
+
 ## What it does not
 
 - It does not check the keys of a zone: the schema of `mergus-project` rejects an unknown
@@ -54,5 +64,6 @@ Run cycle and scheduling; wires ports to crates.
 - It reads no secret: a `cloud` catalog's connection value is given resolved. The caller
   gives the version of the table's last commit and the watermarks of each load.
 - It does not expire raw during a run: `expire_raw` is maintenance work (MG-REQ-0513).
-- It does not detect deletes: a load carries the keys found deleted.
+- `write_raw` does not detect deletes: its load carries the keys found deleted. `load_table`
+  has `mergus-source` detect them.
 - The current table is rewritten in full at each load.
