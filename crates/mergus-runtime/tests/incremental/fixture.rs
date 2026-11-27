@@ -159,6 +159,7 @@ pub fn attach_with(
             .copied()
             .collect();
         record_reads(&database, &kept, &sorted, since.as_deref(), chunk);
+        record_counts(&database, &kept, &sorted, since.as_deref());
     }
     record_compare(&database, &sorted, window);
     // A statement recorded again answers with its last recording.
@@ -265,6 +266,35 @@ fn record_reads(
         ]
         .concat();
         database.record_query(sql, bound, vec![batch(&rows)]);
+    }
+}
+
+#[cfg(test)]
+/// Records the counts of `kept`, the rows from `since`, through each key of `all` and whole:
+/// the rows a resumed load had read (MG-REQ-0514).
+fn record_counts(database: &SimDatabase, kept: &[Row], all: &[Row], since: Option<&str>) {
+    let mut conditions = Vec::new();
+    let mut params = Vec::new();
+    if let Some(since) = since {
+        conditions.push("\"updated_at\" >= ?");
+        params.push(SqlValue::Text(since.to_owned()));
+    }
+    let count = |rows: usize| {
+        let column: ArrayRef = Arc::new(Int64Array::from(vec![i64::try_from(rows).unwrap()]));
+        vec![RecordBatch::try_from_iter([("count_star()", column)]).unwrap()]
+    };
+    let select = "SELECT count(*) FROM \"erp\".\"sales\"";
+    database.record_query(
+        with_where(select, &conditions),
+        params.clone(),
+        count(kept.len()),
+    );
+    let mut through = conditions.clone();
+    through.push("\"sale_id\" <= ?");
+    for key in all {
+        let rows = kept.iter().filter(|row| row.id <= key.id).count();
+        let bound = [params.clone(), vec![SqlValue::Integer(key.id)]].concat();
+        database.record_query(with_where(select, &through), bound, count(rows));
     }
 }
 

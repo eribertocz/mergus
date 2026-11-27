@@ -179,3 +179,21 @@ fn mg_req_0415_missing_delete_column_fails() {
     assert_eq!(texts(&registry, "result"), [Some("failed".to_owned())]);
     assert_eq!(texts(&registry, "error_code"), [Some("MG-0411".to_owned())]);
 }
+
+#[test]
+fn mg_req_0415_delete_of_a_key_not_current_is_ignored() {
+    // Row 2 was never loaded; row 3 was deleted by the first load. Marked removed again, neither
+    // is a new delete (MG-REQ-0415.4).
+    let mut gone = row(3, 30, Some(10));
+    gone.removed = true;
+    let first = [row(1, 10, Some(10)), gone];
+    let mut never = row(2, 20, Some(11));
+    never.removed = true;
+    let mut again = row(3, 30, Some(11));
+    again.removed = true;
+    let second = [row(1, 10, Some(10)), never, again];
+    let world = twice(json!({ "deletes": "column:removed" }), &first, &second);
+    assert_eq!(versions(&world.current()), [(1, 10, false)]);
+    let table = declared(&source(json!({})));
+    assert_eq!(versions(&world.changes(&table)), [(1, 10, false)]);
+}

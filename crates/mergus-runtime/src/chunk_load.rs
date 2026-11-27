@@ -109,7 +109,7 @@ pub fn load_table(
     let start = Start {
         chunk_rows: load.chunk_rows,
         watermark: step.before.clone(),
-        resume_after: resume.map(|resume| resume.last),
+        resume_after: resume.as_ref().map(|resume| resume.last.clone()),
     };
     let mut reader = match IncrementalReader::open(attached, load.source, load.table, start) {
         Ok(reader) => reader,
@@ -120,13 +120,19 @@ pub fn load_table(
         // (MG-REQ-0418.2).
         return record_only(stores, &mut reader, &step, prior);
     }
+    // The rows a resumed load read before it was interrupted (MG-REQ-0514).
+    let last = resume.as_ref().map(|resume| &resume.last);
+    let already = match last.map(|last| reader.rows_through(Some(last))).transpose() {
+        Ok(already) => already.unwrap_or(0),
+        Err(error) => return Err(record_failed(stores, &step, true, error.into())),
+    };
     let progress = crate::chunk_read::read_chunks(
         stores,
         &mut reader,
         &step,
         current_rows.as_ref(),
         &changes,
-        prior,
+        (prior, already),
     )?;
     finish(stores, &mut reader, &step, progress, &changes, &current)
 }

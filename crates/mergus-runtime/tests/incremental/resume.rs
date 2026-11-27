@@ -84,12 +84,14 @@ fn mg_req_0418_table_without_key_reads_again() {
 
 #[cfg(test)]
 /// The two loads of an exactly-once scenario, read in chunks of 2: row 1 is unchanged inside
-/// the overlap, row 3 is marked removed, row 5 is gone and rows 6 and 7 are new.
+/// the overlap, row 3 is marked removed with the largest incremental value, row 5 is gone and
+/// rows 6 and 7 are new.
 fn loads() -> [Vec<Row>; 2] {
     let first = rows(5, 10);
     let mut second: Vec<Row> = rows(7, 11);
     second[0] = row(1, 10, Some(10));
     second[2].removed = true;
+    second[2].hour = Some(12);
     second.remove(4);
     [first, second]
 }
@@ -119,8 +121,9 @@ fn run(options: &serde_json::Value, crash: Option<(usize, usize)>) -> World {
 /// One row of `__changes` or of the current table, its load told by its rank in `ops.loads`.
 type Seen = (i64, i64, bool, usize, bool);
 
-/// The rows of `__changes`, of the current table, and each load's watermark and compare.
-type Snapshot = (Vec<Seen>, Vec<Seen>, Vec<(Option<String>, bool)>);
+/// The rows of `__changes`, of the current table, and each load's watermark, whether it
+/// compared and its rows read.
+type Snapshot = (Vec<Seen>, Vec<Seen>, Vec<(Option<String>, bool, i64)>);
 
 #[cfg(test)]
 /// What readers see of `world`: every row with the rank of its load and whether
@@ -150,7 +153,8 @@ fn snapshot(world: &World) -> Snapshot {
     let marks = texts(&registry, "watermark_after")
         .into_iter()
         .zip(texts(&registry, "deletes_checked_at"))
-        .map(|(mark, checked)| (mark, checked.is_some()))
+        .zip(crate::world::ints(&registry, "rows"))
+        .map(|((mark, checked), rows)| (mark, checked.is_some(), rows))
         .collect();
     (rows(&world.changes(&table)), rows(&world.current()), marks)
 }
@@ -165,6 +169,10 @@ fn mg_req_0143_resume_is_exactly_once() {
     for options in &policies {
         let whole = run(options, None);
         let expected = snapshot(&whole);
+        // The second load reads its 6 rows; under `column:removed` its watermark is that of
+        // the deleted row 3 (MG-REQ-0412.1).
+        assert_eq!(expected.2[1].2, 6);
+        assert_eq!(expected.2[1].0, Some(crate::fixture::at(12)));
         assert_eq!(texts(&whole.registry(), "result").len(), 2);
         assert!(
             flags(&whole.current(), "_deleted")
@@ -238,7 +246,16 @@ fn mg_req_0518_key_repeated_across_chunks_fails_the_load() {
         row(3, 30, Some(10)),
     ])];
     let bound = vec![SqlValue::Integer(2), SqlValue::Integer(2)];
-    let first = vec![(after.to_owned(), bound, again)];
+    // The failed load's first chunk holds a version of row 1 the next load does not read.
+    let first_chunk = "SELECT * FROM \"erp\".\"sales\" ORDER BY \"sale_id\" LIMIT ?";
+    let odd = vec![crate::fixture::batch(&[
+        row(1, 999, Some(10)),
+        row(2, 20, Some(10)),
+    ])];
+    let first = vec![
+        (after.to_owned(), bound, again),
+        (first_chunk.to_owned(), vec![SqlValue::Integer(2)], odd),
+    ];
     let mut attached = attach_with(&data, Some(2), DEFAULT_OVERLAP, None, &ALL, first);
     let error = world
         .load(&mut attached, &source, &table, Some(2), None)
@@ -256,5 +273,12 @@ fn mg_req_0518_key_repeated_across_chunks_fails_the_load() {
         .load(&mut attached, &source, &table, Some(2), None)
         .unwrap();
     assert!(!outcome.resumed);
-    assert_eq!(versions(&world.changes(&table)).len(), 3);
+    // The failed load's committed chunk reaches no reader: not the current table, not the
+    // compare of re-read rows, not `__changes` as readers see it (MG-REQ-0518.1).
+    assert_eq!(
+        versions(&world.current()),
+        [(1, 10, false), (2, 20, false), (3, 30, false)]
+    );
+    assert_eq!(versions(&world.changes(&table)), versions(&world.current()));
+    assert!(versions(&world.every_change()).contains(&(1, 999, false)));
 }

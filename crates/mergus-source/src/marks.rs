@@ -2,6 +2,8 @@
 //! incremental value with `CAST(value AS VARCHAR)` (MG-REQ-0413).
 
 use arrow::array::{Array, ArrayRef, AsArray};
+use arrow::compute::cast;
+use arrow::datatypes::{DataType, Int64Type};
 use arrow::error::ArrowError;
 use arrow::record_batch::RecordBatch;
 use arrow::row::{OwnedRow, RowConverter, SortField};
@@ -9,7 +11,7 @@ use mergus_ports::{PortError, SqlValue};
 
 use crate::incremental::IncrementalReader;
 use crate::incremental_error::ExtractError;
-use crate::read::quote_identifier;
+use crate::read::{last_key, quote_identifier};
 use crate::temporal::bound_text;
 
 /// The value, as an array of one, of the largest non-NULL value of `column` in `batches`, or
@@ -102,5 +104,53 @@ impl IncrementalReader<'_> {
                     .map(|text| text.value(0).to_owned())
             });
         text.ok_or_else(|| PortError::Failed(format!("DuckDB returned no text for `{column}`")))
+    }
+}
+
+impl IncrementalReader<'_> {
+    /// The rows the read keeps from its start through the key of the last row of `through`,
+    /// or all of them without one: what a resumed load read before it was interrupted, or
+    /// the whole read of a load whose last commit was made (MG-REQ-0514). Counted by the
+    /// source with `SELECT count(*)`, the incremental filter and `<key> <= ?` bound.
+    ///
+    /// # Errors
+    ///
+    /// Fails with [`ExtractError::Port`] when the statement fails or `through` lacks a key
+    /// column.
+    pub fn rows_through(&mut self, through: Option<&RecordBatch>) -> Result<i64, ExtractError> {
+        let from = [
+            quote_identifier(&self.attached.alias),
+            ".".to_owned(),
+            quote_identifier(&self.table.name),
+        ]
+        .concat();
+        let mut conditions = Vec::new();
+        let mut params = Vec::new();
+        if let (Some(column), Some(since)) = (&self.table.incremental, &self.read.since) {
+            conditions.push([quote_identifier(column), " >= ?".to_owned()].concat());
+            params.push(since.clone());
+        }
+        if let Some(through) = through.filter(|_| !self.table.key.is_empty()) {
+            let key: Vec<String> = self.table.key.iter().map(|c| quote_identifier(c)).collect();
+            let marks = vec!["?"; key.len()].join(", ");
+            conditions.push(match key.as_slice() {
+                [column] => [column, " <= ?"].concat(),
+                _ => ["(", &key.join(", "), ") <= (", &marks, ")"].concat(),
+            });
+            params.extend(last_key(std::slice::from_ref(through), &self.table.key)?);
+        }
+        let mut sql = ["SELECT count(*) FROM ", &from].concat();
+        if !conditions.is_empty() {
+            sql.push_str(" WHERE ");
+            sql.push_str(&conditions.join(" AND "));
+        }
+        let rows = self.attached.connection.query_arrow(&sql, &params)?;
+        let count = rows
+            .iter()
+            .find(|batch| batch.num_rows() > 0)
+            .and_then(|batch| batch.columns().first())
+            .and_then(|column| cast(column, &DataType::Int64).ok())
+            .map(|column| column.as_primitive::<Int64Type>().value(0));
+        Ok(count.ok_or_else(|| PortError::Failed("the source returned no count".to_owned()))?)
     }
 }

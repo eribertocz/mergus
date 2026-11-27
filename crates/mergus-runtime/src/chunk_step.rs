@@ -11,7 +11,7 @@ use mergus_source::{IncrementalReader, LateRows};
 
 use crate::RawError;
 use crate::chunk_load::{LoadOutcome, Stores, TableLoad, load_rows, rows_error};
-use crate::chunk_rows::{Current, count, deleted_flags, stamped};
+use crate::chunk_rows::{Current, deleted_flags, stamped};
 use crate::load_error::LoadError;
 use crate::raw_rows::{Metadata, conform};
 use crate::registry::{LoadMode, LoadRecord, LoadResult, micros, record_load};
@@ -26,7 +26,7 @@ pub(crate) struct Step<'a> {
     pub(crate) extracted_at: Timestamp,
     /// The `watermark_after` of the table's last recorded load.
     pub(crate) before: Option<String>,
-    /// The `deletes_checked_at` of the table's last recorded load.
+    /// When the last `compare` of the table ran: the latest non-NULL `deletes_checked_at`.
     pub(crate) checked: Option<Timestamp>,
     /// Whether it resumes an unfinished load.
     pub(crate) resumed: bool,
@@ -115,14 +115,29 @@ pub(crate) fn record_only(
     prior: &RecordBatch,
 ) -> Result<LoadOutcome, LoadError> {
     let compare = reader.compare_due(step.checked, step.extracted_at);
-    let live = live_rows(prior).map_err(|error| rows_error(step.load, error))?;
+    let read = reader.rows_through(None)?;
     let ended = Ended {
-        read: count(&live),
+        read,
         checked: compare.then_some(step.extracted_at),
         late: None,
     };
     let raw_version = step.load.raw_version.clone();
-    recorded(stores, reader, step, raw_version, &live, ended)
+    let read = read_rows(reader, prior).map_err(|error| rows_error(step.load, error))?;
+    recorded(stores, reader, step, raw_version, &read, ended)
+}
+
+/// The rows of `rows`, a load's rows in `__changes`, that were read from the source: all but
+/// the deletes of a `compare`, which carry the last known values. With `column:<name>` a
+/// delete was read; with another policy every delete comes from a `compare`. These are the
+/// rows `finish` takes the watermark from, before its compare (MG-REQ-0412.1).
+fn read_rows(
+    reader: &IncrementalReader<'_>,
+    rows: &RecordBatch,
+) -> Result<RecordBatch, arrow::error::ArrowError> {
+    if let mergus_source::DeletePolicy::Column(_) = reader.options().deletes {
+        return Ok(rows.clone());
+    }
+    live_rows(rows)
 }
 
 /// How a load ended, for its `ops.loads` row.

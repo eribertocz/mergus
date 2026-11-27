@@ -26,10 +26,10 @@ pub(crate) fn read_chunks(
     step: &Step<'_>,
     current_rows: Option<&RecordBatch>,
     changes: &str,
-    prior: Option<RecordBatch>,
+    (prior, already): (Option<RecordBatch>, i64),
 ) -> Result<Progress, LoadError> {
     let load = step.load;
-    let mut progress = start(load, prior.as_ref());
+    let mut progress = start(load, already);
     let mut committed = step.resumed;
     let metadata = step.metadata();
     loop {
@@ -69,13 +69,13 @@ pub(crate) fn read_chunks(
     }
 }
 
-/// The progress of a load before its first chunk: `prior`, the rows a resumed load committed,
-/// count as read.
-fn start(load: &TableLoad<'_>, prior: Option<&RecordBatch>) -> Progress {
+/// The progress of a load before its first chunk: `already`, the rows a resumed load read
+/// before it was interrupted, count as read.
+fn start(load: &TableLoad<'_>, already: i64) -> Progress {
     Progress {
         shape: None,
         raw_version: load.raw_version.clone(),
-        read: prior.map_or(0, count),
+        read: already,
         seen: BTreeSet::new(),
     }
 }
