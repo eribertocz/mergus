@@ -15,7 +15,7 @@ fn mg_req_0662_repeated_key_fails_and_changes_nothing() {
     input(session.as_mut(), "(1, NULL, 'b', 'x'), (1, NULL, 'c', 'x')");
     let error = apply_history(session.as_mut(), &run(APRIL)).unwrap_err();
     assert!(matches!(&error, EngineError::HistoryRepeatedKey { key, .. } if key == "1"));
-    assert_eq!(error.code(), Some("MG-0605"));
+    assert_eq!(error.code(), Some("MG-0608"));
     let unchanged = vec![version(1, Some("a"), ON_MARCH, END, CURRENT)];
     assert_eq!(versions(session.as_mut()), unchanged);
 }
@@ -30,6 +30,6 @@ fn mg_req_0663_null_key_fails_and_writes_nothing() {
     let run = history(segment_city(), Deletes::Close, HistoryInput::Other, MARCH);
     let error = apply_history(session.as_mut(), &run).unwrap_err();
     assert!(matches!(&error, EngineError::HistoryNullKey { key, .. } if key == "id"));
-    assert_eq!(error.code(), Some("MG-0607"));
+    assert_eq!(error.code(), Some("MG-0610"));
     assert!(session.query_arrow("SELECT * FROM dim", &[]).is_err());
 }

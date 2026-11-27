@@ -60,13 +60,13 @@ Execute DuckDB steps.
   - from a changes view (`HistoryInput::Changes`), only the rows of `ok` loads past the last
     applied `_load_id`, each key's rows in `_extracted_at` then `_load_id` order, without the
     raw metadata columns; it returns the new highest `_load_id` (MG-REQ-0667);
-  - an input that is not a changes view with a key twice fails with `MG-0605`, a
-    `by = "<column>"` that is not a date or a timestamp with `MG-0606`, and a NULL key with
-    `MG-0607`, all before anything is written; a `by` value not later than the current
+  - an input that is not a changes view with a key twice fails with `MG-0608`, a
+    `by = "<column>"` that is not a date or a timestamp with `MG-0609`, and a NULL key with
+    `MG-0610`, all before anything is written; a `by` value not later than the current
     version's `_valid_from` gives way to the detection time, so no range is inverted, and
     a raw delete row with no `_deleted_at` uses the detection time.
 - Drops a history table for a full rebuild only when the rebuild is confirmed
-  (`rebuild_history`, `RebuildHistory`), or fails with `MG-0604` (MG-REQ-0665).
+  (`rebuild_history`, `RebuildHistory`), or fails with `MG-0607` (MG-REQ-0665).
 - Hashes a table independently of the order of its rows (`table_hash`): the SHA-256 of the
   sorted SHA-256 hashes of each row's canonical JSON, each value tagged with its Arrow type
   (MG-REQ-0638).

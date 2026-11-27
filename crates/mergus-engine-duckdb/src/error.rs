@@ -114,10 +114,10 @@ impl EngineError {
         match self {
             Self::Unrepresentable { .. } => Some("MG-0101"),
             Self::ZoneExtensionLoaded => Some("MG-0102"),
-            Self::HistoryRebuild { .. } => Some("MG-0604"),
-            Self::HistoryRepeatedKey { .. } => Some("MG-0605"),
-            Self::HistoryByType { .. } => Some("MG-0606"),
-            Self::HistoryNullKey { .. } => Some("MG-0607"),
+            Self::HistoryRebuild { .. } => Some("MG-0607"),
+            Self::HistoryRepeatedKey { .. } => Some("MG-0608"),
+            Self::HistoryByType { .. } => Some("MG-0609"),
+            Self::HistoryNullKey { .. } => Some("MG-0610"),
             Self::RolledBack { error, .. } => error.code(),
             Self::Boundary { .. } | Self::Scratch { .. } | Self::Hash { .. } | Self::Port(_) => {
                 None

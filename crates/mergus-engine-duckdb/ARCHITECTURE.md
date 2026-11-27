@@ -14,7 +14,7 @@
 | `apply_history` | Applies a run to its history table in one transaction (MG-REQ-0662 to MG-REQ-0664, MG-REQ-0667) |
 | `rebuild_history`, `RebuildHistory` | Drops a history table only for a confirmed rebuild (MG-REQ-0665) |
 | `table_hash` | The hash of a table, independent of row order (MG-REQ-0638) |
-| `EngineError` | `Unrepresentable` (`MG-0101`), `ZoneExtensionLoaded` (`MG-0102`), `HistoryRebuild` (`MG-0604`), `HistoryRepeatedKey` (`MG-0605`), `HistoryByType` (`MG-0606`), `HistoryNullKey` (`MG-0607`), `RolledBack`, `Boundary`, `Scratch`, `Hash` or a `PortError` |
+| `EngineError` | `Unrepresentable` (`MG-0101`), `ZoneExtensionLoaded` (`MG-0102`), `HistoryRebuild` (`MG-0607`), `HistoryRepeatedKey` (`MG-0608`), `HistoryByType` (`MG-0609`), `HistoryNullKey` (`MG-0610`), `RolledBack`, `Boundary`, `Scratch`, `Hash` or a `PortError` |
 
 ## Data flow
 
@@ -44,7 +44,7 @@ History ─► BEGIN ─► DESCRIBE input (raw metadata columns left out)
         ─► CREATE TABLE IF NOT EXISTS <history> (model columns + validity columns)
         ─► stage mergus_history_rows: changes view (ok loads past `after`, round = rank of
            the row in its key by _extracted_at, _load_id) or the whole input (round 1,
-           keys unique or MG-0605); no NULL key (MG-0607)
+           keys unique or MG-0608); no NULL key (MG-0610)
         ─► per round: open versions (close the current one, insert the new one);
            changes view: deleted rows ─► close / tombstone
         ─► other input: missing keys ─► close / tombstone

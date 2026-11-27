@@ -210,7 +210,7 @@ fn mg_req_0663_by_column_must_be_a_time() {
         EngineError::HistoryByType { column, data_type, .. }
             if column == "version" && data_type == "BIGINT"
     ));
-    assert_eq!(error.code(), Some("MG-0606"));
+    assert_eq!(error.code(), Some("MG-0609"));
     assert!(session.query_arrow("SELECT * FROM dim", &[]).is_err());
 }
 
@@ -309,7 +309,7 @@ fn mg_req_0665_history_rebuild_needs_flag() {
     let refused = rebuild_history(session.as_mut(), "dim", RebuildHistory::Refused);
     let error = refused.unwrap_err();
     assert!(matches!(&error, EngineError::HistoryRebuild { table } if table == "dim"));
-    assert_eq!(error.code(), Some("MG-0604"));
+    assert_eq!(error.code(), Some("MG-0607"));
     assert_eq!(versions(session.as_mut()).len(), 1);
     rebuild_history(session.as_mut(), "dim", RebuildHistory::Confirmed).unwrap();
     assert!(session.query_arrow("SELECT * FROM dim", &[]).is_err());

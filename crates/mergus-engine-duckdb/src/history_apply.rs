@@ -36,10 +36,10 @@ const SCRATCH: [&str; 5] = [
 ///
 /// # Errors
 ///
-/// Fails with [`EngineError::HistoryRepeatedKey`] (`MG-0605`) when an input that is not a
-/// changes view has a key twice, with [`EngineError::HistoryByType`] (`MG-0606`) when a
+/// Fails with [`EngineError::HistoryRepeatedKey`] (`MG-0608`) when an input that is not a
+/// changes view has a key twice, with [`EngineError::HistoryByType`] (`MG-0609`) when a
 /// `by = "<column>"` column is not a `DATE`, `TIMESTAMP` or `TIMESTAMPTZ`, with
-/// [`EngineError::HistoryNullKey`] (`MG-0607`) when a row it reads has a NULL key, with
+/// [`EngineError::HistoryNullKey`] (`MG-0610`) when a row it reads has a NULL key, with
 /// [`EngineError::RolledBack`] when the run failed and so did its rollback, and with
 /// [`EngineError::Port`] when DuckDB fails, for example when a column is missing. Nothing is
 /// changed then.

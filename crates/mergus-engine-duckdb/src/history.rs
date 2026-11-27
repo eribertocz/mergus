@@ -89,7 +89,7 @@ pub enum RebuildHistory {
 ///
 /// # Errors
 ///
-/// Fails with [`EngineError::HistoryRebuild`] (`MG-0604`) without touching the table when
+/// Fails with [`EngineError::HistoryRebuild`] (`MG-0607`) without touching the table when
 /// the rebuild is not confirmed, and with [`EngineError::Port`] when DuckDB fails.
 pub fn rebuild_history(
     session: &mut dyn DatabaseConnection,
