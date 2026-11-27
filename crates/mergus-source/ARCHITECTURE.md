@@ -122,26 +122,19 @@
 
 ## Incremental reads
 
-1. `IncrementalReader::open` reads the table's columns with `DESCRIBE`. A `column:<name>`
-   policy whose column is missing stops here with `MG-0410`.
-2. The start of the reads is computed in Rust, not in SQL: `Temporal` parses the watermark,
-   the text DuckDB gave for the value, subtracts the overlap in microseconds and writes the
-   result back in DuckDB's text; for a `DATE` it is the first date not before that instant,
-   the dates `date >= date − interval` keeps. The text is bound as the `>= ?` parameter,
-   which DuckDB casts to the column's type. Any other type is bound as the watermark itself.
-3. `next_chunk` sends one statement from the committed position and remembers where the next
-   chunk would start; `committed` applies it. Until then a new call reads the same chunk.
-   A chunk shorter than the chunk size is the last.
-4. `watermark_of` orders the values in Arrow's row format, which keeps the order of the
-   values, skips NULL and writes the largest the way DuckDB's `CAST(value AS VARCHAR)` does:
-   dates as `YYYY-MM-DD`, timestamps as `YYYY-MM-DD HH:MM:SS` with the fraction of a second
-   without trailing zeros, `TIMESTAMPTZ` in UTC with `+00`, other types as Arrow writes them.
-   A test checks this text against the real DuckDB.
-5. `compare` sends `SELECT <key>, <incremental> FROM <table>`, with `WHERE <incremental> >= ?`
-   bound to `now − delete_window` for a temporal column. Keys are compared in Arrow's row
-   format, the source's cast to the types of raw. The raw rows inside the window whose key
-   the source lacks are the deletes; the source rows whose key raw lacks and whose value is
-   older than the start of the reads are very late rows.
+1. `IncrementalReader::open` reads the columns with `DESCRIBE`; a missing `column:<name>`
+   stops it with `MG-0410`.
+2. The start of the reads is computed in Rust: `Temporal` parses the watermark, subtracts
+   the overlap and writes DuckDB's text, bound as `>= ?`; a `DATE` gets the first date not
+   before that instant. Other types are bound as the watermark itself.
+3. `next_chunk` reads from the committed position; `committed` moves it. A chunk shorter
+   than the chunk size is the last.
+4. `watermark_of` orders values in Arrow's row format, skips NULL and writes the largest as
+   DuckDB's `CAST(value AS VARCHAR)` does (`TIMESTAMPTZ` in UTC with `+00`); a test checks
+   this against the real DuckDB.
+5. `compare` sends `SELECT <key>, <incremental>`, with `>= now − delete_window` for a
+   temporal column, and compares keys in Arrow's row format: raw rows the source lacks are
+   deletes; source rows raw lacks, older than the start of the reads, are very late rows.
 
 ## Dependencies
 
