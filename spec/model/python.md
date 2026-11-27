@@ -127,6 +127,11 @@ same isolation as execution:
    typed error with the next free `MG-06xx` code and exit code 1. It names the model, the step,
    and the exception's type and message. A child that cannot import `polars` gets its own
    next free `MG-06xx` code, with the fix "install polars in the project's Python".
+5. MG-REQ-0617.5: the step's own failures, an exception in the call and an exception while
+   the result is collected, share the code of MG-REQ-0617.4. A model file that cannot be
+   loaded, because importing it raises or the step's function is not in the module, is a
+   different error with its own next free `MG-06xx` code and exit code 1. It names the model,
+   the file, and the exception's type and message, and its fix is to fix the file.
 
 - Kind: behavior
 - Verify: test `mg_req_0617_polars_planned_with_empty_frames`
