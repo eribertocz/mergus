@@ -3,8 +3,10 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::num::NonZeroU32;
 
-use mergus_project::{Effective, Identifier, ModelOptions};
+use mergus_project::{Effective, Identifier, ModelOptions, Publication};
 use serde_json::Value;
+
+use crate::ModelStep;
 
 /// The `max_parallel` the planner uses when the caller sets none (MG-REQ-0744.1).
 pub const DEFAULT_MAX_PARALLEL: NonZeroU32 = NonZeroU32::MIN.saturating_add(3);
@@ -23,6 +25,11 @@ pub struct PlanModel {
     /// The tables it reads, resolved: lowercase, a model bare, a raw table as `raw.<table>`.
     /// A Python model reads none in 0.2.
     pub inputs: BTreeSet<String>,
+    /// Whether it is published (MG-REQ-0304).
+    pub published: bool,
+    /// Its steps, in execution order; none when the caller does not split the model into
+    /// steps, and then the plan gives it no segments.
+    pub steps: Vec<ModelStep>,
 }
 
 impl PlanModel {
@@ -42,6 +49,8 @@ impl PlanModel {
             code: lf_text(code),
             config: effective_config(options),
             inputs: references.iter().cloned().collect(),
+            published: options.publication != Publication::Intermediate,
+            steps: Vec::new(),
         }
     }
 }
@@ -88,11 +97,14 @@ pub struct PlanRequest {
     pub versions: BTreeMap<String, String>,
     /// The version of each engine, by name.
     pub engines: BTreeMap<String, String>,
+    /// The estimated rows each model's boundaries carry, by model name, when the caller has
+    /// an estimate (MG-REQ-0633).
+    pub rows: BTreeMap<String, u64>,
 }
 
 impl PlanRequest {
     /// A request for `selected` with the default `max_parallel`, no available result, no
-    /// input version and no engine version.
+    /// input version, no engine version and no row estimate.
     #[must_use]
     pub fn new(mergus_version: &str, environment: &str, selected: BTreeSet<String>) -> Self {
         Self {
@@ -103,6 +115,7 @@ impl PlanRequest {
             available: BTreeSet::new(),
             versions: BTreeMap::new(),
             engines: BTreeMap::new(),
+            rows: BTreeMap::new(),
         }
     }
 }

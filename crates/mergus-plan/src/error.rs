@@ -42,6 +42,15 @@ pub enum PlanError {
         /// The phase given.
         phase: String,
     },
+    /// The execution fields of a step break a condition of MG-REQ-0747.4 that the schema
+    /// cannot express.
+    #[error("internal error: the step of `{model}` breaks MG-REQ-0747.4: {broken}")]
+    ExecutionFields {
+        /// The model of the step.
+        model: String,
+        /// The condition broken.
+        broken: &'static str,
+    },
     /// The plan does not match the `mergus_plan` contract.
     #[error(transparent)]
     Emit(#[from] EmitError),

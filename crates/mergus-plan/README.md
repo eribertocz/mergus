@@ -30,14 +30,36 @@ Resolve, order and fingerprint the work; produce the plan.
 - The credentials gate reads, for each required secret reference, whether it resolves or is
   missing, and reports each missing one as `MG-0701`; it never sees a value (MG-REQ-0721).
 
+- Fuses consecutive steps of one engine of a model into one segment, numbered from 0 in
+  execution order, and writes them as the step's `segments` (MG-REQ-0631, MG-REQ-0747.1). A
+  model the caller gives no steps for has no `segments` and no `boundaries`.
+- Writes, for each pair of segments, a boundary with the columns the later one reads from the
+  earlier one, and only those, in their output order (MG-REQ-0632). It crosses as `arrow` when
+  the estimated rows the caller gives times the width of its columns is at most 1 GiB, as
+  `parquet` above that or with no estimate; `VARCHAR`, `BLOB`, nested, `ENUM` and unknown
+  types count 64 bytes (MG-REQ-0633).
+- Runs every Polars segment at `subprocess` with reason `not_available`: `native` and
+  `in_process` are not in this build (MG-REQ-0635).
+- Refuses, as an internal error, a step whose non-Polars segment has a Polars level or whose
+  boundaries are not sorted by `from`, then `to` (MG-REQ-0747.4).
+- `type_passport` returns an `MG-0702` error of the `Type passport` gate for each column
+  crossing from DuckDB to Polars with a lossy type: `HUGEINT`, `UHUGEINT`, `UNION`, `BIT`,
+  `INTERVAL`, a `DECIMAL` of more than 38 digits, an unknown type, or a list, struct or map
+  holding one (MG-REQ-0634).
+- `detect_sql` finds, on the tree of the `SqlParser` port, each `LIMIT` with no `ORDER BY` in
+  the same `SELECT` and each call of `any_value`, `random` or `now`; `determinism` returns an
+  `MG-0703` error of the `Determinism` gate for each one a published model does not declare
+  in `nondeterministic` (MG-REQ-0637). The caller gives both gates' errors to `evaluate`.
+
 ## What it does not
 
 - It performs no I/O: the caller reads the project with `mergus-project` and passes the
   models (MG-REQ-0004).
 - It executes nothing, stores nothing and writes no file; `mergus plan` (MG-REQ-0746) does.
-- It checks no gate other than credentials: the caller gives the errors of the gates it
+- It evaluates no gate other than credentials by itself: the caller gives the errors of the gates it
   checked, or the phase they wait for, and whether each required secret reference resolves,
   found by the existence check of `mergus-security`.
 - It parses no selector: the caller gives the selected model names.
-- It plans no segments, boundaries, Polars levels, write strategies or publication contents
-  yet (phase 0.2).
+- It does not read Polars code: the Polars half of the non-determinism detector reads the
+  tree of the `Python` port, and comes with Python models. It plans no write strategies or
+  publication contents.
