@@ -65,6 +65,7 @@ fn mg_req_0657_backfill_recomputes_range() {
     let again = planned(std::slice::from_ref(&weekly), &request);
     let step = step_of(&again, "fact_sales");
     assert_eq!(step.action, StepAction::Compute);
+    assert_eq!(step.reason, StepReason::NoResult);
     assert_eq!(
         periods(step),
         vec![texts("2026-03-02T00:00:00Z", "2026-03-23T00:00:00Z")]
@@ -147,6 +148,7 @@ fn mg_req_0657_full_and_history_backfilled_whole() {
     let rebuilt = planned(&[history], &request);
     let step = step_of(&rebuilt, "fact_sales");
     assert_eq!(step.action, StepAction::Compute);
+    assert_eq!(step.reason, StepReason::NoResult);
     assert_eq!(step.periods, None);
 }
 
@@ -198,4 +200,32 @@ fn mg_req_0661_history_requires_key_and_by() {
     ]));
     let codes: Vec<&str> = errors.iter().map(RefreshError::code).collect();
     assert_eq!(codes, ["MG-0605", "MG-0604"]);
+}
+
+#[test]
+fn mg_req_0661_history_missing_one_option() {
+    let without_by = configured(
+        "dim_customer",
+        &[],
+        &[("refresh", json!("history")), ("key", json!("customer_id"))],
+    );
+    let error = refresh_errors(refresh(&without_by).unwrap_err()).remove(0);
+    assert_eq!(error.code(), "MG-0605");
+    assert_eq!(
+        error.to_string(),
+        "history model `dim_customer` does not declare `by`; declare the business key and the \
+         column or columns that detect a change"
+    );
+    let without_key = configured(
+        "dim_customer",
+        &[],
+        &[("refresh", json!("history")), ("by", json!(["segment"]))],
+    );
+    let error = refresh_errors(refresh(&without_key).unwrap_err()).remove(0);
+    assert_eq!(error.code(), "MG-0605");
+    assert_eq!(
+        error.to_string(),
+        "history model `dim_customer` does not declare `key`; declare the business key and the \
+         column or columns that detect a change"
+    );
 }

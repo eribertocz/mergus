@@ -121,6 +121,17 @@ pub enum RefreshError {
 }
 
 impl RefreshError {
+    /// The model the error is about.
+    #[must_use]
+    pub fn model(&self) -> &str {
+        match self {
+            Self::IncrementalWithoutPeriodOrKey { model }
+            | Self::HistoryWithout { model, .. }
+            | Self::BackfillWithoutPartition { model }
+            | Self::BackfillWithoutRebuild { model } => model,
+        }
+    }
+
     /// The `MG-####` code of the error (MG-REQ-0008).
     #[must_use]
     pub fn code(&self) -> &'static str {

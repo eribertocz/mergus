@@ -210,3 +210,23 @@ fn mg_req_0654_incremental_needs_partition_or_key() {
         }
     );
 }
+
+#[test]
+fn mg_req_0652_periods_across_years_leap_days_and_quarters() {
+    let of = |grain: Grain, at: Instant| {
+        let period = grain.period(at);
+        (period.start(), period.end())
+    };
+    assert_eq!(
+        of(Grain::Week, day(2026, 1, 1)),
+        (day(2025, 12, 29), day(2026, 1, 5))
+    );
+    assert_eq!(
+        of(Grain::Month, day(2024, 2, 29)),
+        (day(2024, 2, 1), day(2024, 3, 1))
+    );
+    assert_eq!(
+        of(Grain::Quarter, day(2025, 11, 15)),
+        (day(2025, 10, 1), day(2026, 1, 1))
+    );
+}
