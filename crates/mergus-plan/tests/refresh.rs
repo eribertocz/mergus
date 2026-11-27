@@ -1,5 +1,7 @@
 //! Refresh: MG-REQ-0651 to MG-REQ-0657 and MG-REQ-0661.
 
+#![cfg(test)]
+
 mod common;
 
 use common::{model, names, planned, request};
