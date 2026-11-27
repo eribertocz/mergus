@@ -8,7 +8,7 @@ use mergus_adapter::AdapterError;
 use mergus_adapter_ducklake::{DuckLakeAdapter, DuckLakeError};
 use mergus_ports::{
     Clock, Database, DatabaseConnection, DatabaseLocation, DuckLakeCatalog, Extension,
-    LoadedExtension, PortError, SqlValue,
+    LoadedExtension, PortError, ResultColumn, SqlValue,
 };
 
 use crate::{Catalog, RawError, ZoneStorage};
@@ -157,5 +157,59 @@ impl DatabaseConnection for EncryptedConnection {
 
     fn loaded_extensions(&self) -> Vec<LoadedExtension> {
         self.0.loaded_extensions()
+    }
+
+    fn describe(&mut self, sql: &str, params: &[SqlValue]) -> Result<Vec<ResultColumn>, PortError> {
+        self.0.describe(sql, params)
+    }
+
+    fn create_empty_table(
+        &mut self,
+        schema: Option<&str>,
+        table: &str,
+        columns: &[ResultColumn],
+    ) -> Result<(), PortError> {
+        self.0.create_empty_table(schema, table, columns)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use mergus_ports::{Database, DatabaseLocation, ResultColumn, SqlValue};
+    use mergus_sim::{DatabaseFaults, SimDatabase};
+
+    use super::Encrypted;
+
+    #[test]
+    fn encrypted_connection_forwards_describe_and_create_empty_table() {
+        let inner = SimDatabase::new(0, DatabaseFaults::default());
+        let columns = vec![ResultColumn {
+            name: "id".to_owned(),
+            data_type: "BIGINT".to_owned(),
+        }];
+        let params = vec![SqlValue::Date(0)];
+        inner.record_describe("SELECT id FROM raw.t", params.clone(), columns.clone());
+        let mut connection = Encrypted(&inner)
+            .connect(&DatabaseLocation::InMemory)
+            .unwrap();
+        connection
+            .create_empty_table(Some("raw"), "t", &columns)
+            .unwrap();
+        assert_eq!(
+            connection
+                .describe("SELECT id FROM raw.t", &params)
+                .unwrap(),
+            columns
+        );
+        assert_eq!(
+            inner.created(),
+            [(Some("raw".to_owned()), "t".to_owned(), columns)]
+        );
+        assert_eq!(
+            inner.described(),
+            [("SELECT id FROM raw.t".to_owned(), params)]
+        );
+        // The default `create_empty_table` would run DDL through `execute` instead.
+        assert!(inner.executed().is_empty());
     }
 }
