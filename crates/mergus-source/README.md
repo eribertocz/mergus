@@ -33,6 +33,14 @@ Extract from databases (ADBC) and files.
   (MG-REQ-0411). With a chunk size from the caller, a table with a `key` is read by keyset
   pagination, `WHERE "key" > ? ORDER BY "key" LIMIT ?`, one statement per chunk, never
   `OFFSET` (MG-REQ-0417). Every value is a bound parameter (MG-REQ-0007).
+- Copies only `copy` sources: a `connect` or `live` source returns no table and reads
+  nothing (MG-REQ-0405).
+- Before reading a table, compares its columns (`DESCRIBE`) with those of its last load,
+  given by the caller. A dropped or renamed column, or any type change in this phase, stops
+  that table with `MG-0405`, naming each column, its old type and its new one; an added
+  column does not (MG-REQ-0407).
+- Records, from the `Clock` port, the start and the end in UTC of each table's read, and the
+  spread of the source: the latest end minus the earliest start (MG-REQ-0419).
 
 ## What it does not
 
@@ -40,4 +48,6 @@ Extract from databases (ADBC) and files.
   or unknown kind with `MG-0305`.
 - It does not write raw tables: `mergus-runtime` and the storage adapter do. It does not resolve the secret of a PostgreSQL source: the caller
   passes the resolved connection value. Remote DuckDB over Quack (`whoami()`) is phase 0.7.
+- It does not store the columns of the last load, nor show the spread: the caller keeps the
+  columns each read returns, and the run report shows the spread.
 - It writes nothing and prints nothing: `mergus validate` reports its problems.
