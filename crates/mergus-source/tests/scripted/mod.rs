@@ -1,6 +1,5 @@
 //! The scripted `Database` port and the recording clock the source care tests share.
 
-use std::num::NonZeroU32;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
@@ -11,7 +10,7 @@ use mergus_ports::{
     LoadedExtension, MonotonicTime, PortError, SqlValue, Timestamp,
 };
 use mergus_sim::{ClockFaults, SimClock};
-use mergus_source::{DeclaredTable, Projection, ReadOptions};
+use mergus_source::{DeclaredTable, Projection};
 
 pub type Log = Arc<Mutex<Vec<(String, Vec<SqlValue>)>>>;
 pub type Answer = dyn Fn(&str, &[SqlValue]) -> Result<Vec<RecordBatch>, PortError> + Send + Sync;
@@ -156,10 +155,5 @@ pub fn ids(from: i64, count: i64) -> Vec<RecordBatch> {
         .collect()
 }
 
-pub fn chunks_of(rows: u32) -> ReadOptions {
-    ReadOptions {
-        projection: Projection::All,
-        since: None,
-        chunk_rows: NonZeroU32::new(rows),
-    }
-}
+/// A read of every column, without an incremental mark.
+pub const WHOLE: (&Projection, Option<&SqlValue>) = (&Projection::All, None);

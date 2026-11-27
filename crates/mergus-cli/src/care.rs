@@ -7,11 +7,10 @@ use std::path::Path;
 use mergus_project::Source;
 use mergus_security::{ExposeSecret, SecretRef, resolve};
 use mergus_source::{
-    AttachedSource, ConnectError, SourceCare, attach_duckdb_file, attach_postgres,
+    AttachedSource, ConnectError, InspectError, SourceCare, attach_duckdb_file, attach_postgres,
 };
 
 use crate::diagnostic::Diagnostic;
-use crate::error::CliError;
 use crate::run::Ports;
 
 /// The `engine` of a database source that is a DuckDB file.
@@ -44,11 +43,15 @@ pub(crate) fn attach(
         return Ok(None);
     }
     let Some(database) = ports.database else {
-        let message = format!(
-            "source `{}` cannot be reached: no DuckDB is available",
-            source.name
-        );
-        return Err(Box::new(Diagnostic::of_cli(&CliError::Internal(message))));
+        let error = InspectError::Unreachable {
+            source_name: source.name.clone(),
+            detail: "no DuckDB is available: there is no user cache directory for its extensions"
+                .to_owned(),
+        };
+        return Err(Box::new(Diagnostic::of_code(
+            error.code(),
+            error.to_string(),
+        )));
     };
     let attached = if engine == Some(DUCKDB) {
         let Some(location) = text("location") else {
@@ -69,12 +72,17 @@ pub(crate) fn attach(
         .map_err(|error| Box::new(of_connect(&source.name, &error)))
 }
 
-/// The diagnostic of a source that could not be attached.
+/// The diagnostic of a source that could not be attached: `MG-0404` for another engine,
+/// `MG-0407` when it cannot be reached (MG-REQ-0008).
 fn of_connect(source_name: &str, error: &ConnectError) -> Diagnostic {
     match error.code() {
         Some(code) => Diagnostic::of_code(code, error.to_string()),
-        None => Diagnostic::of_cli(&CliError::Internal(format!(
-            "source `{source_name}` cannot be reached: {error}"
-        ))),
+        None => {
+            let error = InspectError::Unreachable {
+                source_name: source_name.to_owned(),
+                detail: error.to_string(),
+            };
+            Diagnostic::of_code(error.code(), error.to_string())
+        }
     }
 }

@@ -159,6 +159,14 @@ impl Diagnostic {
         }
     }
 
+    /// The warning `code` of another crate, located nowhere: it does not fail the command.
+    pub(crate) fn warning_of_code(code: &'static str, message: String) -> Self {
+        Self {
+            warning: true,
+            ..Self::of_code(code, message)
+        }
+    }
+
     /// The warning of a key or incremental column without an index, located at the source
     /// file `path`, with the index to create as its hint (MG-REQ-0431).
     pub(crate) fn of_index(warning: &IndexWarning, path: &str) -> Self {

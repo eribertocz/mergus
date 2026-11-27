@@ -31,7 +31,8 @@
 //! (MG-REQ-0428). [`wait_for_window`] holds a full load or a backfill until the [`Window`]
 //! opens (MG-REQ-0430). [`check_indexes`] returns an [`IndexWarning`] for each key or
 //! incremental column without an index (MG-REQ-0431), and [`source_impact`] the
-//! [`TableImpact`] `mergus plan` shows (MG-REQ-0432).
+//! [`TableImpact`] `mergus plan` shows (MG-REQ-0432). A source that cannot be reached or read
+//! is an [`InspectError`] for `doctor` and an [`ImpactUnknown`] warning for `plan`.
 
 #![forbid(unsafe_code)]
 
@@ -41,6 +42,7 @@ mod check;
 mod engine;
 mod impact;
 mod index;
+mod inspect;
 mod kind;
 mod problem;
 mod read;
@@ -54,8 +56,9 @@ pub use engine::{
     AttachedSource, ConnectError, DatabaseEngine, EngineIdentity, attach_duckdb_file,
     attach_postgres,
 };
-pub use impact::{PG_ESTIMATES, PG_TABLE_ESTIMATE, TableImpact, source_impact};
-pub use index::{IndexWarning, PG_INDEXES, TABLE_INDEXES, Unindexed, check_indexes};
+pub use impact::{PG_ESTIMATES, SCHEMA_ESTIMATES, TableImpact, source_impact};
+pub use index::{IndexWarning, PG_INDEXES, SCHEMA_INDEXES, Unindexed, check_indexes};
+pub use inspect::{ImpactUnknown, InspectError};
 pub use kind::{Mode, SourceKind};
 pub use problem::{Severity, SourceProblem};
 pub use read::{Projection, ReadOptions, TableExtraction, TableReader, extract_source, read_table};

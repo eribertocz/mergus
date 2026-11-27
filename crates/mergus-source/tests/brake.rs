@@ -4,13 +4,16 @@
 mod scripted;
 
 use std::error::Error;
+use std::num::NonZeroU32;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use mergus_ports::{Database, DatabaseLocation, PortError, SqlValue};
 use mergus_sim::SimClock;
-use mergus_source::{AttachedSource, Brake, DatabaseEngine, EngineIdentity, Load, read_with_brake};
-use scripted::{Recorded, START, Scripted, chunks_of, clock_at, ids, orders};
+use mergus_source::{
+    AttachedSource, Brake, Budget, DatabaseEngine, EngineIdentity, Load, read_with_brake,
+};
+use scripted::{Recorded, START, Scripted, WHOLE, clock_at, ids, orders};
 
 /// A server whose `n`-th chunk statement takes `latencies[n]`, and fails when it is `None`.
 fn timed(clock: Arc<SimClock>, latencies: Vec<Option<u64>>) -> Scripted {
@@ -102,10 +105,19 @@ fn pace_halves_and_recovers() {
     );
 }
 
+/// A budget of one-row chunks without a pause, so that each scripted answer is one chunk.
+fn one_row_chunks() -> Budget {
+    Budget {
+        connections: 4,
+        chunk_rows: NonZeroU32::MIN,
+        pause: std::time::Duration::ZERO,
+    }
+}
+
 /// MG-REQ-0428.3 and MG-REQ-0428.4: two failures then a success, the chunk is sent again
 /// and the read goes on; three consecutive failures stop the source.
 fn three_failures_stop_the_source() -> Result<(), Box<dyn Error>> {
-    let high = Load::High.table();
+    let high = one_row_chunks();
     let clock = clock_at(START);
     let database = timed(Arc::clone(&clock), vec![Some(10), None, None, Some(10)]);
     let mut attached = attached_to(&database)?;
@@ -115,7 +127,7 @@ fn three_failures_stop_the_source() -> Result<(), Box<dyn Error>> {
         &mut attached,
         "erp",
         &orders(),
-        &chunks_of(1),
+        WHOLE,
         &mut brake,
         &recorded,
     )
@@ -141,7 +153,7 @@ fn three_failures_stop_the_source() -> Result<(), Box<dyn Error>> {
 
 /// MG-REQ-0428.3: a slow chunk is not a failure; it slows the pace.
 fn a_slow_chunk_is_not_a_failure() -> Result<(), Box<dyn Error>> {
-    let high = Load::High.table();
+    let high = one_row_chunks();
     let clock = clock_at(START);
     let database = timed(
         Arc::clone(&clock),
@@ -154,7 +166,7 @@ fn a_slow_chunk_is_not_a_failure() -> Result<(), Box<dyn Error>> {
         &mut attached,
         "erp",
         &orders(),
-        &chunks_of(1),
+        WHOLE,
         &mut brake,
         &recorded,
     );

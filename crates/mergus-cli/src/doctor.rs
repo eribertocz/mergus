@@ -8,7 +8,7 @@ use std::path::Path;
 
 use mergus_project::{Configuration, closest_name, read_configuration};
 use mergus_security::{SecretRef, origin};
-use mergus_source::{SourceCare, check_indexes};
+use mergus_source::{InspectError, SourceCare, check_indexes};
 
 use crate::args::Invocation;
 use crate::care::attach;
@@ -101,9 +101,13 @@ fn indexes(
             .iter()
             .map(|warning| Diagnostic::of_index(warning, &source.file.path))
             .collect()),
-        Err(error) => Ok(vec![Diagnostic::of_cli(&CliError::Internal(format!(
-            "the indexes of source `{name}` cannot be read: {error}"
-        )))]),
+        Err(error) => {
+            let error = InspectError::Unreadable {
+                source_name: name.to_owned(),
+                detail: error.to_string(),
+            };
+            Ok(vec![Diagnostic::of_code(error.code(), error.to_string())])
+        }
     }
 }
 

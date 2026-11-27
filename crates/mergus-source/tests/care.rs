@@ -18,7 +18,7 @@ use mergus_source::{
     Brake, Budget, Load, LoadKind, SourceCare, Window, attach_postgres, read_with_brake,
     wait_for_window,
 };
-use scripted::{Recorded, START, Scripted, chunks_of, clock_at, ids, orders};
+use scripted::{Recorded, START, Scripted, WHOLE, clock_at, ids, orders};
 use serde_json::{Value, json};
 
 /// The parameters of every statement of `database` whose text starts with `prefix`.
@@ -93,22 +93,15 @@ fn mg_req_0426_queries_go_to_replica() {
             attach_postgres(&database, "erp", &care.postgres_source("erp", value)).unwrap();
         let clock = Recorded::new(clock_at(START));
         let mut brake = Brake::new(&care.budget());
-        read_with_brake(
-            &mut attached,
-            "erp",
-            &orders(),
-            &chunks_of(2),
-            &mut brake,
-            &clock,
-        )
-        .unwrap();
+        read_with_brake(&mut attached, "erp", &orders(), WHOLE, &mut brake, &clock).unwrap();
         let secrets_created = params_of(&database, "CREATE TEMPORARY SECRET");
         assert_eq!(
             secrets_created,
             vec![vec![SqlValue::Text(expected.to_owned())]]
         );
         let reads = params_of(&database, "SELECT * FROM \"erp\".\"orders\"");
-        assert_eq!(reads.len(), 2, "{:?}", database.statements());
+        // Three rows fit one chunk of the `prod` default budget, 10 000 rows.
+        assert_eq!(reads.len(), 1, "{:?}", database.statements());
     }
 }
 
@@ -148,7 +141,8 @@ fn budget_is_kept(
     let budget = care.budget();
     assert_eq!(budget, expected, "{load} {max_connections}");
     assert!(budget.connections <= max_connections);
-    let rows = i64::from(budget.chunk_rows.get());
+    // The chunk size is the table's, never one the caller gives (MG-REQ-0427).
+    let rows = i64::from(expected.chunk_rows.get());
     let database = server(rows * 2 + 1);
     let pg = care.postgres_source("erp", "postgresql://primary/erp".to_owned());
     let mut attached = attach_postgres(&database, "erp", &pg)?;
@@ -157,15 +151,7 @@ fn budget_is_kept(
     assert_eq!(pool, vec![vec![connections]]);
     let clock = Recorded::new(clock_at(START));
     let mut brake = Brake::new(&budget);
-    let options = chunks_of(budget.chunk_rows.get());
-    let read = read_with_brake(
-        &mut attached,
-        "erp",
-        &orders(),
-        &options,
-        &mut brake,
-        &clock,
-    );
+    let read = read_with_brake(&mut attached, "erp", &orders(), WHOLE, &mut brake, &clock);
     assert!(read.is_ok());
     let limits: Vec<_> = params_of(&database, "SELECT * FROM \"erp\".\"orders\"")
         .into_iter()

@@ -10,7 +10,7 @@ use mergus_contracts::generated::mergus_plan_v1::{StepAction, StepReason};
 use mergus_plan::{Plan, PlanModel, PlanRequest};
 use mergus_ports::{FileSystem, PortError};
 use mergus_project::Source;
-use mergus_source::{SourceCare, TableImpact, source_impact};
+use mergus_source::{ImpactUnknown, SourceCare, TableImpact, declared_tables, source_impact};
 
 use crate::args::Invocation;
 use crate::care::attach;
@@ -72,34 +72,57 @@ pub(crate) fn plan(
     let relative = write(ports.files, &project.root, &plan)?;
     output.plan_ready(steps(&plan))?;
     let mut text = summary(&plan, &relative);
+    let mut warnings = Vec::new();
     for source in &project.configuration.sources {
-        for impact in impacts(ports, &project.root, source) {
+        let (impacts, warning) = impacts(ports, &project.root, source);
+        for impact in impacts {
             let _ = writeln!(text, "{impact}");
         }
+        warnings.extend(warning);
     }
     output.report(&text)?;
-    Ok(Vec::new())
+    Ok(warnings)
 }
 
 /// What reading each table of `source` costs it (MG-REQ-0432). A source that cannot be
-/// attached, or whose estimates cannot be read, shows them as unknown: `plan` reads nothing
-/// from it and fails for none. A `connect` or `live` source is read by no extraction and
-/// shows nothing.
-fn impacts(ports: &Ports<'_>, root: &Path, source: &Source) -> Vec<TableImpact> {
+/// attached, or whose catalog cannot be read, shows `unknown` and gives the `MG-0408`
+/// warning with the reason; `plan` fails for none (MG-REQ-0432.2). A `connect` or `live`
+/// source is read by no extraction, and a source without tables has none to show: neither
+/// is attached.
+fn impacts(
+    ports: &Ports<'_>,
+    root: &Path,
+    source: &Source,
+) -> (Vec<TableImpact>, Option<Diagnostic>) {
     let mode = source.file.value.get("mode").and_then(|mode| mode.as_str());
-    if mode.is_some_and(|mode| mode != "copy") {
-        return Vec::new();
+    if mode.is_some_and(|mode| mode != "copy") || declared_tables(source).is_empty() {
+        return (Vec::new(), None);
     }
     let care = SourceCare::of(source, ENVIRONMENT);
-    let mut attached = attach(ports, root, source, &care).ok().flatten();
+    let (mut attached, mut reason) = match attach(ports, root, source, &care) {
+        Ok(attached) => (attached, None),
+        Err(diagnostic) => (
+            None,
+            Some(format!("{} {}", diagnostic.code, diagnostic.message)),
+        ),
+    };
     let known = source_impact(attached.as_mut(), source, &care);
     if let Some(attached) = &mut attached {
         // Only the estimates are wanted; the detach is a best effort.
         attached.connection.detach(&attached.alias).ok();
     }
-    known
-        .or_else(|_| source_impact(None, source, &care))
-        .unwrap_or_default()
+    let impacts = known.unwrap_or_else(|error| {
+        reason = Some(error.to_string());
+        source_impact(None, source, &care).unwrap_or_default()
+    });
+    let warning = reason.map(|reason| {
+        let unknown = ImpactUnknown {
+            source_name: source.name.clone(),
+            reason,
+        };
+        Diagnostic::warning_of_code(unknown.code(), unknown.to_string())
+    });
+    (impacts, warning)
 }
 
 /// Writes `plan` to `.mergus/plans/<plan_id>.json` under `root`, unless a file of that name

@@ -3,6 +3,7 @@
 //! PostgreSQL sources are checked, by reading `pg_index` through `postgres_query`
 //! (MG-REQ-0431.3).
 
+use std::collections::BTreeMap;
 use std::fmt;
 
 use arrow::array::{Array, AsArray};
@@ -12,14 +13,14 @@ use mergus_ports::{PortError, SqlValue};
 use mergus_project::Source;
 
 use crate::engine::{AttachedSource, DatabaseEngine};
-use crate::table::{DeclaredTable, declared_tables};
+use crate::table::declared_tables;
 
 /// The schema a declared table is read from.
 pub(crate) const SCHEMA: &str = "public";
 
 /// The PostgreSQL query of the index check: the columns of every index of the server, one
-/// row per indexed column, in index order. The text is fixed: the table is chosen by bound
-/// parameters outside it (MG-REQ-0007).
+/// row per indexed column, in index order. The text is fixed: the schema is chosen by a bound
+/// parameter outside it (MG-REQ-0007).
 pub const PG_INDEXES: &str = "SELECT n.nspname::text AS schema_name, t.relname::text AS table_name, \
      i.relname::text AS index_name, k.ord::bigint AS position, a.attname::text AS column_name \
      FROM pg_index x \
@@ -29,10 +30,11 @@ pub const PG_INDEXES: &str = "SELECT n.nspname::text AS schema_name, t.relname::
      CROSS JOIN LATERAL unnest(x.indkey::int2[]) WITH ORDINALITY AS k(attnum, ord) \
      LEFT JOIN pg_attribute a ON a.attrelid = x.indrelid AND a.attnum = k.attnum";
 
-/// The DuckDB query of the indexes of one table, read from the answer of [`PG_INDEXES`],
-/// with the parameters alias, [`PG_INDEXES`], schema and table.
-pub const TABLE_INDEXES: &str = "SELECT index_name, column_name FROM postgres_query(?, ?) \
-     WHERE schema_name = ? AND table_name = ? ORDER BY index_name, position";
+/// The DuckDB query of the indexes of every table of one schema, read once per source from
+/// the answer of [`PG_INDEXES`], with the parameters alias, [`PG_INDEXES`] and schema.
+pub const SCHEMA_INDEXES: &str = "SELECT table_name, index_name, column_name \
+     FROM postgres_query(?, ?) WHERE schema_name = ? \
+     ORDER BY table_name, index_name, position";
 
 /// One index of a table: its name and its columns in index order; an expression is `None`.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -42,14 +44,14 @@ pub(crate) struct Index {
 }
 
 impl Index {
-    /// Whether the index starts with `columns`, in any order.
+    /// Whether the leading columns of the index are `columns`, in their order
+    /// (MG-REQ-0431.4): keyset chunks order by the key, and an incremental column must lead.
     pub(crate) fn starts_with(&self, columns: &[String]) -> bool {
         columns.len() <= self.columns.len()
-            && columns.iter().all(|column| {
-                self.columns[..columns.len()]
-                    .iter()
-                    .any(|indexed| indexed.as_ref() == Some(column))
-            })
+            && columns
+                .iter()
+                .zip(&self.columns)
+                .all(|(column, indexed)| indexed.as_ref() == Some(column))
     }
 }
 
@@ -131,9 +133,13 @@ pub fn check_indexes(
     if attached.identity.engine != DatabaseEngine::PostgreSql {
         return Ok(Vec::new());
     }
+    let catalog = schema_indexes(attached)?;
     let mut warnings = Vec::new();
     for table in declared_tables(source) {
-        let indexes = table_indexes(attached, &table)?;
+        let indexes = catalog
+            .get(&table.name)
+            .map(Vec::as_slice)
+            .unwrap_or_default();
         let mut missing = |unindexed, columns: Vec<String>| {
             if !columns.is_empty() && !indexes.iter().any(|index| index.starts_with(&columns)) {
                 warnings.push(IndexWarning {
@@ -153,25 +159,25 @@ pub fn check_indexes(
     Ok(warnings)
 }
 
-/// The indexes of `table` in a PostgreSQL source, sorted by name.
-pub(crate) fn table_indexes(
+/// The indexes of every table of the schema [`SCHEMA`] of a PostgreSQL source, by table,
+/// each table's sorted by name, read with one query.
+pub(crate) fn schema_indexes(
     attached: &mut AttachedSource,
-    table: &DeclaredTable,
-) -> Result<Vec<Index>, PortError> {
+) -> Result<BTreeMap<String, Vec<Index>>, PortError> {
     let params = [
         SqlValue::Text(attached.alias.clone()),
         SqlValue::Text(PG_INDEXES.to_owned()),
         SqlValue::Text(SCHEMA.to_owned()),
-        SqlValue::Text(table.name.clone()),
     ];
-    let rows = attached.connection.query_arrow(TABLE_INDEXES, &params)?;
-    let mut indexes: Vec<Index> = Vec::new();
+    let rows = attached.connection.query_arrow(SCHEMA_INDEXES, &params)?;
+    let mut catalog: BTreeMap<String, Vec<Index>> = BTreeMap::new();
     for batch in &rows {
         for row in 0..batch.num_rows() {
-            let Some(name) = text_at(batch, 0, row) else {
+            let (Some(table), Some(name)) = (text_at(batch, 0, row), text_at(batch, 1, row)) else {
                 continue;
             };
-            let column = text_at(batch, 1, row);
+            let column = text_at(batch, 2, row);
+            let indexes = catalog.entry(table).or_default();
             match indexes.last_mut() {
                 Some(index) if index.name == name => index.columns.push(column),
                 _ => indexes.push(Index {
@@ -181,7 +187,7 @@ pub(crate) fn table_indexes(
             }
         }
     }
-    Ok(indexes)
+    Ok(catalog)
 }
 
 /// The text at `row` of the column `column` of `batch`, when it is text and not null.

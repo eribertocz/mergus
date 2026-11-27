@@ -8,7 +8,7 @@ use std::time::Duration;
 use mergus_ports::real::RealDatabase;
 use mergus_ports::{Database, DatabaseLocation, Extension, SqlValue};
 use mergus_sim::{DatabaseFaults, SimDatabase, SimRandom};
-use mergus_source::{PG_ESTIMATES, PG_INDEXES, PG_TABLE_ESTIMATE, TABLE_INDEXES};
+use mergus_source::{PG_ESTIMATES, PG_INDEXES, SCHEMA_ESTIMATES, SCHEMA_INDEXES};
 
 use super::{Outcome, PROJECT, ROOT, Setup, project};
 
@@ -73,36 +73,43 @@ fn server(connections: i64) -> SimDatabase {
     database
 }
 
-/// Records the indexes of `table`, each `(name, columns)`.
-fn indexes(database: &SimDatabase, table: &str, indexes: &[(&str, &[&str])]) {
-    let bound: Vec<SqlValue> = indexes
+/// The indexes of each table: `(table, [(index, [columns])])`.
+type Indexes<'a> = &'a [(&'a str, &'a [(&'a str, &'a [&'a str])])];
+
+/// Records the indexes of the schema `public`, read once per source (MG-REQ-0431.3).
+fn indexes(database: &SimDatabase, tables: Indexes<'_>) {
+    let bound: Vec<SqlValue> = tables
         .iter()
-        .flat_map(|(index, columns)| {
-            columns
-                .iter()
-                .flat_map(move |column| [text(index), text(column)])
+        .flat_map(|(table, indexes)| {
+            indexes.iter().flat_map(move |(index, columns)| {
+                columns
+                    .iter()
+                    .flat_map(move |column| [text(table), text(index), text(column)])
+            })
         })
         .collect();
     let answer = if bound.is_empty() {
-        "SELECT NULL::VARCHAR AS index_name, NULL::VARCHAR AS column_name WHERE false".to_owned()
+        "SELECT NULL::VARCHAR AS table_name, NULL::VARCHAR AS index_name, \
+         NULL::VARCHAR AS column_name WHERE false"
+            .to_owned()
     } else {
-        let rows = vec!["(?::VARCHAR, ?::VARCHAR)"; bound.len() / 2].join(", ");
-        "SELECT * FROM (VALUES ".to_owned() + &rows + ") AS t(index_name, column_name)"
+        let rows = vec!["(?::VARCHAR, ?::VARCHAR, ?::VARCHAR)"; bound.len() / 3].join(", ");
+        "SELECT * FROM (VALUES ".to_owned() + &rows + ") AS t(table_name, index_name, column_name)"
     };
-    let params = vec![text("erp"), text(PG_INDEXES), text("public"), text(table)];
-    record(database, TABLE_INDEXES, params, (&answer, &bound));
+    let params = vec![text("erp"), text(PG_INDEXES), text("public")];
+    record(database, SCHEMA_INDEXES, params, (&answer, &bound));
 }
 
-/// Records the row estimate of `table`.
-fn estimate(database: &SimDatabase, table: &str, rows: Option<i64>) {
-    let bound: Vec<SqlValue> = rows.map(SqlValue::Integer).into_iter().collect();
-    let answer = if bound.is_empty() {
-        "SELECT 1::BIGINT AS estimate WHERE false"
-    } else {
-        "SELECT ?::BIGINT AS estimate"
-    };
-    let params = vec![text("erp"), text(PG_ESTIMATES), text("public"), text(table)];
-    record(database, PG_TABLE_ESTIMATE, params, (answer, &bound));
+/// Records the row estimates of the schema `public`, read once per source.
+fn estimates(database: &SimDatabase, tables: &[(&str, i64)]) {
+    let bound: Vec<SqlValue> = tables
+        .iter()
+        .flat_map(|(table, rows)| [text(table), SqlValue::Integer(*rows)])
+        .collect();
+    let rows = vec!["(?::VARCHAR, ?::BIGINT)"; tables.len()].join(", ");
+    let answer = "SELECT * FROM (VALUES ".to_owned() + &rows + ") AS t(table_name, estimate)";
+    let params = vec![text("erp"), text(PG_ESTIMATES), text("public")];
+    record(database, SCHEMA_ESTIMATES, params, (&answer, &bound));
 }
 
 /// Runs `mergus <args>` on a project whose source `erp` is `erp` and whose source `local`
@@ -150,30 +157,34 @@ const ERP: &str = "kind = \"database\"\nengine = \"postgresql\"\nconnection = \"
 fn mg_req_0431_doctor_reports_missing_index() {
     missing_indexes_are_warned();
     present_indexes_are_not();
+    unreachable_source_is_typed();
     other_sources();
 }
 
 fn missing_indexes_are_warned() {
     let database = server(1);
-    indexes(&database, "orders", &[("orders_pkey", &["id"])]);
+    // `customers_idx` holds the key columns in another order, and `items_name` does not
+    // lead with the key: neither counts (MG-REQ-0431.4).
     indexes(
         &database,
-        "customers",
-        &[("customers_idx", &["id", "region", "name"])],
+        &[
+            ("orders", &[("orders_pkey", &["id"])]),
+            ("customers", &[("customers_idx", &["id", "region", "name"])]),
+            ("items", &[("items_name", &["name", "item_id"])]),
+        ],
     );
-    indexes(&database, "items", &[("items_name", &["name", "item_id"])]);
     let outcome = run(ERP, &["doctor", "--source", "erp"], Some(&database));
     // Warnings never change the exit code (MG-REQ-0431.1).
     assert_eq!(outcome.exit, 0, "{outcome:?}");
     let shown = format!("{}{}", outcome.stdout, outcome.stderr);
-    assert_eq!(shown.matches("warning[MG-0406]").count(), 2, "{shown}");
+    assert_eq!(shown.matches("warning[MG-0406]").count(), 3, "{shown}");
     for suggestion in [
         "CREATE INDEX ON \"public\".\"orders\" (\"updated_at\");",
+        "CREATE INDEX ON \"public\".\"customers\" (\"region\", \"id\");",
         "CREATE INDEX ON \"public\".\"items\" (\"item_id\");",
     ] {
         assert!(shown.contains(suggestion), "{shown}");
     }
-    assert!(!shown.contains("\"customers\" ("), "{shown}");
     // The source is reached through its replica (MG-REQ-0426), and detached.
     let executed = database.executed();
     assert!(
@@ -193,21 +204,43 @@ fn present_indexes_are_not() {
     let database = server(1);
     indexes(
         &database,
-        "orders",
         &[
-            ("orders_pkey", &["id"]),
-            ("orders_updated", &["updated_at"]),
+            (
+                "orders",
+                &[
+                    ("orders_pkey", &["id"]),
+                    ("orders_updated", &["updated_at"]),
+                ],
+            ),
+            (
+                "customers",
+                &[("customers_pkey", &["region", "id", "name"])],
+            ),
+            ("items", &[("items_pkey", &["item_id"])]),
         ],
     );
-    indexes(
-        &database,
-        "customers",
-        &[("customers_pkey", &["region", "id"])],
-    );
-    indexes(&database, "items", &[("items_pkey", &["item_id"])]);
     let outcome = run(ERP, &["doctor", "--source", "erp"], Some(&database));
     assert_eq!(outcome.exit, 0, "{outcome:?}");
     assert!(!outcome.stderr.contains("MG-0406"), "{outcome:?}");
+}
+
+/// A source that cannot be reached is the error `MG-0407` (MG-REQ-0008).
+fn unreachable_source_is_typed() {
+    let outcome = run(ERP, &["doctor", "--source", "erp"], None);
+    assert_eq!(outcome.exit, 1, "{outcome:?}");
+    assert!(outcome.stderr.contains("error[MG-0407]"), "{outcome:?}");
+    assert!(
+        outcome.stderr.contains("source `erp` cannot be reached"),
+        "{outcome:?}"
+    );
+    // The catalog cannot be read: nothing recorded answers `pg_index`.
+    let outcome = run(ERP, &["doctor", "--source", "erp"], Some(&server(1)));
+    assert_eq!(outcome.exit, 1, "{outcome:?}");
+    assert!(outcome.stderr.contains("error[MG-0407]"), "{outcome:?}");
+    assert!(
+        outcome.stderr.contains("catalog of source `erp`"),
+        "{outcome:?}"
+    );
 }
 
 /// A DuckDB file source is not checked (MG-REQ-0431.3); an unknown source is an error.
@@ -249,38 +282,49 @@ fn mg_req_0432_plan_shows_source_impact() {
         1,
     );
     let database = server(3);
-    indexes(&database, "orders", &[("orders_updated", &["updated_at"])]);
     indexes(
         &database,
-        "customers",
-        &[("customers_pkey", &["region", "id"])],
+        &[
+            ("orders", &[("orders_updated", &["updated_at"])]),
+            ("customers", &[("customers_pkey", &["region", "id"])]),
+        ],
     );
-    indexes(&database, "items", &[]);
-    estimate(&database, "orders", Some(12_000));
-    estimate(&database, "customers", Some(340));
-    estimate(&database, "items", None);
+    estimates(&database, &[("orders", 12_000), ("customers", 340)]);
     let outcome = run(&erp, &["plan"], Some(&database));
     assert_eq!(outcome.exit, 0, "{outcome:?}");
     let budget = "load high (3 connections, 100000 rows per chunk, pause 0 ms)";
     for line in [
         format!(
-            "source erp.customers: estimated rows 340, index customers_pkey, window 01:00-03:00, {budget}"
+            "source erp.customers: estimated rows up to 340, index customers_pkey, window 01:00-03:00, {budget}"
         ),
         format!(
             "source erp.items: estimated rows unknown, index unknown, window 01:00-03:00, {budget}"
         ),
         format!(
-            "source erp.orders: estimated rows 12000, index orders_updated, window 01:00-03:00, {budget}"
+            "source erp.orders: estimated rows up to 12000, index orders_updated, window 01:00-03:00, {budget}"
         ),
     ] {
         assert!(outcome.stdout.contains(&line), "{line}\n{}", outcome.stdout);
     }
 
-    // Without a DuckDB, estimates and indexes are unknown; the default load of `prod` is
-    // `low`, and `plan` does not fail.
+    assert!(!outcome.stderr.contains("MG-0408"), "{outcome:?}");
+    plan_warns_for_an_unreachable_source();
+}
+
+/// Without a DuckDB, estimates and indexes are unknown and the reason is the warning
+/// `MG-0408`; the default load of `prod` is `low`, and `plan` does not fail
+/// (MG-REQ-0432.2).
+fn plan_warns_for_an_unreachable_source() {
     let outcome = run(ERP, &["plan"], None);
     assert_eq!(outcome.exit, 0, "{outcome:?}");
     let line = "source erp.orders: estimated rows unknown, index unknown, window none, \
                 load low (1 connections, 10000 rows per chunk, pause 1000 ms)";
     assert!(outcome.stdout.contains(line), "{}", outcome.stdout);
+    assert!(outcome.stderr.contains("warning[MG-0408]"), "{outcome:?}");
+    assert!(
+        outcome
+            .stderr
+            .contains("MG-0407 source `erp` cannot be reached"),
+        "{outcome:?}"
+    );
 }

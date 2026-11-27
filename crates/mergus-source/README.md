@@ -50,24 +50,32 @@ Extract from databases (ADBC) and files.
     | `normal` | 2 | 50 000 | 200 ms |
     | `high` | 4 | 100 000 | none |
 
-  - `read_with_brake` measures the latency of each chunk. Above twice the running median of
+  - `read_with_brake` reads in chunks of the budget's rows, never a size the caller gives,
+    and measures the latency of each chunk. Above twice the running median of
     the chunks before it, the pause before the next chunk doubles, or becomes the chunk's
     latency when it is zero; each chunk at most the median halves the pause above the
     budget's, until it is back. A chunk statement that fails or times out is sent again;
     after three consecutive failures the extraction of the source stops with `MG-0405`, an
     error, and is not retried until the next trigger (MG-REQ-0428);
   - `wait_for_window` holds a full load or a backfill until the source's `window` opens;
-    the window is read in UTC, may cross midnight, and is open all day when its start is
-    its end. An incremental load is not held (MG-REQ-0430);
+    the window is in UTC, spans midnight when its end is before its start, and is open all
+    day when its start is its end (MG-REQ-0430.1). An incremental load is not held
+    (MG-REQ-0430);
   - `check_indexes` gives `MG-0406`, a warning, for each key or incremental column of a
-    PostgreSQL source without an index that starts with it, read from `pg_index` through
-    `postgres_query`, with the index to create:
+    PostgreSQL source without an index led by it: by the key columns in key order, or by the
+    incremental column (MG-REQ-0431.4). The indexes are read from `pg_index` through
+    `postgres_query`, once per source, and the warning gives the index to create:
     `CREATE INDEX ON "public"."<table>" ("<column>", …);` (MG-REQ-0431). A DuckDB file is
     not checked;
-  - `source_impact` gives, per declared table, the rows the source estimates it holds
-    (`reltuples` for PostgreSQL, `estimated_size` for a DuckDB file), the index a read uses
-    (one starting with the incremental column, or with the key), the window and the budget,
-    for `mergus plan` (MG-REQ-0432).
+  - `source_impact` gives, per declared table, the rows the source estimates it holds,
+    shown as "up to N" (`reltuples` for PostgreSQL, `estimated_size` for a DuckDB file,
+    MG-REQ-0432.1), the index a read uses (one led by the incremental column, or by the key),
+    the window and the budget, for `mergus plan` (MG-REQ-0432). The estimates and indexes are
+    read once per source;
+  - a source that `doctor --source` cannot reach, or whose catalog it cannot read, is
+    `MG-0407`, an error (`InspectError`); one that `plan` cannot reach or read is `MG-0408`,
+    a warning (`ImpactUnknown`) with the reason, and its tables show `unknown`
+    (MG-REQ-0432.2).
 
 ## What it does not
 

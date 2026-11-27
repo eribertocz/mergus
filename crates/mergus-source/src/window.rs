@@ -12,8 +12,9 @@ const DAY_MINUTES: u32 = 24 * 60;
 /// The nanoseconds of a minute.
 const MINUTE_NANOS: i128 = 60_000_000_000;
 
-/// A daily window `HH:MM-HH:MM` in UTC, which may cross midnight. It opens at its start and
-/// closes at its end; a window whose start is its end is open all day.
+/// A daily window `HH:MM-HH:MM` in UTC, which spans midnight when its end is before its
+/// start (MG-REQ-0430.1). It opens at its start and closes at its end; a window whose start
+/// is its end is open all day (MG-REQ-0430.1).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Window {
     /// The minute of the day it opens at.

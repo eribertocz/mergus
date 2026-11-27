@@ -2,14 +2,15 @@
 //! exceeds twice the running median and restored when it recovers, and the extraction of the
 //! source stopped after three consecutive failures (MG-REQ-0428).
 
+use std::num::NonZeroU32;
 use std::time::Duration;
 
 use arrow::record_batch::RecordBatch;
-use mergus_ports::Clock;
+use mergus_ports::{Clock, SqlValue};
 
 use crate::care::Budget;
 use crate::engine::AttachedSource;
-use crate::read::{ReadOptions, read_table};
+use crate::read::{Projection, ReadOptions, read_table};
 use crate::table::DeclaredTable;
 
 /// The consecutive failures that stop the extraction of a source.
@@ -21,6 +22,8 @@ const SMALLEST_EXTRA: Duration = Duration::from_millis(1);
 /// The pace of the reads of one source.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Brake {
+    /// The budget's rows per chunk (MG-REQ-0427).
+    chunk_rows: NonZeroU32,
     /// The budget's pause.
     base: Duration,
     /// The pause before the next chunk.
@@ -45,11 +48,18 @@ impl Brake {
     #[must_use]
     pub fn new(budget: &Budget) -> Self {
         Self {
+            chunk_rows: budget.chunk_rows,
             base: budget.pause,
             pause: budget.pause,
             latencies: Vec::new(),
             failures: 0,
         }
+    }
+
+    /// The rows of one chunk, the budget's (MG-REQ-0427).
+    #[must_use]
+    pub const fn chunk_rows(&self) -> NonZeroU32 {
+        self.chunk_rows
     }
 
     /// The pause before the next chunk.
@@ -128,10 +138,11 @@ impl SourceIncident {
     }
 }
 
-/// Reads `table` of the source `source_name` from `attached` chunk after chunk, waiting on
-/// `clock` for the brake's pause between two chunks and measuring each chunk's latency on
-/// its monotonic time. A failed chunk is sent again, until three consecutive failures stop
-/// the extraction (MG-REQ-0428).
+/// Reads the columns `projection` of `table` of the source `source_name` from `attached`,
+/// from the incremental mark `since` when there is one, in keyset chunks of the brake's
+/// budget (MG-REQ-0427), waiting on `clock` for the brake's pause between two chunks and
+/// measuring each chunk's latency on its monotonic time. A failed chunk is sent again, until
+/// three consecutive failures stop the extraction (MG-REQ-0428).
 ///
 /// # Errors
 ///
@@ -140,12 +151,17 @@ pub fn read_with_brake(
     attached: &mut AttachedSource,
     source_name: &str,
     table: &DeclaredTable,
-    options: &ReadOptions,
+    (projection, since): (&Projection, Option<&SqlValue>),
     brake: &mut Brake,
     clock: &dyn Clock,
 ) -> Result<Vec<RecordBatch>, SourceIncident> {
+    let options = ReadOptions {
+        projection: projection.clone(),
+        since: since.cloned(),
+        chunk_rows: Some(brake.chunk_rows()),
+    };
     let mut batches = Vec::new();
-    let mut reader = read_table(attached, table, options);
+    let mut reader = read_table(attached, table, &options);
     let mut first = true;
     while !reader.is_done() {
         if !first && !brake.pause().is_zero() {
