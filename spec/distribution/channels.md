@@ -27,6 +27,22 @@ x86_64, and Windows x64.
 - Kind: process
 - Verify: check `release-artifacts`
 
+### MG-REQ-1606 · Every shipped platform is tested
+
+Every platform of MG-REQ-1601 MUST be tested, not only built:
+
+1. MG-REQ-1606.1: every pull request runs the test suite on Linux x86_64, macOS arm64 and
+   Windows x64;
+2. MG-REQ-1606.2: every nightly and every release also runs it on Linux arm64 and macOS
+   x86_64, and runs the smoke test (`mergus --version`, `mergus init --demo`, `mergus
+   validate`, `mergus plan`) on each release binary itself, the static musl build included,
+   before any channel publishes it;
+3. MG-REQ-1606.3: a release with a platform that fails is not published on any channel.
+
+- Kind: process
+- Verify: check `platform-matrix`
+- Decision: 0048
+
 ### MG-REQ-1602 · One artifact, many doors
 
 Every channel MUST distribute the same signed binaries of the GitHub release, never a
