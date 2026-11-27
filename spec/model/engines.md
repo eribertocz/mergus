@@ -93,7 +93,12 @@ an optimization, never a requirement:
 ### MG-REQ-0636 · Isolation in server mode
 
 In server mode, every Polars step with Python code MUST run isolated, with no access to
-credentials, the network or files outside its work directory.
+credentials, the network or files outside its work directory:
+
+1. MG-REQ-0636.1: until a phase adds server mode, the isolation of every Polars step is the
+   one of MG-REQ-0617.1. No secret value is in the child's environment, its arguments or the
+   files of its working directory, and the step's working directory is fresh for each step
+   and each run. The network and file system limits apply when server mode is added.
 
 - Kind: behavior
 - Verify: test `mg_req_0636_server_mode_isolates_python`
