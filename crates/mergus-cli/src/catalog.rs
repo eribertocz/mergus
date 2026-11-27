@@ -2,7 +2,7 @@
 //! retryable, the hint and the cause of every code (MG-REQ-0008, MG-REQ-1334, MG-REQ-1346).
 
 /// The text of every catalog file, by code.
-const FILES: [(&str, &str); 51] = [
+const FILES: [(&str, &str); 52] = [
     ("MG-0301", include_str!("../errors/MG-0301.md")),
     ("MG-0302", include_str!("../errors/MG-0302.md")),
     ("MG-0303", include_str!("../errors/MG-0303.md")),
@@ -38,6 +38,7 @@ const FILES: [(&str, &str); 51] = [
     ("MG-0505", include_str!("../errors/MG-0505.md")),
     ("MG-0506", include_str!("../errors/MG-0506.md")),
     ("MG-0507", include_str!("../errors/MG-0507.md")),
+    ("MG-0701", include_str!("../errors/MG-0701.md")),
     ("MG-1001", include_str!("../errors/MG-1001.md")),
     ("MG-1002", include_str!("../errors/MG-1002.md")),
     ("MG-1003", include_str!("../errors/MG-1003.md")),
@@ -138,7 +139,15 @@ mod tests {
     use mergus_ports::FileSystem;
     use mergus_ports::real::RealFileSystem;
 
-    use super::{FILES, entries};
+    use super::{FILES, entries, entry};
+
+    #[test]
+    fn mg_req_0721_missing_secret_is_a_security_failure() {
+        // MG-REQ-0262: a missing secret ends with the exit code of security failures, 6.
+        let missing = entry("MG-0701").unwrap();
+        assert_eq!(missing.exit_code, 6);
+        assert!(!missing.retryable);
+    }
 
     #[test]
     fn every_catalog_file_is_compiled_in_and_well_formed() {
