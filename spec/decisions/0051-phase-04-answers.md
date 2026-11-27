@@ -66,7 +66,13 @@
   plan records that reason.
 - **Memory budget (MG-REQ-0633):** 1 GiB of Arrow per boundary, until `[resources]` arrives in
   phase 0.9.
-  - "Shared memory" means an Arrow IPC file in the run's work directory, read memory-mapped.
+  - "Shared memory" means an Arrow IPC file in the run's work directory.
+  - It is written and read one record batch at a time, through streaming readers and writers
+    of the `FileSystem` port. Peak memory therefore holds one batch, never a second copy of
+    the whole boundary.
+  - Files are not memory-mapped. Mapping needs `unsafe`, which MG-REQ-0170 keeps to FFI
+    crates, and streaming meets the budget without it (#254).
+  - The simulated port streams over its stored bytes.
   - The plan records the transport (MG-REQ-0747), and execution applies it.
 - **Table hash (MG-REQ-0638):** the SHA-256 of the sorted SHA-256 hashes of each row's
   canonical JSON.
