@@ -17,6 +17,7 @@ mod keychain;
 mod network;
 mod object_store;
 mod process;
+mod python;
 mod random;
 mod session;
 mod source;
@@ -43,6 +44,10 @@ pub use keychain::Keychain;
 pub use network::{Connection, HttpRequest, HttpResponse, Network};
 pub use object_store::ObjectStore;
 pub use process::{Process, ProcessCommand, ProcessOutput};
+pub use python::{
+    PYTHON_TREE_VERSION, Python, PythonCall, PythonFunction, PythonImport, PythonParameter,
+    PythonParameterKind, PythonReturn, PythonReturned, PythonSegment, PythonTree,
+};
 pub use random::Random;
 pub use source::{SourceConnector, SourceReader};
 pub use sql_parser::SqlParser;

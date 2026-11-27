@@ -179,7 +179,9 @@ fn mg_req_0335_origin_recorded_for_each_value() {
     assert_eq!(
         keys,
         [
+            "by",
             "checks",
+            "deletes",
             "fresh",
             "inherit",
             "key",
@@ -236,18 +238,44 @@ fn mg_req_0362_only_due_keys_are_known() {
         .unwrap()
         .keys()
         .collect();
-    let mut with_inherit = options.to_vec();
-    with_inherit.insert(2, "inherit");
-    assert_eq!(model, with_inherit);
-    for later in [
-        "pii = {}",
-        "by = [\"a\"]",
-        "deletes = \"soft\"",
-        "inputs = {}",
-    ] {
+    let mut with_model_only = options.to_vec();
+    with_model_only.extend(["by", "deletes", "inherit"]);
+    with_model_only.sort_unstable();
+    assert_eq!(model, with_model_only);
+    for later in ["pii = {}", "inputs = {}"] {
         let text = format!("[orders]\n{later}\n");
         let found = problems!(&[("models/orders.sql", ""), ("models/mergus.toml", &text)]);
         assert_eq!(found[0].code(), "MG-0304", "{later}");
+    }
+}
+
+#[test]
+fn mg_req_0661_by_and_deletes_are_model_options() {
+    let valid = "[orders]\nrefresh = \"history\"\nkey = \"id\"\nby = [\"segment\", \"city\"]\n\
+                 deletes = \"tombstone\"\n[items]\nby = \"updated_at\"\n";
+    let models = read(&[
+        ("models/orders.sql", ""),
+        ("models/items.sql", ""),
+        ("models/mergus.toml", valid),
+    ])
+    .unwrap();
+    let orders = model!(&models, "orders");
+    assert_eq!(single!(orders, "by").value, json!(["segment", "city"]));
+    assert_eq!(single!(orders, "deletes").value, "tombstone");
+    let items = model!(&models, "items");
+    assert_eq!(single!(items, "by").value, "updated_at");
+    assert_eq!(single!(items, "deletes").value, "ignore");
+    assert_eq!(single!(items, "deletes").origin, Origin::Default);
+    for option in ["by = []", "by = \"Updated\"", "deletes = \"soft\""] {
+        let text = format!("[orders]\n{option}\n");
+        let found = problems!(&[("models/orders.sql", ""), ("models/mergus.toml", &text)]);
+        assert_eq!(found.len(), 1, "{option}");
+        assert_eq!(found[0].code(), "MG-0305", "{option}");
+    }
+    for option in ["by = \"updated_at\"", "deletes = \"close\""] {
+        let text = format!("[all]\n{option}\n");
+        let found = problems!(&[("models/orders.sql", ""), ("models/mergus.toml", &text)]);
+        assert_eq!(found[0].code(), "MG-0304", "{option}");
     }
 }
 

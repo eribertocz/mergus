@@ -7,7 +7,7 @@ use std::path::Path;
 
 use mergus_contracts::generated::mergus_events_v1::Step as EventStep;
 use mergus_contracts::generated::mergus_plan_v1::{StepAction, StepReason};
-use mergus_plan::{Plan, PlanModel, PlanRequest};
+use mergus_plan::{Plan, PlanError, PlanModel, PlanRequest, RefreshError};
 use mergus_ports::{FileSystem, PortError};
 use mergus_project::{Configuration, Source, read_configuration};
 use mergus_runtime::{raw_off_sources, raw_retention, show_retention};
@@ -16,7 +16,7 @@ use mergus_source::{ImpactUnknown, SourceCare, TableImpact, declared_tables, sou
 use crate::args::Invocation;
 use crate::care::attach;
 use crate::commands::{EXCLUDE, MAX_PARALLEL, SELECTION};
-use crate::diagnostic::Diagnostic;
+use crate::diagnostic::{Diagnostic, Location};
 use crate::error::CliError;
 use crate::models::{self, Project};
 use crate::output::{ENVIRONMENT, Output};
@@ -66,8 +66,11 @@ pub(crate) fn plan(
     let names: BTreeSet<String> = selected.into_keys().collect();
     let mut request = PlanRequest::new(env!("CARGO_PKG_VERSION"), ENVIRONMENT, names);
     request.max_parallel = setting.value;
-    let plan = mergus_plan::plan(&planned, &request)
-        .map_err(|error| CliError::Internal(error.to_string()))?;
+    let plan = match mergus_plan::plan(&planned, &request) {
+        Ok(plan) => plan,
+        Err(PlanError::Refresh(errors)) => return Ok(refresh_diagnostics(&project, &errors)),
+        Err(error) => return Err(CliError::Internal(error.to_string())),
+    };
     let relative = write(ports.files, &project.root, &plan)?;
     output.plan_ready(steps(&plan))?;
     let mut text = summary(&plan, &relative);
@@ -80,6 +83,27 @@ pub(crate) fn plan(
     ));
     output.report(&text)?;
     Ok(diagnostics)
+}
+
+/// One coded diagnostic per refresh error, in their order, located at the file of its model
+/// (MG-REQ-0654.1, MG-REQ-0657.2, MG-REQ-0661.1).
+fn refresh_diagnostics(project: &Project, errors: &[RefreshError]) -> Vec<Diagnostic> {
+    errors
+        .iter()
+        .map(|error| {
+            let mut diagnostic = Diagnostic::of_code(error.code(), error.to_string());
+            diagnostic.location = project
+                .models
+                .iter()
+                .find(|model| model.options.name == error.model())
+                .map(|model| Location {
+                    file: model.options.path.clone(),
+                    line: None,
+                    column: None,
+                });
+            diagnostic
+        })
+        .collect()
 }
 
 /// The models of `project` as `mergus-plan` plans them.
