@@ -25,6 +25,10 @@ pub enum SqlValue {
     Double(f64),
     /// A `VARCHAR`.
     Text(String),
+    /// A `DATE`: days since 1970-01-01.
+    Date(i32),
+    /// A `TIMESTAMPTZ`: microseconds since 1970-01-01 00:00:00 UTC.
+    TimestampTz(i64),
 }
 
 /// A column of the result of a query, as DuckDB types it (MG-REQ-0604).
@@ -151,17 +155,49 @@ pub trait DatabaseConnection: Send {
         params: &[SqlValue],
     ) -> Result<Vec<RecordBatch>, PortError>;
 
-    /// Prepares the query `sql` without running it, reading no data, and returns the columns
-    /// of its result, in order (MG-REQ-0604).
+    /// Returns the columns of the result of the query `sql` with `params` bound to its
+    /// parameters, as DuckDB binds it, without running it, so no data is read
+    /// (MG-REQ-0604).
     ///
     /// # Errors
     ///
-    /// Fails with [`PortError::Failed`] when DuckDB cannot prepare the query, when it cannot
-    /// type its result before values are bound, or when the connection cannot prepare.
-    fn prepare(&mut self, sql: &str) -> Result<Vec<ResultColumn>, PortError> {
+    /// Fails with [`PortError::Failed`] when DuckDB refuses the query, and when the
+    /// connection cannot describe queries.
+    fn describe(&mut self, sql: &str, params: &[SqlValue]) -> Result<Vec<ResultColumn>, PortError> {
+        let _ = params;
         Err(PortError::Failed(format!(
-            "this connection cannot prepare `{sql}`"
+            "this connection cannot describe `{sql}`"
         )))
+    }
+
+    /// Creates the empty table `table`, in the schema `schema` (created when missing) or in
+    /// the main schema, with `columns`: their names quoted, their DuckDB types as written.
+    ///
+    /// # Errors
+    ///
+    /// Fails with [`PortError::Failed`] when a statement fails.
+    fn create_empty_table(
+        &mut self,
+        schema: Option<&str>,
+        table: &str,
+        columns: &[ResultColumn],
+    ) -> Result<(), PortError> {
+        let mut name = quote_identifier(table);
+        if let Some(schema) = schema {
+            let schema = quote_identifier(schema);
+            // sql: identifiers quoted by quote_identifier
+            self.execute(&format!("CREATE SCHEMA IF NOT EXISTS {schema}"), &[])?;
+            name = format!("{schema}.{name}");
+        }
+        // Types are DuckDB's own text for a column type, as `describe` gives it.
+        let columns: Vec<String> = columns
+            .iter()
+            .map(|column| format!("{} {}", quote_identifier(&column.name), column.data_type))
+            .collect();
+        let columns = columns.join(", ");
+        // sql: identifiers quoted by quote_identifier
+        self.execute(&format!("CREATE TABLE {name} ({columns})"), &[])
+            .map(|_| ())
     }
 
     /// Appends the rows of `batch` to the existing table `table` of the main schema.

@@ -13,6 +13,8 @@ use crate::{
 };
 
 #[cfg(test)]
+mod describe_tests;
+#[cfg(test)]
 mod tests;
 
 /// The host DuckDB downloads its extensions from (MG-REQ-0194.1).
@@ -146,20 +148,14 @@ impl DatabaseConnection for RealConnection {
         Ok(batches)
     }
 
-    /// Prepares `sql`, which binds it, then reads the names and types of its result with
-    /// `DESCRIBE`, which binds the query and runs none of it.
-    fn prepare(&mut self, sql: &str) -> Result<Vec<ResultColumn>, PortError> {
-        let statement = self.connection.prepare(sql).map_err(failed)?;
-        if statement.parameter_count() > 0 {
-            return Err(PortError::Failed(format!(
-                "DuckDB types the result of `{sql}` only once its parameters are bound"
-            )));
-        }
+    /// Binds `sql` with `params` under `DESCRIBE`, which gives the names and types of its
+    /// result and runs none of it.
+    fn describe(&mut self, sql: &str, params: &[SqlValue]) -> Result<Vec<ResultColumn>, PortError> {
         // The text is a query, never a value: values are only ever bound (MG-REQ-0007).
         let describe = format!("DESCRIBE {sql}");
         let mut statement = self.connection.prepare(&describe).map_err(failed)?;
         statement
-            .query_map([], |row| {
+            .query_map(duckdb::params_from_iter(params.iter().map(value)), |row| {
                 Ok(ResultColumn {
                     name: row.get(0)?,
                     data_type: row.get(1)?,
@@ -251,6 +247,11 @@ fn value(value: &SqlValue) -> duckdb::types::Value {
         SqlValue::Integer(value) => duckdb::types::Value::BigInt(*value),
         SqlValue::Double(value) => duckdb::types::Value::Double(*value),
         SqlValue::Text(value) => duckdb::types::Value::Text(value.clone()),
+        SqlValue::Date(days) => duckdb::types::Value::Date32(*days),
+        // The `duckdb` crate binds no `TIMESTAMPTZ`: the instant is bound as a `TIMESTAMP`.
+        SqlValue::TimestampTz(micros) => {
+            duckdb::types::Value::Timestamp(duckdb::types::TimeUnit::Microsecond, *micros)
+        }
     }
 }
 

@@ -1,3 +1,3 @@
-SELECT *
-FROM stg_orders
-WHERE order_date = $run_date AND amount > $min_amount
+SELECT *, $run_date AS run_date
+FROM raw.erp__orders
+WHERE updated_at >= $period_start AND updated_at < $period_end

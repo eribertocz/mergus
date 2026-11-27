@@ -1,55 +1,57 @@
 //! A `.sql` model as a step: one query (MG-REQ-0601) whose run parameters are bound
-//! (MG-REQ-0603) and whose schema DuckDB gives by preparing it (MG-REQ-0604).
+//! (MG-REQ-0603) and whose schema DuckDB gives against empty inputs (MG-REQ-0604).
 
 use std::collections::BTreeMap;
 
-use mergus_ports::{DatabaseConnection, PortError, ResultColumn, SqlParser, SqlValue};
+use mergus_ports::{Database, DatabaseLocation, PortError, ResultColumn, SqlParser, SqlValue};
 
 use super::{KnownTables, walk_sql};
-use crate::LayoutError;
+use crate::{LayoutError, ProjectError};
 
-/// A `.sql` model that passed the checks of MG-REQ-0601 and MG-REQ-0374.
+/// A `.sql` model that passed the checks of MG-REQ-0374 and MG-REQ-0603.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct SqlStep {
     /// The path of the model, relative to the project root.
     pub path: String,
     /// The text of the model, exactly as in its file: values are never written into it.
     pub text: String,
-    /// The named parameters of the query (`$run_date` is `run_date`), in the order DuckDB
+    /// The run parameters the query names (`$run_date` is `run_date`), in the order DuckDB
     /// numbers them, which is the order [`SqlStep::bind`] gives their values in.
     pub parameters: Vec<String>,
 }
 
-/// A run gives no value for a parameter its model names (MG-REQ-0603).
-#[derive(Clone, Debug, PartialEq, Eq, thiserror::Error)]
-#[error("`{path}`: the run gives no value for parameter `${name}`")]
-pub struct MissingParameter {
-    /// The path of the model.
-    pub path: String,
-    /// The parameter, without its `$`.
-    pub name: String,
+/// The values of the run parameters, each of its fixed type (MG-REQ-0603). The default, all
+/// zero, gives the typed placeholders of MG-REQ-0604.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct RunParameters {
+    /// `$run_date`, a `DATE`: days since 1970-01-01.
+    pub run_date: i32,
+    /// `$period_start`, a `TIMESTAMPTZ`: microseconds since 1970-01-01 00:00:00 UTC.
+    pub period_start: i64,
+    /// `$period_end`, a `TIMESTAMPTZ`: microseconds since 1970-01-01 00:00:00 UTC.
+    pub period_end: i64,
+}
+
+impl RunParameters {
+    /// The value of the run parameter `name`, when it is one.
+    fn value(&self, name: &str) -> Option<SqlValue> {
+        match name {
+            "run_date" => Some(SqlValue::Date(self.run_date)),
+            "period_start" => Some(SqlValue::TimestampTz(self.period_start)),
+            "period_end" => Some(SqlValue::TimestampTz(self.period_end)),
+            _ => None,
+        }
+    }
 }
 
 impl SqlStep {
-    /// Returns the values of `values` for the parameters of the step, in the order of
-    /// [`SqlStep::parameters`], to bind with [`SqlStep::text`]. Values the step does not name
-    /// are ignored.
-    ///
-    /// # Errors
-    ///
-    /// Fails with [`MissingParameter`] for the first parameter that `values` has no value for.
-    pub fn bind(
-        &self,
-        values: &BTreeMap<String, SqlValue>,
-    ) -> Result<Vec<SqlValue>, MissingParameter> {
+    /// Returns the values of `run` for the parameters of the step, in the order of
+    /// [`SqlStep::parameters`], to bind with [`SqlStep::text`].
+    #[must_use]
+    pub fn bind(&self, run: &RunParameters) -> Vec<SqlValue> {
         self.parameters
             .iter()
-            .map(|name| {
-                values.get(name).cloned().ok_or_else(|| MissingParameter {
-                    path: self.path.clone(),
-                    name: name.clone(),
-                })
-            })
+            .filter_map(|name| run.value(name))
             .collect()
     }
 }
@@ -70,7 +72,7 @@ pub fn read_sql_step(
     if !checked.problems.is_empty() {
         return Err(LayoutError::Invalid(checked.problems));
     }
-    let text = std::str::from_utf8(bytes).map_or_else(|_| String::new(), str::to_owned);
+    let text = String::from_utf8_lossy(bytes).into_owned();
     Ok(SqlStep {
         path: path.to_owned(),
         text,
@@ -78,15 +80,38 @@ pub fn read_sql_step(
     })
 }
 
-/// Returns the columns of the result of `step`, which `connection` prepares without running
-/// it, so no data is read (MG-REQ-0604).
+/// Returns the columns of the result of `step` (MG-REQ-0604). A new in-memory connection of
+/// `database` holds one empty table per input of `inputs`, by reference (`<model>` or
+/// `raw.<table>`) with its columns; DuckDB then describes the step with a typed placeholder
+/// for each run parameter. No data exists, so none is read.
 ///
 /// # Errors
 ///
-/// Fails with the [`PortError`] of the connection when DuckDB cannot prepare the step.
+/// Fails with [`LayoutError::Invalid`] carrying [`ProjectError::UnpreparableSql`] when DuckDB
+/// refuses the step, and with [`LayoutError::Port`] when the database fails otherwise.
 pub fn sql_schema(
-    connection: &mut dyn DatabaseConnection,
+    database: &dyn Database,
     step: &SqlStep,
-) -> Result<Vec<ResultColumn>, PortError> {
-    connection.prepare(&step.text)
+    inputs: &BTreeMap<String, Vec<ResultColumn>>,
+) -> Result<Vec<ResultColumn>, LayoutError> {
+    let mut connection = database.connect(&DatabaseLocation::InMemory)?;
+    for (reference, columns) in inputs {
+        let (schema, table) = reference
+            .split_once('.')
+            .map_or((None, reference.as_str()), |(schema, table)| {
+                (Some(schema), table)
+            });
+        connection.create_empty_table(schema, table, columns)?;
+    }
+    let placeholders = step.bind(&RunParameters::default());
+    match connection.describe(&step.text, &placeholders) {
+        Ok(columns) => Ok(columns),
+        Err(PortError::Failed(message)) => {
+            Err(LayoutError::Invalid(vec![ProjectError::UnpreparableSql {
+                path: step.path.clone(),
+                message,
+            }]))
+        }
+        Err(other) => Err(LayoutError::Port(other)),
+    }
 }

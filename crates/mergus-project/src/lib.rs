@@ -23,9 +23,10 @@
 //! [`read_sql_references`] returns the references of each `.sql` model that resolve.
 //!
 //! [`read_sql_step`] reads one `.sql` model as a [`SqlStep`]: its text, unchanged, and its
-//! named run parameters (MG-REQ-0603), bound by [`SqlStep::bind`], never substituted.
-//! [`sql_schema`] gives the columns of a step by preparing it through the
-//! [`Database`](mergus_ports::Database) port, without running it (MG-REQ-0604).
+//! run parameters (MG-REQ-0603), bound by [`SqlStep::bind`], never substituted.
+//! [`sql_schema`] gives the columns of a step through the
+//! [`Database`](mergus_ports::Database) port, with typed placeholders against empty input
+//! tables, so no data is read (MG-REQ-0604).
 
 #![forbid(unsafe_code)]
 
@@ -45,6 +46,6 @@ pub use ids::{IdKind, Identifier, Identifiers, Renames, derive_identifier, read_
 pub use layout::{Layout, Model, ModelLanguage, Publication, read_layout};
 pub use names::{closest_name, is_valid_name, suggest_valid_name};
 pub use sql::{
-    KnownTables, MissingParameter, SqlStep, check_sql, check_sql_models, read_sql_references,
+    KnownTables, RunParameters, SqlStep, check_sql, check_sql_models, read_sql_references,
     read_sql_step, sql_schema,
 };

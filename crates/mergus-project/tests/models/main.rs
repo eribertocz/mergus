@@ -1,16 +1,19 @@
-//! Tests of SQL models (MG-REQ-0601 to MG-REQ-0604). The trees of `sql/` were recorded from
-//! the real `SqlParser`, and the prepared schemas from the real `Database` (see
-//! `mg_req_0604_prepare_without_execution` in `mergus-ports`).
+//! Tests of SQL models (MG-REQ-0601 to MG-REQ-0604). The trees of `../sql/` were recorded
+//! from the real `SqlParser`, and the schemas from the real `Database` (see
+//! `mg_req_0604_schema_without_data` in `mergus-ports`).
+
+mod parameters;
+mod schema;
 
 use std::collections::BTreeMap;
 use std::path::Path;
 
-use mergus_ports::{Database, DatabaseLocation, FileSystem, ResultColumn, SqlValue};
+use mergus_ports::FileSystem;
 use mergus_project::{
-    ConfigFile, Configuration, KnownTables, Layout, LayoutError, MissingParameter, Model,
-    ModelLanguage, Publication, Source, read_sql_references, read_sql_step, sql_schema,
+    ConfigFile, Configuration, KnownTables, Layout, LayoutError, Model, ModelLanguage, Publication,
+    Source, read_sql_references, read_sql_step,
 };
-use mergus_sim::{DatabaseFaults, SimDatabase, SimFileSystem, SimSqlParser};
+use mergus_sim::{SimFileSystem, SimSqlParser};
 use serde_json::{Value, json};
 
 /// The path every model of these tests has, unless it says otherwise.
@@ -21,8 +24,8 @@ macro_rules! fixture {
     ($name:literal) => {
         (
             $name,
-            include_str!(concat!("sql/", $name, ".sql")),
-            include_str!(concat!("sql/", $name, ".json")),
+            include_str!(concat!("../sql/", $name, ".sql")),
+            include_str!(concat!("../sql/", $name, ".json")),
         )
     };
 }
@@ -36,16 +39,20 @@ const FIXTURES: &[(&str, &str, &str)] = &[
     fixture!("from_first"),
     fixture!("insert"),
     fixture!("model"),
+    fixture!("numbered"),
     fixture!("parameters"),
+    fixture!("positional"),
     fixture!("pragma"),
     fixture!("set"),
     fixture!("shadowing_cte"),
     fixture!("source_table"),
     fixture!("two_statements"),
     fixture!("typed"),
+    fixture!("unknown_parameter"),
     fixture!("with_select"),
 ];
 
+/// A parser that knows the tree of every fixture.
 fn parser() -> SimSqlParser {
     let parser = SimSqlParser::new();
     for (_, sql, tree) in FIXTURES {
@@ -54,6 +61,7 @@ fn parser() -> SimSqlParser {
     parser
 }
 
+/// The SQL text of the fixture `name`.
 fn sql(name: &str) -> &'static str {
     let found = FIXTURES.iter().find(|(fixture, _, _)| *fixture == name);
     assert!(found.is_some(), "no fixture `{name}`");
@@ -96,6 +104,7 @@ fn project() -> (Layout, Configuration) {
     (layout, configuration)
 }
 
+/// The tables the models of [`project`] may read.
 fn known() -> KnownTables {
     let (layout, configuration) = project();
     KnownTables::new(&layout, &configuration)
@@ -171,75 +180,4 @@ fn mg_req_0602_inputs_deduced_and_cte_shadows() {
         owned(&["raw.erp__orders", "raw.seed__countries"])
     );
     assert_eq!(found["c_only_cte"], owned(&[]));
-}
-
-#[test]
-fn mg_req_0603_parameters_bound_not_substituted() {
-    let text = sql("parameters");
-    let step = read_sql_step(PATH, text.as_bytes(), &known(), &parser()).unwrap();
-    // The text is the file, unchanged; the parameters are named by the parser, in the order
-    // DuckDB numbers them.
-    assert_eq!(step.text, text);
-    assert_eq!(step.parameters, ["run_date", "min_amount"]);
-
-    let values = BTreeMap::from([
-        ("min_amount".to_owned(), SqlValue::Integer(100)),
-        (
-            "run_date".to_owned(),
-            SqlValue::Text("2026-11-27".to_owned()),
-        ),
-        ("unused".to_owned(), SqlValue::Boolean(true)),
-    ]);
-    let bound = step.bind(&values).unwrap();
-    assert_eq!(
-        bound,
-        [
-            SqlValue::Text("2026-11-27".to_owned()),
-            SqlValue::Integer(100)
-        ]
-    );
-
-    // At execution the database receives the text with `$run_date` and the value apart.
-    let database = SimDatabase::new(0, DatabaseFaults::default());
-    database.record_query(text, bound.clone(), Vec::new());
-    let mut connection = database.connect(&DatabaseLocation::InMemory).unwrap();
-    connection.query_arrow(&step.text, &bound).unwrap();
-    let queried = database.queried();
-    assert_eq!(queried, [(text.to_owned(), bound)]);
-    assert!(queried[0].0.contains("$run_date"), "{}", queried[0].0);
-    assert!(!queried[0].0.contains("2026-11-27"), "{}", queried[0].0);
-
-    // A run without a value for a parameter the model names is refused before any SQL.
-    let missing = BTreeMap::from([("run_date".to_owned(), SqlValue::Null)]);
-    assert_eq!(
-        step.bind(&missing),
-        Err(MissingParameter {
-            path: PATH.to_owned(),
-            name: "min_amount".to_owned(),
-        })
-    );
-}
-
-#[test]
-fn mg_req_0604_sql_schema_by_prepare() {
-    let text = sql("typed");
-    let step = read_sql_step(PATH, text.as_bytes(), &known(), &parser()).unwrap();
-    assert!(step.parameters.is_empty());
-    let column = |name: &str, data_type: &str| ResultColumn {
-        name: name.to_owned(),
-        data_type: data_type.to_owned(),
-    };
-    let columns = vec![
-        column("order_id", "INTEGER"),
-        column("amount", "DECIMAL(18,3)"),
-        column("note", "VARCHAR"),
-    ];
-    let database = SimDatabase::new(0, DatabaseFaults::default());
-    database.record_prepare(text, columns.clone());
-    let mut connection = database.connect(&DatabaseLocation::InMemory).unwrap();
-    assert_eq!(sql_schema(connection.as_mut(), &step), Ok(columns));
-    // Prepared, never run: no data is read.
-    assert_eq!(database.prepared(), [text.to_owned()]);
-    assert!(database.queried().is_empty());
-    assert!(database.executed().is_empty());
 }

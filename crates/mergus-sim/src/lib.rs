@@ -25,7 +25,7 @@ mod source;
 mod sql_parser;
 
 pub use clock::{ClockFaults, SimClock};
-pub use database::{DatabaseFaults, SimDatabase};
+pub use database::{CreatedTable, DatabaseFaults, SimDatabase};
 pub use environment::SimEnvironment;
 pub use file_system::SimFileSystem;
 pub use keychain::SimKeychain;

@@ -235,6 +235,44 @@ pub enum ProjectError {
         /// reference to the next model of the cycle.
         references: Vec<(String, usize)>,
     },
+    /// DuckDB refuses to bind a `.sql` model against its inputs (MG-REQ-0604).
+    #[error("`{path}`: DuckDB cannot prepare the model: {message}")]
+    UnpreparableSql {
+        /// The path of the model.
+        path: String,
+        /// What DuckDB reports.
+        message: String,
+    },
+    /// A `.sql` model names a parameter that is not a run parameter (MG-REQ-0603).
+    #[error(
+        "`{path}` line {line} column {column}: parameter `${name}` is not a run parameter; use \
+         `$run_date`, `$period_start` or `$period_end`"
+    )]
+    UnknownParameter {
+        /// The path of the model.
+        path: String,
+        /// The line of the parameter, from 1.
+        line: usize,
+        /// The column of the parameter, from 1.
+        column: usize,
+        /// The name of the parameter, without its `$`.
+        name: String,
+    },
+    /// A `.sql` model has a positional parameter (MG-REQ-0603).
+    #[error(
+        "`{path}` line {line} column {column}: parameter `{written}` is positional; run \
+         parameters are named: `$run_date`, `$period_start` or `$period_end`"
+    )]
+    PositionalParameter {
+        /// The path of the model.
+        path: String,
+        /// The line of the parameter, from 1.
+        line: usize,
+        /// The column of the parameter, from 1.
+        column: usize,
+        /// The parameter as written, such as `?` or `$1`.
+        written: String,
+    },
 }
 
 /// Formats the models of a cycle, back to the first.

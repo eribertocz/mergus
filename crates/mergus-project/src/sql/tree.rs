@@ -13,6 +13,9 @@ use crate::names::{closest_name, is_valid_name};
 /// The only table functions a model may call (MG-REQ-0374.2).
 const TABLE_FUNCTIONS: [&str; 3] = ["range", "generate_series", "unnest"];
 
+/// The run parameters, the only parameters a model may name (MG-REQ-0603).
+pub(crate) const RUN_PARAMETERS: [&str; 3] = ["run_date", "period_start", "period_end"];
+
 /// The functions a model may not call (MG-REQ-0374.4).
 const FUNCTIONS: [&str; 4] = ["getenv", "nextval", "currval", "setseed"];
 
@@ -156,6 +159,7 @@ impl Walk<'_> {
                 skipped = "function";
             }
             _ if text(node, "class") == "FUNCTION" => self.function(node, at),
+            _ if text(node, "class") == "PARAMETER" => self.parameter(node, at),
             _ => {}
         }
         for (key, child) in node {
@@ -229,6 +233,38 @@ impl Walk<'_> {
         let name = text(node, "function_name");
         if FUNCTIONS.contains(&name.to_lowercase().as_str()) {
             self.problem(at, format!("function `{name}`"));
+        }
+    }
+
+    /// Checks a parameter: named, and a run parameter (MG-REQ-0603).
+    fn parameter(&mut self, node: &Map<String, Value>, at: Option<usize>) {
+        let name = text(node, "identifier");
+        let position = self.position(at);
+        let (path, line, column) = (self.path.to_owned(), position.line, position.column);
+        if !name.is_empty() && name.bytes().all(|byte| byte.is_ascii_digit()) {
+            let length = node
+                .get("query_location_length")
+                .and_then(Value::as_u64)
+                .and_then(|length| usize::try_from(length).ok())
+                .unwrap_or(0);
+            let start = at.unwrap_or(0);
+            let written = start
+                .checked_add(length)
+                .and_then(|end| self.text.get(start..end))
+                .unwrap_or("?");
+            self.problems.push(ProjectError::PositionalParameter {
+                path,
+                line,
+                column,
+                written: written.to_owned(),
+            });
+        } else if !RUN_PARAMETERS.contains(&name) {
+            self.problems.push(ProjectError::UnknownParameter {
+                path,
+                line,
+                column,
+                name: name.to_owned(),
+            });
         }
     }
 

@@ -22,6 +22,9 @@ impl ProjectError {
             Self::UnknownReference { .. } => "MG-0313",
             Self::ForbiddenSql { .. } => "MG-0314",
             Self::ModelCycle { .. } => "MG-0315",
+            Self::UnpreparableSql { .. } => "MG-0601",
+            Self::UnknownParameter { .. } => "MG-0602",
+            Self::PositionalParameter { .. } => "MG-0603",
         }
     }
 
@@ -42,7 +45,10 @@ impl ProjectError {
             | Self::DuplicateIdsEntry { path, .. }
             | Self::DuplicateIdentifier { path, .. }
             | Self::UnknownReference { path, .. }
-            | Self::ForbiddenSql { path, .. } => path,
+            | Self::ForbiddenSql { path, .. }
+            | Self::UnpreparableSql { path, .. }
+            | Self::UnknownParameter { path, .. }
+            | Self::PositionalParameter { path, .. } => path,
             Self::ModelCycle { references, .. } => references.first().map_or("", |(path, _)| path),
         }
     }
@@ -53,7 +59,8 @@ impl ProjectError {
         match self {
             Self::DuplicateModel { .. }
             | Self::InvalidName { .. }
-            | Self::DuplicateIdentifier { .. } => None,
+            | Self::DuplicateIdentifier { .. }
+            | Self::UnpreparableSql { .. } => None,
             Self::InvalidToml { line, .. }
             | Self::UnknownKey { line, .. }
             | Self::InvalidValue { line, .. }
@@ -64,7 +71,9 @@ impl ProjectError {
             | Self::InvalidIds { line, .. }
             | Self::DuplicateIdsEntry { line, .. }
             | Self::UnknownReference { line, .. }
-            | Self::ForbiddenSql { line, .. } => Some(*line),
+            | Self::ForbiddenSql { line, .. }
+            | Self::UnknownParameter { line, .. }
+            | Self::PositionalParameter { line, .. } => Some(*line),
             Self::ModelCycle { references, .. } => references.first().map(|(_, line)| *line),
         }
     }
@@ -73,9 +82,10 @@ impl ProjectError {
     #[must_use]
     pub fn column(&self) -> Option<usize> {
         match self {
-            Self::UnknownReference { column, .. } | Self::ForbiddenSql { column, .. } => {
-                Some(*column)
-            }
+            Self::UnknownReference { column, .. }
+            | Self::ForbiddenSql { column, .. }
+            | Self::UnknownParameter { column, .. }
+            | Self::PositionalParameter { column, .. } => Some(*column),
             _ => None,
         }
     }
@@ -90,7 +100,10 @@ impl ProjectError {
             | Self::DuplicateIdentifier { .. }
             | Self::UnknownReference { .. }
             | Self::ForbiddenSql { .. }
-            | Self::ModelCycle { .. } => None,
+            | Self::ModelCycle { .. }
+            | Self::UnpreparableSql { .. }
+            | Self::UnknownParameter { .. }
+            | Self::PositionalParameter { .. } => None,
             Self::InvalidIds { key, .. } => key.as_deref(),
             Self::UnknownKey { key, .. }
             | Self::InvalidValue { key, .. }

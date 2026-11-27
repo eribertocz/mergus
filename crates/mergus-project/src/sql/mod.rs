@@ -14,7 +14,7 @@ use mergus_ports::{FileSystem, SqlParser};
 use serde_json::Value;
 
 pub use known::KnownTables;
-pub use step::{MissingParameter, SqlStep, read_sql_step, sql_schema};
+pub use step::{RunParameters, SqlStep, read_sql_step, sql_schema};
 
 use crate::{Configuration, Layout, LayoutError, ModelLanguage, ProjectError};
 
