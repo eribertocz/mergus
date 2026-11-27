@@ -15,6 +15,9 @@ pub struct ProcessCommand {
     pub current_dir: Option<PathBuf>,
     /// Environment variables set for the child, in order.
     pub env: Vec<(String, String)>,
+    /// When `true`, the child starts with only the variables of `env`; otherwise it inherits
+    /// the variables of this process, then `env` is set over them.
+    pub clear_env: bool,
 }
 
 /// What a finished child process returned.

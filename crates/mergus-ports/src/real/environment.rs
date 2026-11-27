@@ -25,6 +25,14 @@ impl Environment for RealEnvironment {
         std::env::var(name).ok()
     }
 
+    fn vars(&self) -> Vec<(String, String)> {
+        let mut vars: Vec<(String, String)> = std::env::vars_os()
+            .filter_map(|(name, value)| Some((name.into_string().ok()?, value.into_string().ok()?)))
+            .collect();
+        vars.sort();
+        vars
+    }
+
     /// `XDG_CONFIG_HOME` when it is an absolute path, otherwise `.config` under `HOME`; on
     /// Windows, `APPDATA`.
     fn config_dir(&self) -> Option<PathBuf> {
@@ -65,6 +73,10 @@ mod tests {
         assert!(environment.current_dir().unwrap().is_absolute());
         assert!(environment.var("PATH").is_some());
         assert_eq!(environment.var("MERGUS_PORTS_TEST_UNSET_VARIABLE"), None);
+        let vars = environment.vars();
+        assert!(vars.is_sorted());
+        assert!(vars.iter().any(|(name, value)| name == "PATH"
+            && environment.var("PATH").as_deref() == Some(value.as_str())));
         if let Some(cache_dir) = environment.cache_dir() {
             assert!(cache_dir.is_absolute());
         }

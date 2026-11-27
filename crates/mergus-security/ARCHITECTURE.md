@@ -13,6 +13,8 @@
 | `StoreError` | `Empty` (`MG-1001`) or `Unwritable` (`MG-1002`): the reference, never a value |
 | `KEYCHAIN_SERVICE` | `mergus`, the keychain service of every secret |
 | `SecretError` | `NotFound` (`MG-1003`): the reference and both places looked at, never a value |
+| `python_environment` | The environment of the Python process: the current one without secrets or cloud SDK credentials (MG-REQ-1003) |
+| `CLOUD_CREDENTIAL_VARIABLES` | The credential variables of known cloud SDKs that `python_environment` removes |
 | `SecretString`, `ExposeSecret` | Re-exported from `secrecy`: the value, read only through `expose_secret` |
 
 ## Data flow
@@ -31,11 +33,16 @@ answered; the value is dropped inside the crate and never returned.
 `store` refuses an empty value, then calls `Keychain::set` with the service `mergus` and the
 name. A port error becomes `StoreError::Unwritable`; nothing else is tried.
 
+`python_environment` reads every variable with `Environment::vars`, drops each name that, in
+ASCII upper case, starts with `MERGUS_SECRET_` or is in `CLOUD_CREDENTIAL_VARIABLES`, and
+returns the rest sorted by name. Upper case covers Windows, where names ignore case.
+
 ## Dependencies
 
 - `mergus-ports`, without the feature `real`: the `Environment` and `Keychain` traits.
 - `mergus-project`: `is_valid_name`, the name rule of MG-REQ-0305.
 - `secrecy`, without the feature `serde`: `SecretString`.
 - `thiserror`: derives `SecretError`.
-- Dev-dependencies on `mergus-sim`, for the simulated ports, and on `serde`, to check that a
-  value cannot be serialized.
+- Dev-dependencies on `mergus-sim`, for the simulated ports, on `serde`, to check that a
+  value cannot be serialized, and on `mergus-ports` with the feature `real`, to run a real
+  `python3` with the clean environment when one is installed.

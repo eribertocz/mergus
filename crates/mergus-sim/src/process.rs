@@ -11,6 +11,7 @@ use crate::rng::lock;
 #[derive(Debug, Default)]
 pub struct SimProcess {
     programs: Mutex<BTreeMap<String, ProcessOutput>>,
+    runs: Mutex<Vec<ProcessCommand>>,
 }
 
 impl SimProcess {
@@ -24,10 +25,18 @@ impl SimProcess {
     pub fn register(&self, program: &str, output: ProcessOutput) {
         lock(&self.programs).insert(program.to_owned(), output);
     }
+
+    /// Returns every command run so far, in order, whether its program was known or not: what
+    /// each child was started with, its environment included.
+    #[must_use]
+    pub fn runs(&self) -> Vec<ProcessCommand> {
+        lock(&self.runs).clone()
+    }
 }
 
 impl Process for SimProcess {
     fn run(&self, command: &ProcessCommand) -> Result<ProcessOutput, PortError> {
+        lock(&self.runs).push(command.clone());
         lock(&self.programs)
             .get(&command.program)
             .cloned()
