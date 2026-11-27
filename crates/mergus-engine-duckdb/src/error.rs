@@ -50,6 +50,56 @@ pub enum EngineError {
         /// What went wrong.
         reason: String,
     },
+    /// A full rebuild would drop or rewrite the history table `table`, and the command does
+    /// not carry `--rebuild-history` with its confirmation (MG-REQ-0665). The table is kept.
+    #[error(
+        "the history table `{table}` is not rebuilt without `--rebuild-history` and a confirmation"
+    )]
+    HistoryRebuild {
+        /// The history table.
+        table: String,
+    },
+    /// The input of the history table `table` is not a changes view and has the key `key`
+    /// more than once, so its rows have no order to be applied in (MG-REQ-0662). The history
+    /// table is unchanged.
+    #[error("the input of the history table `{table}` has the key `{key}` more than once")]
+    HistoryRepeatedKey {
+        /// The history table.
+        table: String,
+        /// The repeated key, as text.
+        key: String,
+    },
+    /// The `by = "<column>"` column `column` of the input of the history table `table` has
+    /// the DuckDB type `data_type`, not `DATE`, `TIMESTAMP` or `TIMESTAMPTZ`, so its value
+    /// cannot be a version's `_valid_from` (MG-REQ-0663.6). Nothing was written.
+    #[error(
+        "the `by` column `{column}` of the history table `{table}` is `{data_type}`, not DATE, TIMESTAMP or TIMESTAMPTZ"
+    )]
+    HistoryByType {
+        /// The history table.
+        table: String,
+        /// The `by` column.
+        column: String,
+        /// Its DuckDB type, as `DESCRIBE` writes it.
+        data_type: String,
+    },
+    /// A row the run of the history table `table` reads has a NULL in its key column `key`,
+    /// so it matches no version (MG-REQ-0663.8). Nothing was written.
+    #[error("the input of the history table `{table}` has a NULL in its key column `{key}`")]
+    HistoryNullKey {
+        /// The history table.
+        table: String,
+        /// The key column.
+        key: String,
+    },
+    /// A history run failed with `error`, and its `ROLLBACK` failed too with `rollback`.
+    #[error("{error}; the rollback failed too: {rollback}")]
+    RolledBack {
+        /// Why the run failed.
+        error: Box<EngineError>,
+        /// Why the rollback failed.
+        rollback: PortError,
+    },
     /// DuckDB or the file system failed.
     #[error(transparent)]
     Port(#[from] PortError),
@@ -64,6 +114,11 @@ impl EngineError {
         match self {
             Self::Unrepresentable { .. } => Some("MG-0101"),
             Self::ZoneExtensionLoaded => Some("MG-0102"),
+            Self::HistoryRebuild { .. } => Some("MG-0607"),
+            Self::HistoryRepeatedKey { .. } => Some("MG-0608"),
+            Self::HistoryByType { .. } => Some("MG-0609"),
+            Self::HistoryNullKey { .. } => Some("MG-0610"),
+            Self::RolledBack { error, .. } => error.code(),
             Self::Boundary { .. } | Self::Scratch { .. } | Self::Hash { .. } | Self::Port(_) => {
                 None
             }

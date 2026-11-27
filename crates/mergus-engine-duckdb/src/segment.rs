@@ -6,6 +6,7 @@ use mergus_ports::{Database, DatabaseConnection, DatabaseLocation, FileSystem, S
 
 use crate::checks::{declared, described, without_icu};
 use crate::exact::{Zones, conform, duckdb_type, unrepresentable};
+use crate::history::AS_OF;
 use crate::output::{write_parquet, write_shared};
 use crate::transport::{boundary, open_arrow};
 use crate::{Boundary, EngineError, Transport};
@@ -37,7 +38,8 @@ pub struct Table {
     pub boundary: Boundary,
 }
 
-/// Runs `segment` in a new in-memory DuckDB session of `database`: executes each macro text (MG-REQ-0643), opens each input, runs the SQL, conforms its rows
+/// Runs `segment` in a new in-memory DuckDB session of `database`: executes the built-in
+/// `as_of` macro (MG-REQ-0666), then each macro text (MG-REQ-0643), opens each input, runs the SQL, conforms its rows
 /// to the declared output schema and writes them with the transport the plan recorded
 /// (MG-REQ-0633).
 ///
@@ -78,6 +80,7 @@ pub fn run_segment(
     }
     let mut session = database.connect(&DatabaseLocation::InMemory)?;
     without_icu(session.as_mut())?;
+    session.execute(AS_OF, &[])?;
     for text in &segment.macros {
         session.execute(text, &[])?;
     }
