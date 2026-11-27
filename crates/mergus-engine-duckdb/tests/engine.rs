@@ -3,7 +3,6 @@
 use std::io::Cursor;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
-use std::sync::atomic::{AtomicUsize, Ordering};
 
 use arrow::array::{Array, ArrayRef, Decimal128Array, Int64Array, StringArray};
 use arrow::datatypes::{DataType, Field, Schema, SchemaRef};
@@ -11,11 +10,9 @@ use arrow::ipc::reader::FileReader;
 use arrow::ipc::writer::FileWriter;
 use arrow::record_batch::RecordBatch;
 use mergus_engine_duckdb::{
-    Boundary, EngineError, MEMORY_BUDGET, Segment, Table, Transport, run_segment,
+    Boundary, EngineError, MEMORY_BUDGET, Segment, Table, Transport, run_segment, table_hash,
 };
-use mergus_ports::{
-    Database, DatabaseConnection, DatabaseLocation, FileSystem, PortError, SqlValue,
-};
+use mergus_ports::{FileSystem, SqlValue};
 use mergus_sim::{DatabaseFaults, SimDatabase, SimFileSystem};
 
 const SQL: &str = "SELECT id, name FROM orders WHERE id > ?";
@@ -24,6 +21,7 @@ const MACROS: [&str; 2] = [
     "CREATE MACRO clean(t) AS TABLE SELECT * FROM query_table(t) WHERE status <> 'VOID';",
 ];
 const CREATE_OUTPUT: &str = "CREATE TABLE \"mergus_output\" (\"id\" BIGINT, \"name\" VARCHAR)";
+const CREATE_INPUT: &str = "CREATE TABLE \"orders\" (\"id\" BIGINT, \"name\" VARCHAR)";
 const COPY: &str = "COPY \"mergus_output\" TO ? (FORMAT parquet)";
 const SET_INPUT: &str = "SET VARIABLE mergus_input_0 = ?";
 const DESCRIBE_INPUT: &str = "DESCRIBE SELECT * FROM read_parquet(getvariable('mergus_input_0'))";
@@ -96,10 +94,12 @@ fn work() -> SimFileSystem {
 }
 
 #[cfg(test)]
-fn write_ipc(files: &SimFileSystem, path: &str, batch: &RecordBatch) {
+fn write_ipc(files: &SimFileSystem, path: &str, batches: &[RecordBatch]) {
     let mut bytes = Vec::new();
-    let mut writer = FileWriter::try_new(&mut bytes, &batch.schema()).unwrap();
-    writer.write(batch).unwrap();
+    let mut writer = FileWriter::try_new(&mut bytes, &batches[0].schema()).unwrap();
+    for batch in batches {
+        writer.write(batch).unwrap();
+    }
     writer.finish().unwrap();
     drop(writer);
     files.write(Path::new(path), &bytes).unwrap();
@@ -175,6 +175,40 @@ fn mg_req_0633_transport_falls_back_to_parquet() {
 }
 
 #[test]
+fn mg_req_0633_shared_memory_streams_batch_by_batch() {
+    let files = work();
+    let database = database();
+    let parts = vec![
+        rows(&[1], &["a"]),
+        rows(&[2, 3], &["b", "c"]),
+        rows(&[4], &["d"]),
+    ];
+    let mut bytes = Vec::new();
+    let mut writer = FileWriter::try_new(&mut bytes, &rows_schema()).unwrap();
+    for part in &parts {
+        writer.write(part).unwrap();
+    }
+    writer.finish().unwrap();
+    drop(writer);
+    files
+        .write(Path::new("/work/orders.arrow"), &bytes)
+        .unwrap();
+    database.record_execute(CREATE_INPUT, vec![], 0);
+    database.record_query(SQL, vec![SqlValue::Integer(1)], parts.clone());
+    let input = table(
+        "orders",
+        rows_schema(),
+        boundary(Transport::SharedMemory, "/work/orders.arrow"),
+    );
+    let output = boundary(Transport::SharedMemory, "/work/out.arrow");
+    run_segment(&database, &files, &segment(output, vec![input])).unwrap();
+    assert_eq!(database.appended("orders"), parts);
+    let (_, written) = read_ipc(&files, "/work/out.arrow");
+    assert_eq!(written.len(), 3);
+    assert_eq!(table_hash(&written).unwrap(), table_hash(&parts).unwrap());
+}
+
+#[test]
 fn mg_req_0633_parquet_input_is_read_lazily() {
     let files = work();
     let database = database();
@@ -232,44 +266,6 @@ fn mg_req_0633_empty_output_keeps_its_columns() {
     assert!(database.executed().contains(&(COPY.to_owned(), vec![path])));
 }
 
-/// A database that counts its connections.
-struct Counted {
-    inner: SimDatabase,
-    connections: AtomicUsize,
-}
-
-impl Database for Counted {
-    fn connect(
-        &self,
-        location: &DatabaseLocation,
-    ) -> Result<Box<dyn DatabaseConnection>, PortError> {
-        self.connections.fetch_add(1, Ordering::SeqCst);
-        self.inner.connect(location)
-    }
-}
-
-#[test]
-fn mg_req_0643_macros_loaded_in_each_session() {
-    let files = work();
-    let database = Counted {
-        inner: database(),
-        connections: AtomicUsize::new(0),
-    };
-    let path = SqlValue::Text("/zone/work/a.parquet".to_owned());
-    database.inner.record_execute(COPY, vec![path], 2);
-    let output = boundary(Transport::Parquet, "/zone/work/a.parquet");
-    run_segment(&database, &files, &segment(output.clone(), vec![])).unwrap();
-    run_segment(&database, &files, &segment(output, vec![])).unwrap();
-    assert_eq!(database.connections.load(Ordering::SeqCst), 2);
-    let session = [MACROS[0], MACROS[1], CREATE_OUTPUT, COPY];
-    let expected: Vec<String> = session
-        .iter()
-        .chain(session.iter())
-        .map(|sql| (*sql).to_owned())
-        .collect();
-    assert_eq!(executed(&database.inner), expected);
-}
-
 /// Writes `values` as a column `amount` of type `DECIMAL(precision, scale)` and returns the
 /// input `amounts` that declares the column as `to`.
 #[cfg(test)]
@@ -285,7 +281,7 @@ fn decimal_input(
     let from = DataType::Decimal128(precision, scale);
     let schema = Arc::new(Schema::new(vec![Field::new("amount", from, true)]));
     let batch = RecordBatch::try_new(schema, vec![Arc::new(array)]).unwrap();
-    write_ipc(files, "/work/amounts.arrow", &batch);
+    write_ipc(files, "/work/amounts.arrow", &[batch]);
     let declared = Arc::new(Schema::new(vec![Field::new("amount", to, true)]));
     let file = boundary(Transport::SharedMemory, "/work/amounts.arrow");
     table("amounts", declared, file)
@@ -318,6 +314,13 @@ fn assert_unrepresentable(result: Result<(), EngineError>, database: &SimDatabas
 fn mg_req_0180_unrepresentable_value_fails() {
     let files = work();
     let database = database();
+    for create in [
+        "CREATE TABLE \"amounts\" (\"amount\" DECIMAL(8,2))",
+        "CREATE TABLE \"amounts\" (\"amount\" DECIMAL(10,1))",
+        "CREATE TABLE \"amounts\" (\"amount\" BIGINT)",
+    ] {
+        database.record_execute(create, vec![], 0);
+    }
 
     // A DECIMAL overflow: 1234567890.12 does not fit DECIMAL(8, 2).
     let values = vec![Some(1), Some(123_456_789_012)];

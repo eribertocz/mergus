@@ -1,9 +1,11 @@
 //! The local file system.
 
-use std::fs;
+use std::fs::{self, File};
+use std::io::{BufReader, BufWriter, Write};
 use std::path::{Path, PathBuf};
 
 use super::port_error;
+use crate::file_system::SeekRead;
 use crate::{FileSystem, PortError};
 
 /// The operating system's file system.
@@ -18,6 +20,16 @@ fn shown(path: &Path) -> String {
 impl FileSystem for RealFileSystem {
     fn read(&self, path: &Path) -> Result<Vec<u8>, PortError> {
         fs::read(path).map_err(|error| port_error(&shown(path), &error))
+    }
+
+    fn open(&self, path: &Path) -> Result<Box<dyn SeekRead>, PortError> {
+        let file = File::open(path).map_err(|error| port_error(&shown(path), &error))?;
+        Ok(Box::new(BufReader::new(file)))
+    }
+
+    fn create(&self, path: &Path) -> Result<Box<dyn Write + Send>, PortError> {
+        let file = File::create(path).map_err(|error| port_error(&shown(path), &error))?;
+        Ok(Box::new(BufWriter::new(file)))
     }
 
     fn write(&self, path: &Path, contents: &[u8]) -> Result<(), PortError> {
@@ -81,6 +93,33 @@ mod tests {
         assert!(!fs.exists(&dir.join("a.txt")).unwrap());
         assert!(matches!(
             fs.read(&dir.join("a.txt")),
+            Err(PortError::NotFound(_))
+        ));
+    }
+
+    #[test]
+    fn real_file_system_streams_files() {
+        use std::io::{Read, Seek, SeekFrom, Write};
+
+        let dir = scratch("streams");
+        let fs = RealFileSystem;
+        let path = dir.join("stream.bin");
+        let mut writer = fs.create(&path).unwrap();
+        writer.write_all(b"one ").unwrap();
+        writer.write_all(b"two").unwrap();
+        writer.flush().unwrap();
+        drop(writer);
+        let mut reader = fs.open(&path).unwrap();
+        reader.seek(SeekFrom::Start(4)).unwrap();
+        let mut text = String::new();
+        reader.read_to_string(&mut text).unwrap();
+        assert_eq!(text, "two");
+        assert!(matches!(
+            fs.open(&dir.join("missing")),
+            Err(PortError::NotFound(_))
+        ));
+        assert!(matches!(
+            fs.create(&dir.join("no").join("parent")),
             Err(PortError::NotFound(_))
         ));
     }

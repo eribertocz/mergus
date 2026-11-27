@@ -18,25 +18,26 @@
 Segment ─► Database::connect (in memory)
         ─► execute each macro text                      (MG-REQ-0643)
         ─► each input:
-             SharedMemory: FileSystem::read ─► Arrow IPC ─► conform to schema (MG-REQ-0180)
-                           ─► CREATE TABLE <name> ─► append_arrow
+             SharedMemory: CREATE TABLE <name> ─► FileSystem::open ─► per Arrow IPC batch:
+                           conform to schema (MG-REQ-0180) ─► append_arrow
              Parquet:      SET VARIABLE ─► DESCRIBE, check declared types (MG-REQ-0180)
                            ─► CREATE VIEW <name> AS SELECT <columns> FROM read_parquet(...)
         ─► query_arrow(SQL, parameters) ─► conform to the output schema, zones restored
         ─► output:
-             SharedMemory: Arrow IPC ─► FileSystem::write
+             SharedMemory: FileSystem::create ─► Arrow IPC, one batch at a time
              Parquet:      CREATE TABLE mergus_output ─► append_arrow ─► COPY TO <path>
 ```
 
 `exact` maps each Arrow type to the type DuckDB describes for the column that holds it
 exactly, converts a column only when every value survives the round trip unchanged, and puts
-a declared time zone back on DuckDB's UTC instants. `transport` encodes and decodes the
-Arrow IPC files. `hash` writes each row as canonical JSON with `mergus-contracts` and hashes
+a declared time zone back on DuckDB's UTC instants. `transport` streams the Arrow IPC
+files batch by batch. `hash` writes each row as canonical JSON with `mergus-contracts` and hashes
 it with its SHA-256.
 
 ## Dependencies
 
-- `mergus-ports`: the `Database` and `FileSystem` ports.
+- `mergus-ports`: the `Database` and `FileSystem` ports, with the streaming `open` and
+  `create`.
 - `mergus-contracts`: canonical JSON (RFC 8785) and SHA-256 (MG-REQ-0186).
 - `arrow` with `ipc`: record batches, casts and the IPC file format.
 - `serde_json`: the JSON value of a row; `thiserror`: the error type.

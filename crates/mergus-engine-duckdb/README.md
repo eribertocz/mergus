@@ -11,8 +11,9 @@ Execute DuckDB steps.
 - Executes every macro text in each session before anything else, so every session that runs
   a segment has the project's macros (MG-REQ-0643).
 - Applies the transport the plan chose for each boundary (MG-REQ-0633, MG-REQ-0704):
-  - `SharedMemory`: an Arrow IPC file in the run's work directory, written and read through
-    the `FileSystem` port;
+  - `SharedMemory`: an Arrow IPC file in the run's work directory, written and read one
+    record batch at a time through the streaming `FileSystem::create` and `FileSystem::open`
+    of the port, each batch appended to DuckDB before the next is decoded;
   - `Parquet`: a Parquet file in the work zone, written by DuckDB's `COPY` and read lazily
     through a view over `read_parquet` of the declared columns.
   `Transport::for_size` gives the rule: shared memory up to `MEMORY_BUDGET`, 1 GiB of Arrow
@@ -36,6 +37,6 @@ Execute DuckDB steps.
   plan records it.
 - It does not wire a run: `mergus-runtime` maps the plan onto `Segment` and calls it.
 - It does not read the `[resources]` section: the budget is fixed until phase 0.9.
-- It does not map Arrow IPC files into memory yet: the ports have no such capability (#254),
-  so a shared-memory boundary is read whole with `FileSystem::read`.
+- It does not memory-map Arrow IPC files: streaming keeps peak memory at one batch plus what
+  DuckDB holds, with no `unsafe`.
 - It prints nothing and keeps no state between segments.

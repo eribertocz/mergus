@@ -1,10 +1,11 @@
 //! A simulated file system held in memory.
 
 use std::collections::BTreeMap;
+use std::io::{self, Cursor, Write};
 use std::path::{Path, PathBuf};
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 
-use mergus_ports::{FileSystem, PortError};
+use mergus_ports::{FileSystem, PortError, SeekRead};
 
 use crate::rng::lock;
 
@@ -15,10 +16,44 @@ enum Node {
 }
 
 /// Files and directories in memory. Paths are compared by component (MG-REQ-0189); a path
-/// with no parent, such as `/` or a single name, always has an existing parent.
+/// with no parent, such as `/` or a single name, always has an existing parent. A stream from
+/// [`FileSystem::open`] reads the file as it was when opened; one from
+/// [`FileSystem::create`] stores what it holds each time it is flushed, and when dropped.
 #[derive(Debug, Default)]
 pub struct SimFileSystem {
-    nodes: Mutex<BTreeMap<PathBuf, Node>>,
+    nodes: Arc<Mutex<BTreeMap<PathBuf, Node>>>,
+}
+
+/// A stream of [`SimFileSystem::create`]: it keeps the bytes written and stores them as the
+/// file on each flush and when dropped.
+struct SimWriter {
+    nodes: Arc<Mutex<BTreeMap<PathBuf, Node>>>,
+    path: PathBuf,
+    contents: Vec<u8>,
+}
+
+impl SimWriter {
+    fn store(&self) {
+        lock(&self.nodes).insert(self.path.clone(), Node::File(self.contents.clone()));
+    }
+}
+
+impl Write for SimWriter {
+    fn write(&mut self, bytes: &[u8]) -> io::Result<usize> {
+        self.contents.extend_from_slice(bytes);
+        Ok(bytes.len())
+    }
+
+    fn flush(&mut self) -> io::Result<()> {
+        self.store();
+        Ok(())
+    }
+}
+
+impl Drop for SimWriter {
+    fn drop(&mut self) {
+        self.store();
+    }
 }
 
 impl SimFileSystem {
@@ -53,6 +88,19 @@ impl FileSystem for SimFileSystem {
             ))),
             None => Err(PortError::NotFound(shown(path))),
         }
+    }
+
+    fn open(&self, path: &Path) -> Result<Box<dyn SeekRead>, PortError> {
+        Ok(Box::new(Cursor::new(self.read(path)?)))
+    }
+
+    fn create(&self, path: &Path) -> Result<Box<dyn Write + Send>, PortError> {
+        self.write(path, &[])?;
+        Ok(Box::new(SimWriter {
+            nodes: Arc::clone(&self.nodes),
+            path: path.to_path_buf(),
+            contents: Vec::new(),
+        }))
     }
 
     fn write(&self, path: &Path, contents: &[u8]) -> Result<(), PortError> {

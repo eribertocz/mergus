@@ -6,7 +6,7 @@ use arrow::datatypes::{Schema, SchemaRef};
 use mergus_ports::{Database, DatabaseConnection, DatabaseLocation, FileSystem, SqlValue};
 
 use crate::exact::{Zones, conform, duckdb_type, nullable, unrepresentable};
-use crate::transport::{read_arrow, write_arrow};
+use crate::transport::{boundary, open_arrow, write_arrow};
 use crate::{Boundary, EngineError, Transport};
 
 /// The table a Parquet output is gathered in before it is written.
@@ -102,14 +102,13 @@ fn open_input(
 ) -> Result<(), EngineError> {
     match input.boundary.transport {
         Transport::SharedMemory => {
-            let batches = read_arrow(files, &input.boundary.path)?;
-            let conformed = batches
-                .iter()
-                .map(|batch| conform(&input.name, batch, &input.schema, Zones::Keep))
-                .collect::<Result<Vec<_>, _>>()?;
+            let path = &input.boundary.path;
+            let reader = open_arrow(files, path)?;
             create_table(session, &input.name, &input.name, &input.schema)?;
-            for batch in &conformed {
-                session.append_arrow(&input.name, batch)?;
+            for batch in reader {
+                let batch = batch.map_err(|error| boundary(path, &error))?;
+                let batch = conform(&input.name, &batch, &input.schema, Zones::Keep)?;
+                session.append_arrow(&input.name, &batch)?;
             }
         }
         Transport::Parquet => {

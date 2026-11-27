@@ -1,13 +1,13 @@
 //! How a boundary between two segments carries its rows (MG-REQ-0633).
 
-use std::io::Cursor;
+use std::io::Write;
 use std::path::{Path, PathBuf};
 
 use arrow::datatypes::SchemaRef;
 use arrow::ipc::reader::FileReader;
 use arrow::ipc::writer::FileWriter;
 use arrow::record_batch::RecordBatch;
-use mergus_ports::FileSystem;
+use mergus_ports::{FileSystem, SeekRead};
 
 use crate::EngineError;
 
@@ -48,41 +48,40 @@ pub struct Boundary {
     pub path: PathBuf,
 }
 
-/// Writes `batches`, of `schema`, as the Arrow IPC file at `path`.
+/// Writes `batches`, of `schema`, as the Arrow IPC file at `path`, one batch at a time through
+/// a stream of the file system.
 pub(crate) fn write_arrow(
     files: &dyn FileSystem,
     path: &Path,
     schema: &SchemaRef,
     batches: &[RecordBatch],
 ) -> Result<(), EngineError> {
-    let mut bytes = Vec::new();
-    let mut writer =
-        FileWriter::try_new(&mut bytes, schema).map_err(|error| boundary(path, &error))?;
+    let stream = files.create(path)?;
+    let mut writer = FileWriter::try_new(stream, schema).map_err(|error| boundary(path, &error))?;
     for batch in batches {
         writer
             .write(batch)
             .map_err(|error| boundary(path, &error))?;
     }
     writer.finish().map_err(|error| boundary(path, &error))?;
-    drop(writer);
-    files.write(path, &bytes)?;
-    Ok(())
+    let mut stream = writer
+        .into_inner()
+        .map_err(|error| boundary(path, &error))?;
+    stream.flush().map_err(|error| boundary(path, &error))
 }
 
-/// Reads the Arrow IPC file at `path`.
-pub(crate) fn read_arrow(
+/// Opens the Arrow IPC file at `path` as a reader that decodes one batch at a time through a
+/// stream of the file system, so that the file is never held whole in memory.
+pub(crate) fn open_arrow(
     files: &dyn FileSystem,
     path: &Path,
-) -> Result<Vec<RecordBatch>, EngineError> {
-    let bytes = files.read(path)?;
-    let reader =
-        FileReader::try_new(Cursor::new(bytes), None).map_err(|error| boundary(path, &error))?;
-    reader
-        .collect::<Result<Vec<_>, _>>()
-        .map_err(|error| boundary(path, &error))
+) -> Result<FileReader<Box<dyn SeekRead>>, EngineError> {
+    let stream = files.open(path)?;
+    FileReader::try_new(stream, None).map_err(|error| boundary(path, &error))
 }
 
-fn boundary(path: &Path, error: &dyn std::error::Error) -> EngineError {
+/// Returns the error of the boundary file at `path`.
+pub(crate) fn boundary(path: &Path, error: &dyn std::error::Error) -> EngineError {
     EngineError::Boundary {
         path: path.display().to_string(),
         reason: error.to_string(),

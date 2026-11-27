@@ -69,6 +69,8 @@ fn mg_req_0180_timestamps_keep_their_time_zone() {
         inputs: vec![events(naive)],
         output,
     };
+    let naive_table = "CREATE TABLE \"events\" (\"at\" TIMESTAMP)";
+    database.record_execute(naive_table, vec![], 0);
     let error = run_segment(&database, &files, &segment).unwrap_err();
     assert_eq!(error.code(), Some("MG-0101"), "{error}");
 
