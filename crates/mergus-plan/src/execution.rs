@@ -57,11 +57,7 @@ pub(crate) fn fields(
         .map(|crossing| Boundary {
             from: index(crossing.from),
             to: index(crossing.to),
-            columns: crossing
-                .columns
-                .iter()
-                .map(|column| column.name.clone())
-                .collect(),
+            columns: names(crossing),
             transport: transport(crossing, rows),
         })
         .collect();
@@ -102,6 +98,18 @@ fn transport(crossing: &Crossing, rows: Option<u64>) -> BoundaryTransport {
     } else {
         BoundaryTransport::Parquet
     }
+}
+
+/// The names of the columns of `crossing`, each once, in their output order: two steps may
+/// output columns of one name.
+fn names(crossing: &Crossing) -> Vec<String> {
+    let mut names: Vec<String> = Vec::new();
+    for column in &crossing.columns {
+        if !names.contains(&column.name) {
+            names.push(column.name.clone());
+        }
+    }
+    names
 }
 
 /// `index` as a contract integer.

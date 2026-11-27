@@ -4,7 +4,10 @@
 mod common;
 
 use common::{planned, request, step, with_steps};
-use mergus_plan::{Engine, ModelStep, segment};
+use std::collections::BTreeMap;
+
+use mergus_plan::{Engine, ModelStep, PlanModel, segment};
+use mergus_project::{Identifier, ModelOptions, Publication};
 use serde_json::{Value, json};
 
 /// `load` and `clean` on DuckDB, `score` on Polars, `publish` on DuckDB.
@@ -152,10 +155,41 @@ fn mg_req_0635_polars_level_fallback() {
 }
 
 #[test]
-fn mg_req_0747_model_without_steps_has_no_execution_fields() {
-    let step = planned_step(Vec::new(), None);
-    assert!(step.get("segments").is_none());
-    assert!(step.get("boundaries").is_none());
+fn mg_req_0631_sql_model_is_one_segment() {
+    let options = ModelOptions {
+        name: "stg_orders".to_owned(),
+        path: "models/silver/stg_orders.sql".to_owned(),
+        publication: Publication::Intermediate,
+        options: BTreeMap::new(),
+    };
+    let identifier = Identifier::parse("mdl_aaaaaaaaaaaaaaaa").unwrap();
+    let sql = PlanModel::from_project(&options, &identifier, "SELECT 1\n", &[]);
+    let plan = planned(&[sql], &request(&["stg_orders"]));
+    let step = &plan.valid().value()["steps"][0];
+    assert_eq!(
+        step["segments"],
+        json!([{"index": 0, "engine": "duckdb", "steps": ["stg_orders"]}])
+    );
+    assert_eq!(step["boundaries"], json!([]));
+}
+
+#[test]
+fn mg_req_0747_transport_counts_same_names_from_two_steps() {
+    let steps = vec![
+        step("a", Engine::Duckdb, &["x BIGINT"], &[]),
+        step("b", Engine::Duckdb, &["x BIGINT"], &[]),
+        step(
+            "c",
+            Engine::Polars,
+            &["y DOUBLE"],
+            &[("a", "x"), ("b", "x")],
+        ),
+    ];
+    // Two columns of 8 bytes cross: 16 bytes a row.
+    let at_limit = planned_step(steps.clone(), Some((1 << 30) / 16));
+    assert_eq!(at_limit["boundaries"][0]["transport"], json!("arrow"));
+    let above = planned_step(steps, Some((1 << 30) / 16 + 1));
+    assert_eq!(above["boundaries"][0]["transport"], json!("parquet"));
 }
 
 #[test]

@@ -74,7 +74,7 @@ const FUNCTIONS: [(&str, Operation); 3] = [
 /// Returns the non-deterministic operations of the SQL `text`, found on `tree`, its tree from
 /// the `SqlParser` port (`json_serialize_sql`), never on the text (MG-REQ-0637.2): a
 /// `LIMIT` modifier with no `ORDER BY` modifier at the same level, and each call of
-/// `any_value`, `random` or `now`. They are sorted by line, column and operation.
+/// `any_value`, `random` or `now`, as a function or a window function. They are sorted by line, column and operation.
 #[must_use]
 pub fn detect_sql(text: &str, tree: &Value) -> Vec<Detected> {
     let mut found = Vec::new();
@@ -92,7 +92,10 @@ fn walk(text: &str, value: &Value, found: &mut Vec<Detected>) {
             if let Some(at) = limit_without_order(node) {
                 found.push(detected(text, Operation::LimitWithoutOrder, at));
             }
-            if node.get("class").and_then(Value::as_str) == Some("FUNCTION") {
+            if matches!(
+                node.get("class").and_then(Value::as_str),
+                Some("FUNCTION" | "WINDOW")
+            ) {
                 let name = node
                     .get("function_name")
                     .and_then(Value::as_str)
@@ -108,13 +111,14 @@ fn walk(text: &str, value: &Value, found: &mut Vec<Detected>) {
     }
 }
 
-/// The location of the `LIMIT` of `node` when its modifiers hold a `LIMIT` and no `ORDER BY`
+/// The location of the `LIMIT` of `node` when its modifiers hold a `LIMIT` with a count (an
+/// `OFFSET` alone is none) and no `ORDER BY`
 /// with an order; `None` otherwise. The limit's own location, or the node's, or the start.
 fn limit_without_order(node: &Map<String, Value>) -> Option<Option<usize>> {
     let modifiers = node.get("modifiers").and_then(Value::as_array)?;
-    let limit = modifiers
-        .iter()
-        .find(|modifier| kind(modifier) == "LIMIT_MODIFIER")?;
+    let limit = modifiers.iter().find(|modifier| {
+        kind(modifier) == "LIMIT_MODIFIER" && modifier.get("limit").is_some_and(|l| !l.is_null())
+    })?;
     let ordered = modifiers.iter().any(|modifier| {
         kind(modifier) == "ORDER_MODIFIER"
             && modifier
@@ -128,10 +132,10 @@ fn limit_without_order(node: &Map<String, Value>) -> Option<Option<usize>> {
     let at = limit
         .as_object()
         .and_then(|limit| {
-            ["limit", "offset"]
-                .iter()
-                .filter_map(|key| limit.get(*key).and_then(Value::as_object))
-                .find_map(location)
+            limit
+                .get("limit")
+                .and_then(Value::as_object)
+                .and_then(location)
         })
         .or_else(|| location(node));
     Some(at)

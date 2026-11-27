@@ -25,7 +25,8 @@ Functions: `plan`, `segment`, `type_passport`, `detect_sql`, `determinism`, `fin
 
 1. The caller reads the project with `mergus-project` (`read_layout`, `read_model_options`,
    `Identifiers`, `read_sql_references`) and builds one `PlanModel` per model with
-   `PlanModel::from_project`; a Python model has no input in 0.2.
+   `PlanModel::from_project`; a Python model has no input in 0.2. A `.sql` model gets one
+   DuckDB step named like the model (MG-REQ-0631.2).
 2. `plan` orders every model after the models it reads (depth first, in name order) and
    computes each fingerprint in that order, so an upstream fingerprint is known before it is
    used. A raw input takes the version the caller gives, or `null`.
@@ -59,7 +60,8 @@ caller: `type_passport` reads each crossing from a DuckDB segment to a Polars se
 `determinism` compares the `Detected` operations of each step of a published model with its
 `nondeterministic` option. `detect_sql` walks the `json_serialize_sql` tree: a node with
 `modifiers` holding a `LIMIT_MODIFIER` and no `ORDER_MODIFIER` with an order, and every
-`FUNCTION` node named `any_value`, `random` or `now` in any case.
+`FUNCTION` or `WINDOW` node named `any_value`, `random` or `now` in any case. A `LIMIT_MODIFIER`
+whose `limit` is `null` (an `OFFSET` alone) is not a limit.
 
 Only `BTreeMap` and `BTreeSet` are used, so no output depends on hash order (MG-REQ-0005).
 

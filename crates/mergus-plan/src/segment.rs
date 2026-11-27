@@ -77,7 +77,8 @@ pub struct Crossing {
     pub from: usize,
     /// The index of the segment the data enters.
     pub to: usize,
-    /// The columns the entering segment uses, each once, in their output order.
+    /// The columns the entering segment uses, each `(step, column)` once, in their output
+    /// order.
     pub columns: Vec<CrossingColumn>,
 }
 
@@ -149,14 +150,17 @@ fn crossings(steps: &[ModelStep], segment_of: &BTreeMap<&str, usize>) -> Vec<Cro
         .collect()
 }
 
-/// The columns of `reads` that their steps output, each name once, in the output order of
-/// the steps.
+/// The columns of `reads` that their steps output, keyed by step and column, in the output
+/// order of the steps.
 fn in_output_order(steps: &[ModelStep], reads: &BTreeSet<(&str, &str)>) -> Vec<CrossingColumn> {
     let mut columns: Vec<CrossingColumn> = Vec::new();
     for step in steps {
         for column in &step.columns {
             let read = reads.contains(&(step.name.as_str(), column.name.as_str()));
-            if read && columns.iter().all(|seen| seen.name != column.name) {
+            let seen = columns
+                .iter()
+                .any(|seen| seen.step == step.name && seen.name == column.name);
+            if read && !seen {
                 columns.push(CrossingColumn {
                     step: step.name.clone(),
                     name: column.name.clone(),

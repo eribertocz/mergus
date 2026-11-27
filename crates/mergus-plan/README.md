@@ -32,9 +32,11 @@ Resolve, order and fingerprint the work; produce the plan.
 
 - Fuses consecutive steps of one engine of a model into one segment, numbered from 0 in
   execution order, and writes them as the step's `segments` (MG-REQ-0631, MG-REQ-0747.1). A
-  model the caller gives no steps for has no `segments` and no `boundaries`.
+  `.sql` model is one DuckDB step named like the model, so one segment (MG-REQ-0631.2); a
+  Python model gets its steps from the caller.
 - Writes, for each pair of segments, a boundary with the columns the later one reads from the
-  earlier one, and only those, in their output order (MG-REQ-0632). It crosses as `arrow` when
+  earlier one, and only those, in their output order (MG-REQ-0632). Columns are told apart
+  by step and name, so the passport and the transport width count each one. It crosses as `arrow` when
   the estimated rows the caller gives times the width of its columns is at most 1 GiB, as
   `parquet` above that or with no estimate; `VARCHAR`, `BLOB`, nested, `ENUM` and unknown
   types count 64 bytes (MG-REQ-0633).
@@ -47,7 +49,8 @@ Resolve, order and fingerprint the work; produce the plan.
   `INTERVAL`, a `DECIMAL` of more than 38 digits, an unknown type, or a list, struct or map
   holding one (MG-REQ-0634).
 - `detect_sql` finds, on the tree of the `SqlParser` port, each `LIMIT` with no `ORDER BY` in
-  the same `SELECT` and each call of `any_value`, `random` or `now`; `determinism` returns an
+  the same `SELECT` (an `OFFSET` alone is none) and each call of `any_value`, `random` or
+  `now`, window calls included; `determinism` returns an
   `MG-0703` error of the `Determinism` gate for each one a published model does not declare
   in `nondeterministic` (MG-REQ-0637). The caller gives both gates' errors to `evaluate`.
 

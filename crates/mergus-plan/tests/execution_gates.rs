@@ -107,7 +107,7 @@ fn mg_req_0634_lossless_boundaries_pass() {
 
 /// The SQL fixtures of `sql/`: each text and its tree, recorded from `json_serialize_sql` of
 /// the bundled DuckDB through the real `SqlParser` port.
-const FIXTURES: [(&str, &str, &str); 3] = [
+const FIXTURES: [(&str, &str, &str); 5] = [
     (
         "nondeterministic",
         include_str!("sql/nondeterministic.sql"),
@@ -117,6 +117,16 @@ const FIXTURES: [(&str, &str, &str); 3] = [
         "declared",
         include_str!("sql/declared.sql"),
         include_str!("sql/declared.json"),
+    ),
+    (
+        "window",
+        include_str!("sql/window.sql"),
+        include_str!("sql/window.json"),
+    ),
+    (
+        "offset",
+        include_str!("sql/offset.sql"),
+        include_str!("sql/offset.json"),
     ),
     (
         "deterministic",
@@ -203,4 +213,35 @@ fn mg_req_0637_declared_or_unpublished_passes() {
     let mut intermediate = published(found, &[]);
     intermediate.published = false;
     assert!(determinism(&[intermediate]).is_empty());
+}
+
+#[test]
+fn mg_req_0637_window_calls_flagged() {
+    assert_eq!(detected("window"), vec![(Operation::AnyValue, 1, 12)]);
+}
+
+#[test]
+fn mg_req_0637_offset_without_limit_not_flagged() {
+    assert!(detected("offset").is_empty());
+}
+
+#[test]
+fn mg_req_0634_same_name_from_two_steps_both_checked() {
+    let model = with_steps(
+        "stg_orders",
+        vec![
+            step("a", Engine::Duckdb, &["x BIGINT"], &[]),
+            step("b", Engine::Duckdb, &["x HUGEINT"], &[]),
+            step(
+                "score",
+                Engine::Polars,
+                &["y DOUBLE"],
+                &[("a", "x"), ("b", "x")],
+            ),
+        ],
+    );
+    let errors = type_passport(&[model]);
+    assert_eq!(errors.len(), 1);
+    assert_eq!(errors[0].step.as_deref(), Some("b"));
+    assert!(errors[0].message.contains("`x` of type `HUGEINT`"));
 }
