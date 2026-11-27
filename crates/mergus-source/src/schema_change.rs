@@ -8,6 +8,7 @@ use arrow::record_batch::RecordBatch;
 use mergus_ports::PortError;
 
 use crate::engine::AttachedSource;
+use crate::read::quote_identifier;
 use crate::table::DeclaredTable;
 
 /// A column of a source table, with its type as DuckDB names it.
@@ -148,9 +149,4 @@ fn text_column(batch: &RecordBatch, name: &str) -> Result<Vec<String>, PortError
         .into_iter()
         .map(|value| value.map(str::to_owned).ok_or_else(missing))
         .collect()
-}
-
-/// Quotes `identifier` for DuckDB: in double quotes, with each double quote doubled.
-fn quote_identifier(identifier: &str) -> String {
-    format!("\"{}\"", identifier.replace('"', "\"\""))
 }

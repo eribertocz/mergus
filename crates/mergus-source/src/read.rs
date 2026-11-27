@@ -288,6 +288,6 @@ fn as_text(column: &dyn Array, row: usize) -> Result<SqlValue, PortError> {
 }
 
 /// Quotes `identifier` for DuckDB: in double quotes, with each double quote doubled.
-fn quote_identifier(identifier: &str) -> String {
+pub(crate) fn quote_identifier(identifier: &str) -> String {
     format!("\"{}\"", identifier.replace('"', "\"\""))
 }
