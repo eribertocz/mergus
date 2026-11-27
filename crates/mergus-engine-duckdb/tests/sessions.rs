@@ -210,8 +210,14 @@ fn mg_req_0633_stale_scratch_that_cannot_be_removed_fails_first() {
         locations: Mutex::new(Vec::new()),
     };
     let error = run_segment(&database, &files, &segment()).unwrap_err();
+    // The engine names the scratch file after the output file, next to it.
+    let output = segment().output.boundary.path;
+    let shown = output
+        .with_file_name("a.parquet.duckdb")
+        .display()
+        .to_string();
     assert!(
-        matches!(&error, EngineError::Boundary { path, .. } if path == "/zone/work/a.parquet.duckdb"),
+        matches!(&error, EngineError::Scratch { path, .. } if *path == shown),
         "{error}"
     );
     // The step ran in its own session; the scratch session never opened.

@@ -10,7 +10,7 @@
 | `Transport`, `MEMORY_BUDGET` | Arrow in shared memory or Parquet in the work zone (MG-REQ-0633) |
 | `run_segment` | Runs one segment in a new DuckDB session |
 | `table_hash` | The hash of a table, independent of row order (MG-REQ-0638) |
-| `EngineError` | `Unrepresentable` (`MG-0101`), `ZoneExtensionLoaded` (`MG-0102`), `Boundary`, `Hash` or a `PortError` |
+| `EngineError` | `Unrepresentable` (`MG-0101`), `ZoneExtensionLoaded` (`MG-0102`), `Boundary`, `Scratch`, `Hash` or a `PortError` |
 
 ## Data flow
 

@@ -8,7 +8,7 @@ use mergus_ports::{Database, DatabaseConnection, DatabaseLocation, FileSystem, P
 
 use crate::exact::{Zones, conform, nullable};
 use crate::segment::{create_table, path_value, quote_identifier};
-use crate::transport::{ArrowSink, boundary};
+use crate::transport::ArrowSink;
 use crate::{EngineError, Segment};
 
 /// The table of the output session a Parquet output is gathered in before it is written.
@@ -132,7 +132,7 @@ fn gather_and_copy(
 /// Removes the DuckDB file `path`, its write-ahead log `<path>.wal` and its spill directory
 /// `<path>.tmp`, those that exist.
 ///
-/// Fails with [`EngineError::Boundary`] when one exists and cannot be removed, so that a stale
+/// Fails with [`EngineError::Scratch`] when one exists and cannot be removed, so that a stale
 /// or locked scratch file is reported as itself.
 fn remove(files: &dyn FileSystem, path: &Path) -> Result<(), EngineError> {
     let with = |suffix: &str| {
@@ -140,7 +140,10 @@ fn remove(files: &dyn FileSystem, path: &Path) -> Result<(), EngineError> {
         name.push(suffix);
         PathBuf::from(name)
     };
-    let fail = |file: &Path, error: PortError| boundary(file, &error);
+    let fail = |file: &Path, error: PortError| EngineError::Scratch {
+        path: file.display().to_string(),
+        reason: error.to_string(),
+    };
     for file in [path.to_path_buf(), with(".wal")] {
         if files.exists(&file).map_err(|error| fail(&file, error))? {
             files

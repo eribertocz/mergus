@@ -35,6 +35,15 @@ pub enum EngineError {
         /// What went wrong.
         reason: String,
     },
+    /// A scratch database of a Parquet output, its write-ahead log or its spill directory
+    /// exists and cannot be removed, for example because another process holds it.
+    #[error("the scratch database `{path}` cannot be removed: {reason}")]
+    Scratch {
+        /// The file or directory.
+        path: String,
+        /// What went wrong.
+        reason: String,
+    },
     /// A value of a table cannot be displayed for its hash (MG-REQ-0638).
     #[error("a value cannot be displayed for the table hash: {reason}")]
     Hash {
@@ -55,7 +64,9 @@ impl EngineError {
         match self {
             Self::Unrepresentable { .. } => Some("MG-0101"),
             Self::ZoneExtensionLoaded => Some("MG-0102"),
-            Self::Boundary { .. } | Self::Hash { .. } | Self::Port(_) => None,
+            Self::Boundary { .. } | Self::Scratch { .. } | Self::Hash { .. } | Self::Port(_) => {
+                None
+            }
         }
     }
 }
