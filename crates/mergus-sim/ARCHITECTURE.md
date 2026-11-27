@@ -11,7 +11,7 @@
 | `SimNetwork`, `NetworkFaults`, `TcpHandler` | HTTP routes and TCP peers set by the test |
 | `SimSourceConnector`, `SourceFaults` | Sources of batches, with a changed version |
 | `SimRandom` | Seeded random numbers |
-| `SimProcess` | Programs answer with outputs set by the test |
+| `SimProcess` | Programs answer with outputs set by the test; `runs` returns every command run |
 | `SimEnvironment` | Arguments, current directory, variables, a configuration and a cache directory set by the test |
 | `SimDatabase`, `DatabaseFaults` | Results and extension versions recorded with the real `Database`; the statements run, appended batches and attached catalogs, encrypted or not; catalogs recorded unencrypted; errors |
 | `SimKeychain` | Keychain entries in memory, by service and account, set by the test |
