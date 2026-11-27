@@ -77,7 +77,7 @@ fn plans_and_executes(
     assert_eq!(read(&dir.join("rows_seen")), "2");
 }
 
-/// An exception, and a return value that is not a LazyFrame, are `MG-0611`.
+/// An exception, and a return value that is not a LazyFrame, are `MG-0618`.
 #[cfg(test)]
 fn failures_are_typed(
     python: &RealPython,
@@ -88,7 +88,7 @@ fn failures_are_typed(
 ) {
     let fails = step(root, "sales", "fails");
     let error = plan_step(python, &RealFileSystem, &fails, parameters, work).unwrap_err();
-    assert_eq!(error.code(), Some("MG-0611"));
+    assert_eq!(error.code(), Some("MG-0618"));
     assert!(
         matches!(
             &error,
@@ -100,7 +100,7 @@ fn failures_are_typed(
     );
     let not_lazy = step(root, "sales", "not_lazy");
     let error = execute_step(python, &RealFileSystem, &not_lazy, inputs, work).unwrap_err();
-    assert_eq!(error.code(), Some("MG-0611"));
+    assert_eq!(error.code(), Some("MG-0618"));
     assert!(
         matches!(
             &error,
@@ -111,7 +111,7 @@ fn failures_are_typed(
     );
 }
 
-/// A child that cannot import `polars` is `MG-0612`, with its fix.
+/// A child that cannot import `polars` is `MG-0620`, with its fix.
 #[cfg(test)]
 fn missing_polars_is_typed(
     python: &RealPython,
@@ -125,7 +125,7 @@ fn missing_polars_is_typed(
     );
     let in_usd = step(root, "sales", "in_usd");
     let error = plan_step(python, &RealFileSystem, &in_usd, parameters, work).unwrap_err();
-    assert_eq!(error.code(), Some("MG-0612"));
+    assert_eq!(error.code(), Some("MG-0620"));
     assert!(
         matches!(&error, PolarsError::PolarsMissing { message, .. } if message == "no polars here"),
         "{error:?}"
