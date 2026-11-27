@@ -91,7 +91,7 @@ fn mg_req_0657_model_without_partition_rejected() {
     );
     let errors = refresh_errors(plan(&[by_key], &request).unwrap_err());
     assert_eq!(errors.len(), 1);
-    assert_eq!(errors[0].code(), "MG-0706");
+    assert_eq!(errors[0].code(), "MG-0606");
     assert_eq!(
         errors[0].to_string(),
         "model `fact_sales` cannot be backfilled: it has no `partition_by`; give it \
@@ -137,7 +137,7 @@ fn mg_req_0657_full_and_history_backfilled_whole() {
     );
     let errors = refresh_errors(plan(std::slice::from_ref(&history), &request).unwrap_err());
     assert_eq!(errors.len(), 1);
-    assert_eq!(errors[0].code(), "MG-0706");
+    assert_eq!(errors[0].code(), "MG-0606");
     assert_eq!(
         errors[0].to_string(),
         "history model `fact_sales` cannot be backfilled without confirming the rebuild of its \
@@ -186,7 +186,7 @@ fn mg_req_0661_history_requires_key_and_by() {
 
     let bare = configured("dim_customer", &[], &[("refresh", json!("history"))]);
     let error = refresh_errors(refresh(&bare).unwrap_err()).remove(0);
-    assert_eq!(error.code(), "MG-0705");
+    assert_eq!(error.code(), "MG-0605");
     assert_eq!(
         error.to_string(),
         "history model `dim_customer` does not declare `key` and `by`; declare the business \
@@ -197,5 +197,5 @@ fn mg_req_0661_history_requires_key_and_by() {
         configured("fact_sales", &[], &[("refresh", json!("incremental"))]),
     ]));
     let codes: Vec<&str> = errors.iter().map(RefreshError::code).collect();
-    assert_eq!(codes, ["MG-0705", "MG-0704"]);
+    assert_eq!(codes, ["MG-0605", "MG-0604"]);
 }

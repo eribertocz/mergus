@@ -182,7 +182,7 @@ fn mg_req_0653_incremental_merge_by_key() {
 fn mg_req_0654_incremental_needs_partition_or_key() {
     let neither = configured("fact_sales", &[], &[("refresh", json!("incremental"))]);
     let error = refresh_errors(refresh(&neither).unwrap_err()).remove(0);
-    assert_eq!(error.code(), "MG-0704");
+    assert_eq!(error.code(), "MG-0604");
     assert_eq!(
         error.to_string(),
         "model `fact_sales` has `refresh = \"incremental\"` but neither `partition_by` nor \
@@ -191,7 +191,7 @@ fn mg_req_0654_incremental_needs_partition_or_key() {
     );
     let errors = refresh_errors(plan(&[neither], &request(&["fact_sales"])).unwrap_err());
     assert_eq!(errors.len(), 1);
-    assert_eq!(errors[0].code(), "MG-0704");
+    assert_eq!(errors[0].code(), "MG-0604");
 
     let both = configured(
         "fact_sales",

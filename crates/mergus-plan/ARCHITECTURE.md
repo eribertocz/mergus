@@ -21,7 +21,7 @@
 | `Storage` | Where a result is stored: published, internal (a materialized intermediate) or not stored |
 | `Instant`, `Range`, `Grain` | A UTC instant to the second, a half-open range of them, and the grain of a period |
 | `Backfill` | The `--from` and `--to` (or run start) of a backfill |
-| `RefreshError` | A refresh error a user sees, with its `MG-07xx` code |
+| `RefreshError` | A refresh error a user sees, with its `MG-06xx` code |
 | `PlanError` | Refresh errors, or an internal error: an unknown selected model, a cycle, a broken contract, a bad stage-4 input, a bad option value, a bad backfill |
 
 Functions: `plan`, `refresh`, `storage`, `segment`, `type_passport`, `detect_sql`, `determinism`, `fingerprint`, `effective_config`, `lf_text` and `evaluate`.

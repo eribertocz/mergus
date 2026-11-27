@@ -74,7 +74,7 @@ pub enum PlanError {
     Emit(#[from] EmitError),
 }
 
-/// Why the refresh of a model cannot be planned. Each error has its `MG-07xx` code
+/// Why the refresh of a model cannot be planned. Each error has its `MG-06xx` code
 /// (MG-REQ-0008) and exit code 1 (MG-REQ-0654.1).
 #[derive(Clone, Debug, Error, PartialEq, Eq)]
 #[non_exhaustive]
@@ -125,10 +125,10 @@ impl RefreshError {
     #[must_use]
     pub fn code(&self) -> &'static str {
         match self {
-            Self::IncrementalWithoutPeriodOrKey { .. } => "MG-0704",
-            Self::HistoryWithout { .. } => "MG-0705",
+            Self::IncrementalWithoutPeriodOrKey { .. } => "MG-0604",
+            Self::HistoryWithout { .. } => "MG-0605",
             Self::BackfillWithoutPartition { .. } | Self::BackfillWithoutRebuild { .. } => {
-                "MG-0706"
+                "MG-0606"
             }
         }
     }
