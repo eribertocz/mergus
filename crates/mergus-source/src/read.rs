@@ -56,6 +56,9 @@ pub struct TableExtraction {
 /// the order of their names, each with the options `options` gives for it. A `connect` or
 /// `live` source returns no table and reads nothing (MG-REQ-0405).
 ///
+/// It checks no breaking change (MG-REQ-0407) and records no read time (MG-REQ-0419): a run
+/// MUST extract with [`extract_source_timed`](crate::extract_source_timed), which does both.
+///
 /// # Errors
 ///
 /// Fails with the first [`PortError`] of a read.

@@ -56,7 +56,7 @@ impl SourceExtraction {
 /// names, each with the options `options` gives for it. Before a table is read its columns
 /// are compared with `last_columns`, those of its last load; a breaking change stops that
 /// table only, and nothing of it is read (MG-REQ-0407). The start and the end of each read
-/// are taken from `clock` (MG-REQ-0419).
+/// are taken from `clock`, the start before the `DESCRIBE` of the table (MG-REQ-0419.1).
 ///
 /// # Errors
 ///
@@ -73,6 +73,8 @@ pub fn extract_source_timed(
         stopped: Vec::new(),
     };
     for table in copied_tables(source) {
+        // The read starts with its first statement, the `DESCRIBE` (MG-REQ-0419.1).
+        let started = clock.now();
         let columns = source_columns(attached, &table)?;
         let changes = breaking_changes(&last_columns(&table), &columns);
         if !changes.is_empty() {
@@ -84,7 +86,6 @@ pub fn extract_source_timed(
             continue;
         }
         let table_options = options(&table);
-        let started = clock.now();
         let chunks = read_table(attached, &table, &table_options).collect::<Result<Vec<_>, _>>()?;
         let finished = clock.now();
         extraction.reads.push(TableRead {

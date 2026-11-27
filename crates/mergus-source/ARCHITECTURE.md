@@ -78,11 +78,13 @@
    `ColumnChange`; an added column is not one, nor is anything at a first load (empty last
    columns). A table with changes becomes a `SchemaChange` and is not read; the other
    tables go on (MG-REQ-0407).
-3. The wall clock of the `Clock` port is read just before the first data statement of a
-   table and just after its last one (MG-REQ-0419.1). `spread` is the latest end minus the
+3. The wall clock of the `Clock` port is read just before the first statement of a table,
+   its `DESCRIBE`, and just after its last one (MG-REQ-0419.1). `spread` is the latest end minus the
    earliest start, zero if the wall clock went backwards (MG-REQ-0419.2). No official DuckDB
    page documents a snapshot shared by several attached PostgreSQL tables, so every source
    records times (MG-REQ-0419.3).
+4. `extract_source` reads the same tables without the check and the times; a run extracts
+   with `extract_source_timed`.
 
 ## Dependencies
 

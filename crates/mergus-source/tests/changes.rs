@@ -233,16 +233,35 @@ fn mg_req_0407_changes_since_last_load() {
     );
 }
 
-/// A database whose `customers` is unchanged and whose `amount` of `sales` became `VARCHAR`.
+/// A database where `customers` gained a column, and where in `sales` the column `amount`
+/// became `VARCHAR` and the column `note` was dropped.
 fn changed_sales() -> SimDatabase {
     let database = sim();
-    let customers = described(&[("customer_id", "BIGINT")]);
+    // `region` is added to `customers`, which is not breaking (MG-REQ-0407.3).
+    let customers = described(&[("customer_id", "BIGINT"), ("region", "VARCHAR")]);
     database.record_query(DESCRIBE_CUSTOMERS, Vec::new(), customers);
     database.record_query(READ_CUSTOMERS, Vec::new(), ids(&[1]));
     let sales = described(&[("sale_id", "BIGINT"), ("amount", "VARCHAR")]);
     database.record_query(DESCRIBE_SALES, Vec::new(), sales);
     database.record_query(READ_SALES, Vec::new(), ids(&[1]));
     database
+}
+
+/// The breaking changes of `sales` in [`changed_sales`]: a type change (MG-REQ-0407.1) and a
+/// dropped column, with no new type (MG-REQ-0407.2).
+fn sales_changes() -> [ColumnChange; 2] {
+    [
+        ColumnChange {
+            column: "amount".to_owned(),
+            old_type: "DECIMAL(10,2)".to_owned(),
+            new_type: Some("VARCHAR".to_owned()),
+        },
+        ColumnChange {
+            column: "note".to_owned(),
+            old_type: "VARCHAR".to_owned(),
+            new_type: None,
+        },
+    ]
 }
 
 #[test]
@@ -260,6 +279,7 @@ fn mg_req_0407_breaking_source_change_stops_table() {
     let last = [
         column("sale_id", "BIGINT"),
         column("amount", "DECIMAL(10,2)"),
+        column("note", "VARCHAR"),
     ];
     let source = source(None, &json!({ "customers": {}, "sales": {} }));
     let clock = clock();
@@ -270,7 +290,7 @@ fn mg_req_0407_breaking_source_change_stops_table() {
     };
     let extraction =
         extract_source_timed(&mut attached, &source, &whole, &last_columns, &*clock).unwrap();
-    // `customers` loads; `sales` stops before any of its data is read.
+    // `customers`, with an added column, loads; `sales` stops before any of its data is read.
     let read: Vec<&str> = extraction
         .reads
         .iter()
@@ -283,21 +303,13 @@ fn mg_req_0407_breaking_source_change_stops_table() {
     assert_eq!(stopped.code(), "MG-0405");
     assert_eq!(stopped.source_name, "erp");
     assert_eq!(stopped.table, "sales");
-    assert_eq!(
-        stopped.changes,
-        [ColumnChange {
-            column: "amount".to_owned(),
-            old_type: "DECIMAL(10,2)".to_owned(),
-            new_type: Some("VARCHAR".to_owned()),
-        }]
-    );
+    assert_eq!(stopped.changes, sales_changes());
     let message = stopped.to_string();
     let parts = [
         "`erp`",
         "`sales`",
-        "`amount`",
-        "`DECIMAL(10,2)`",
-        "`VARCHAR`",
+        "column `amount` changed type from `DECIMAL(10,2)` to `VARCHAR`",
+        "column `note` (`VARCHAR`) was dropped or renamed",
     ];
     assert!(parts.iter().all(|part| message.contains(part)), "{message}");
     assert!(!queries.lock().unwrap().iter().any(|sql| sql == READ_SALES));
@@ -321,7 +333,8 @@ fn mg_req_0419_tables_share_one_snapshot() {
     let extraction =
         extract_source_timed(&mut attached, &source, &whole, &|_| Vec::new(), &*clock).unwrap();
     let second = 1_000_000_000;
-    // Each query moves the clock one second: describe, read, describe, read.
+    // Each query moves the clock one second: describe, read, describe, read. A read starts
+    // before its `DESCRIBE` (MG-REQ-0419.1).
     let times: Vec<(i128, i128)> = extraction
         .reads
         .iter()
@@ -332,9 +345,9 @@ fn mg_req_0419_tables_share_one_snapshot() {
             )
         })
         .collect();
-    assert_eq!(times, [(second, 2 * second), (3 * second, 4 * second)]);
+    assert_eq!(times, [(0, 2 * second), (2 * second, 4 * second)]);
     assert_eq!(extraction.reads[1].columns, [column("sale_id", "BIGINT")]);
-    assert_eq!(extraction.spread(), Some(Duration::from_secs(3)));
+    assert_eq!(extraction.spread(), Some(Duration::from_secs(4)));
     assert!(clock.now().unix_nanos() > START);
 
     let empty = extract_source_timed(
