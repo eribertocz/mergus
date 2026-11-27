@@ -74,8 +74,7 @@ fn kind(returned: &PythonReturn, tree: &PythonTree) -> Result<Kind, &'static str
         PythonReturned::None => Err("`None`"),
         PythonReturned::Expression { node } => match node.as_str() {
             "JoinedStr" => Err("an f-string"),
-            // The tree does not say which operator: every binary operation is rejected (#289).
-            "BinOp" => Err("a `+` or `%` expression"),
+            "BinOp" => Err("a binary operation"),
             "Name" => Err("a bare variable"),
             "Call" if formats_a_literal(returned.line, tree) => {
                 Err("`.format(...)` of a string literal")

@@ -51,8 +51,8 @@ fn assert_invalid_returns() {
         summary(&problems("returns")),
         [
             invalid(15, "fstring", "an f-string"),
-            invalid(19, "concat", "a `+` or `%` expression"),
-            invalid(23, "percent", "a `+` or `%` expression"),
+            invalid(19, "concat", "a binary operation"),
+            invalid(23, "percent", "a binary operation"),
             invalid(28, "bare", "a bare variable"),
             invalid(32, "formatted", "`.format(...)` of a string literal"),
             invalid(36, "nothing", "`None`"),

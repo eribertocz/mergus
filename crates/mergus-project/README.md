@@ -45,7 +45,7 @@ Read and validate the project: files, `project.toml`, folder `mergus.toml`.
 - Reads each `.py` model through the `Python` port, parsed and never imported (MG-REQ-0611).
   Its public top-level functions are its steps, in file order; a public `async def` is
   `MG-0618` (MG-REQ-0612). A step that returns a string literal is DuckDB, any other
-  expression Polars; an f-string, a binary operation, a bare variable, `.format(...)` of a
+  expression Polars; an f-string, any binary operation, a bare variable, `.format(...)` of a
   literal, `None`, no `return` or both kinds is `MG-0619` (MG-REQ-0613). Each parameter reads
   a step of the file, a model, then a raw table or seed: an unresolved one is `MG-0620` with
   the closest name within 3 edits, `*args` or `**kwargs` `MG-0621`, a cycle of steps `MG-0622`
@@ -62,6 +62,5 @@ Read and validate the project: files, `project.toml`, folder `mergus.toml`.
 - It performs no I/O itself: it calls the port only (MG-REQ-0004).
 - It checks no key of `sources/*.toml` yet (MG-REQ-0362.3), and does not know `pii`, `by`,
   `deletes` nor `inputs` yet (MG-REQ-0366).
-- It does not run Python models, and does not detect parameters with default values yet
-  (#289).
+- It does not run Python models. A parameter's default value is allowed and never used.
 - It does not load seeds, nor compute fingerprints: it gives their inputs to the caller.
