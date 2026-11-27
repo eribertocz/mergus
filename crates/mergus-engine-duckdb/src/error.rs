@@ -1,0 +1,52 @@
+//! The failures of a segment.
+
+use mergus_ports::PortError;
+
+/// Why a segment did not run to its end.
+#[derive(Debug, thiserror::Error)]
+#[non_exhaustive]
+pub enum EngineError {
+    /// A value, or a column, of an input cannot be represented exactly in the type its schema
+    /// declares: a DECIMAL overflow, a HUGEINT beyond BIGINT, a lost digit, a changed time
+    /// zone, or an Arrow type DuckDB has no exact type for (MG-REQ-0180). The step failed
+    /// before its SQL ran; nothing was rounded, truncated or cast.
+    #[error("input `{input}`, column `{column}`: {reason}")]
+    Unrepresentable {
+        /// The input, as the segment's SQL names it.
+        input: String,
+        /// The column.
+        column: String,
+        /// What cannot be represented, and in which type.
+        reason: String,
+    },
+    /// A boundary file cannot be encoded or decoded as Arrow IPC.
+    #[error("the boundary `{path}` is not a readable Arrow IPC file: {reason}")]
+    Boundary {
+        /// The file, in the run's work directory.
+        path: String,
+        /// What went wrong.
+        reason: String,
+    },
+    /// A value of a table cannot be displayed for its hash (MG-REQ-0638).
+    #[error("a value cannot be displayed for the table hash: {reason}")]
+    Hash {
+        /// What went wrong.
+        reason: String,
+    },
+    /// DuckDB or the file system failed.
+    #[error(transparent)]
+    Port(#[from] PortError),
+}
+
+impl EngineError {
+    /// Returns the `MG-####` code of the error (MG-REQ-0008); `None` for a port failure,
+    /// which the caller reports with the code of its port error, and for a boundary the run
+    /// itself wrote or read.
+    #[must_use]
+    pub fn code(&self) -> Option<&'static str> {
+        match self {
+            Self::Unrepresentable { .. } => Some("MG-0101"),
+            Self::Boundary { .. } | Self::Hash { .. } | Self::Port(_) => None,
+        }
+    }
+}

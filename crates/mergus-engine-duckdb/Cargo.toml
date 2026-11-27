@@ -1,0 +1,22 @@
+[package]
+name = "mergus-engine-duckdb"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+description = "Execute DuckDB steps."
+
+[dependencies]
+# `ipc` writes and reads the Arrow IPC files of shared-memory boundaries (MG-REQ-0633).
+arrow = { version = "60.2.0", default-features = false, features = ["ipc"] }
+mergus-contracts = { path = "../mergus-contracts" }
+mergus-ports = { path = "../mergus-ports" }
+serde_json = { version = "1.0.154", features = ["float_roundtrip"] }
+thiserror = "2.0.21"
+
+[lints]
+workspace = true
+
+[dev-dependencies]
+mergus-sim = { path = "../mergus-sim" }
