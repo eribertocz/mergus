@@ -7,7 +7,7 @@ use arrow::array::{ArrayRef, Int64Array, StringArray};
 use arrow::datatypes::{DataType, Field, Schema};
 use arrow::record_batch::RecordBatch;
 use mergus_engine_duckdb::{
-    Boundary, EngineError, Segment, Table, Transport, run_segment, table_hash,
+    AS_OF, Boundary, EngineError, Segment, Table, Transport, run_segment, table_hash,
 };
 use mergus_ports::{
     Database, DatabaseConnection, DatabaseLocation, FileSystem, PortError, SqlValue,
@@ -43,6 +43,7 @@ fn describe(columns: &[(&str, &str)]) -> Vec<RecordBatch> {
 #[cfg(test)]
 fn database() -> SimDatabase {
     let database = SimDatabase::new(7, DatabaseFaults::default());
+    database.record_execute(AS_OF, vec![], 0);
     database.record_query(LOADED_ICU, vec![SqlValue::Text("icu".to_owned())], vec![]);
     for text in MACROS {
         database.record_execute(text, vec![], 0);
@@ -118,7 +119,7 @@ fn mg_req_0643_macros_loaded_in_each_session() {
         *database.locations.lock().unwrap(),
         [expected.clone(), expected].concat()
     );
-    let session = [MACROS[0], MACROS[1], CREATE_OUTPUT, COPY];
+    let session = [AS_OF, MACROS[0], MACROS[1], CREATE_OUTPUT, COPY];
     let expected: Vec<String> = session
         .iter()
         .chain(session.iter())

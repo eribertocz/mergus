@@ -50,6 +50,25 @@ pub enum EngineError {
         /// What went wrong.
         reason: String,
     },
+    /// A full rebuild would drop or rewrite the history table `table`, and the command does
+    /// not carry `--rebuild-history` with its confirmation (MG-REQ-0665). The table is kept.
+    #[error(
+        "the history table `{table}` is not rebuilt without `--rebuild-history` and a confirmation"
+    )]
+    HistoryRebuild {
+        /// The history table.
+        table: String,
+    },
+    /// The input of the history table `table` is not a changes view and has the key `key`
+    /// more than once, so its rows have no order to be applied in (MG-REQ-0662). The history
+    /// table is unchanged.
+    #[error("the input of the history table `{table}` has the key `{key}` more than once")]
+    HistoryRepeatedKey {
+        /// The history table.
+        table: String,
+        /// The repeated key, as text.
+        key: String,
+    },
     /// DuckDB or the file system failed.
     #[error(transparent)]
     Port(#[from] PortError),
@@ -64,6 +83,8 @@ impl EngineError {
         match self {
             Self::Unrepresentable { .. } => Some("MG-0101"),
             Self::ZoneExtensionLoaded => Some("MG-0102"),
+            Self::HistoryRebuild { .. } => Some("MG-0604"),
+            Self::HistoryRepeatedKey { .. } => Some("MG-0605"),
             Self::Boundary { .. } | Self::Scratch { .. } | Self::Hash { .. } | Self::Port(_) => {
                 None
             }

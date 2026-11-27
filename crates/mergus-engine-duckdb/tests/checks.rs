@@ -9,7 +9,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use arrow::array::{Array, ArrayRef, Int32Array, Int64Array, StringArray};
 use arrow::datatypes::{DataType, Field, Schema, SchemaRef};
 use arrow::record_batch::RecordBatch;
-use mergus_engine_duckdb::{Boundary, EngineError, Segment, Table, Transport, run_segment};
+use mergus_engine_duckdb::{AS_OF, Boundary, EngineError, Segment, Table, Transport, run_segment};
 use mergus_ports::{
     Database, DatabaseConnection, DatabaseLocation, Extension, FileSystem, LoadedExtension,
     PortError, SeekRead, SqlValue,
@@ -66,6 +66,7 @@ fn arrow_output() -> Table {
 #[cfg(test)]
 fn database(icu: bool, described: &str) -> SimDatabase {
     let database = SimDatabase::new(7, DatabaseFaults::default());
+    database.record_execute(AS_OF, vec![], 0);
     let name: ArrayRef = Arc::new(StringArray::from(vec!["icu"]));
     let loaded = RecordBatch::try_from_iter([("extension_name", name)]).unwrap();
     let answer = if icu { vec![loaded] } else { vec![] };

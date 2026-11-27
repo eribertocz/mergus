@@ -9,15 +9,19 @@
 | `Boundary` | A boundary file and its `Transport` |
 | `Transport`, `MEMORY_BUDGET` | Arrow in shared memory or Parquet in the work zone (MG-REQ-0633) |
 | `run_segment` | Runs one segment in a new DuckDB session |
+| `AS_OF` | The built-in table macro `as_of(table, ts)`, executed in every segment session (MG-REQ-0666) |
+| `History`, `HistoryInput`, `ChangeDetection`, `Deletes` | One run of a history model: its table, input, key, `by`, `deletes` and detection time |
+| `apply_history` | Applies a run to its history table in one transaction (MG-REQ-0662 to MG-REQ-0664, MG-REQ-0667) |
+| `rebuild_history`, `RebuildHistory` | Drops a history table only for a confirmed rebuild (MG-REQ-0665) |
 | `table_hash` | The hash of a table, independent of row order (MG-REQ-0638) |
-| `EngineError` | `Unrepresentable` (`MG-0101`), `ZoneExtensionLoaded` (`MG-0102`), `Boundary`, `Scratch`, `Hash` or a `PortError` |
+| `EngineError` | `Unrepresentable` (`MG-0101`), `ZoneExtensionLoaded` (`MG-0102`), `HistoryRebuild` (`MG-0604`), `HistoryRepeatedKey` (`MG-0605`), `Boundary`, `Scratch`, `Hash` or a `PortError` |
 
 ## Data flow
 
 ```
 Segment ─► check every declared schema                  (MG-REQ-0180)
         ─► Database::connect (in memory) ─► no `icu` loaded (duckdb_extensions())
-        ─► execute each macro text                      (MG-REQ-0643)
+        ─► execute AS_OF, then each macro text          (MG-REQ-0666, MG-REQ-0643)
         ─► no `icu` loaded
         ─► each input:
              SharedMemory: FileSystem::open ─► CREATE TABLE <name> ─► per Arrow IPC batch:
@@ -32,6 +36,19 @@ Segment ─► check every declared schema                  (MG-REQ-0180)
              Parquet:      append_arrow to mergus_output of a second session on
                            <output>.duckdb ─► COPY TO <path> ─► remove <output>.duckdb,
                            its .wal and its .tmp spill directory
+```
+
+```
+History ─► BEGIN ─► DESCRIBE input (raw metadata columns left out)
+        ─► SET VARIABLE detection time, sentinel (bound)
+        ─► CREATE TABLE IF NOT EXISTS <history> (model columns + validity columns)
+        ─► stage mergus_history_rows: changes view (ok loads past `after`, round = rank of
+           the row in its key by _extracted_at, _load_id) or the whole input (round 1,
+           keys unique or MG-0605)
+        ─► per round: open versions (close the current one, insert the new one);
+           changes view: deleted rows ─► close / tombstone
+        ─► other input: missing keys ─► close / tombstone
+        ─► COMMIT (ROLLBACK on error) ─► highest applied _load_id
 ```
 
 `exact` maps each Arrow type to the type DuckDB describes for the column that holds it

@@ -41,6 +41,28 @@ Execute DuckDB steps.
   keeps only the instant and gives it back in UTC (the port never loads `icu`), gets the
   declared zone back on the same instants, whatever the host's zone.
 - Writes the declared columns even when the step returns no rows.
+- Executes the built-in table macro `as_of(table, ts)` (`AS_OF`) in every segment session,
+  before the project's macros: the version of each key valid at `ts`, with
+  `_valid_from <= ts AND ts < _valid_to`, without tombstones (MG-REQ-0666).
+- Applies one run of a history model (`apply_history`, `History`) to its history table in a
+  session, in one transaction, creating the table on the first run with the model's columns
+  followed by `_valid_from`, `_valid_to` (`TIMESTAMPTZ`), `_is_current` and `_is_deleted`
+  (`BOOLEAN`); a current version ends at `9999-12-31 00:00:00+00` (MG-REQ-0663):
+  - a key opens a version when it has no current version, or a tombstone, or when `by`
+    detects a change: `ChangeDetection::Increases` for a strictly greater, non-NULL column,
+    `ChangeDetection::Differs` for any listed column `IS DISTINCT FROM` the current one
+    (MG-REQ-0662); the replaced version ends where the new one starts;
+  - `_valid_from` is the `by` column when it is one column and not NULL, else the row's
+    `_extracted_at` for a changes view, else the detection time the caller gives;
+  - `Deletes::Ignore`, `Close` or `Tombstone` for a key that disappears: missing from the
+    whole input, at the detection time, or, for a changes view, a row with `_deleted = true`
+    at its `_deleted_at` (MG-REQ-0664);
+  - from a changes view (`HistoryInput::Changes`), only the rows of `ok` loads past the last
+    applied `_load_id`, each key's rows in `_extracted_at` then `_load_id` order, without the
+    raw metadata columns; it returns the new highest `_load_id` (MG-REQ-0667);
+  - an input that is not a changes view with a key twice fails with `MG-0605`.
+- Drops a history table for a full rebuild only when the rebuild is confirmed
+  (`rebuild_history`, `RebuildHistory`), or fails with `MG-0604` (MG-REQ-0665).
 - Hashes a table independently of the order of its rows (`table_hash`): the SHA-256 of the
   sorted SHA-256 hashes of each row's canonical JSON, each value tagged with its Arrow type
   (MG-REQ-0638).
@@ -53,4 +75,8 @@ Execute DuckDB steps.
 - It does not read the `[resources]` section: the budget is fixed until phase 0.9.
 - It does not memory-map Arrow IPC files. Reading streams them, so peak memory is one batch
   plus what DuckDB holds, with no `unsafe`.
+- It does not parse `--rebuild-history` or ask for its confirmation: the CLI does, and
+  passes `RebuildHistory`.
+- It does not read `ops.loads` or keep the last applied `_load_id`: the caller passes the
+  `ok` loads and the last applied id, and keeps the one `apply_history` returns.
 - It prints nothing and keeps no state between segments.
