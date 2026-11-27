@@ -4,16 +4,18 @@ use std::io::Cursor;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-use arrow::array::{Array, TimestampMicrosecondArray};
+use arrow::array::{Array, ArrayRef, StringArray, TimestampMicrosecondArray};
 use arrow::datatypes::{DataType, Field, Schema, TimeUnit};
 use arrow::ipc::reader::FileReader;
 use arrow::ipc::writer::FileWriter;
 use arrow::record_batch::RecordBatch;
 use mergus_engine_duckdb::{Boundary, Segment, Table, Transport, run_segment};
-use mergus_ports::FileSystem;
+use mergus_ports::{FileSystem, SqlValue};
 use mergus_sim::{DatabaseFaults, SimDatabase, SimFileSystem};
 
 const MADRID: &str = "Europe/Madrid";
+const LOADED_ICU: &str =
+    "SELECT extension_name FROM duckdb_extensions() WHERE loaded AND extension_name = ?";
 const SQL: &str = "SELECT at FROM events";
 
 #[cfg(test)]
@@ -56,6 +58,16 @@ fn mg_req_0180_timestamps_keep_their_time_zone() {
     let files = SimFileSystem::new();
     files.create_dir_all(Path::new("/work")).unwrap();
     let database = SimDatabase::new(7, DatabaseFaults::default());
+    let icu = vec![SqlValue::Text("icu".to_owned())];
+    database.record_query(LOADED_ICU, icu, vec![]);
+    let names: ArrayRef = Arc::new(StringArray::from(vec!["at"]));
+    let types: ArrayRef = Arc::new(StringArray::from(vec!["TIMESTAMP WITH TIME ZONE"]));
+    let description = RecordBatch::try_from_iter([("column_name", names), ("column_type", types)]);
+    database.record_query(
+        format!("DESCRIBE {SQL}"),
+        vec![],
+        vec![description.unwrap()],
+    );
     write_ipc(&files, "/work/events.arrow", &instants(MADRID));
     let zoned = DataType::Timestamp(TimeUnit::Microsecond, Some(MADRID.into()));
     let naive = DataType::Timestamp(TimeUnit::Microsecond, None);

@@ -11,7 +11,7 @@ use arrow::record_batch::RecordBatch;
 use arrow::util::display::{ArrayFormatter, FormatOptions};
 use mergus_contracts::canonical_json;
 use mergus_contracts::hash::{sha256, sha256_hex};
-use serde_json::{Map, Number, Value};
+use serde_json::{Number, Value};
 
 use crate::EngineError;
 
@@ -22,8 +22,9 @@ const EXACT_INTEGER: u64 = 1 << 53;
 /// sorted SHA-256 hashes of each row's canonical JSON (RFC 8785). The order of the rows, and
 /// how they are split into batches, does not change it.
 ///
-/// A row is an object whose members are its column names, each holding the pair
-/// `[Arrow type, value]`, so that equal texts of different types differ. NULL is `null`, a
+/// A row is an array, in schema order, of one triple `[column name, Arrow type, value]` per
+/// column, so that equal texts of different types differ and columns of the same name never
+/// overwrite each other. NULL is `null`, a
 /// boolean is a JSON boolean, an integer up to 2^53 in magnitude and a finite float are JSON
 /// numbers, and any other value is the string Arrow displays for it, so that decimals and
 /// large integers stay exact; a timestamp with a time zone is its UTC value.
@@ -56,7 +57,7 @@ fn row_hashes(batch: &RecordBatch) -> Result<Vec<[u8; 32]>, EngineError> {
         .map_err(|error| display(&error))?;
     let mut hashes = Vec::with_capacity(batch.num_rows());
     for row in 0..batch.num_rows() {
-        let mut object = Map::new();
+        let mut row_values = Vec::with_capacity(schema.fields().len());
         let columns = schema.fields().iter().zip(batch.columns());
         for ((field, column), formatter) in columns.zip(&formatters) {
             let value = match json_value(column.as_ref(), row) {
@@ -69,10 +70,11 @@ fn row_hashes(batch: &RecordBatch) -> Result<Vec<[u8; 32]>, EngineError> {
                     Value::String(text)
                 }
             };
-            let tagged = Value::Array(vec![Value::String(field.data_type().to_string()), value]);
-            object.insert(field.name().clone(), tagged);
+            let name = Value::String(field.name().clone());
+            let data_type = Value::String(field.data_type().to_string());
+            row_values.push(Value::Array(vec![name, data_type, value]));
         }
-        hashes.push(sha256(canonical_json(&Value::Object(object)).as_bytes()));
+        hashes.push(sha256(canonical_json(&Value::Array(row_values)).as_bytes()));
     }
     Ok(hashes)
 }

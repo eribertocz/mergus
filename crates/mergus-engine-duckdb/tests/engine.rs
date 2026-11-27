@@ -22,6 +22,8 @@ const MACROS: [&str; 2] = [
 ];
 const CREATE_OUTPUT: &str = "CREATE TABLE \"mergus_output\" (\"id\" BIGINT, \"name\" VARCHAR)";
 const CREATE_INPUT: &str = "CREATE TABLE \"orders\" (\"id\" BIGINT, \"name\" VARCHAR)";
+const LOADED_ICU: &str =
+    "SELECT extension_name FROM duckdb_extensions() WHERE loaded AND extension_name = ?";
 const COPY: &str = "COPY \"mergus_output\" TO ? (FORMAT parquet)";
 const SET_INPUT: &str = "SET VARIABLE mergus_input_0 = ?";
 const DESCRIBE_INPUT: &str = "DESCRIBE SELECT * FROM read_parquet(getvariable('mergus_input_0'))";
@@ -77,9 +79,16 @@ fn segment(output: Boundary, inputs: Vec<Table>) -> Segment {
 #[cfg(test)]
 fn database() -> SimDatabase {
     let database = SimDatabase::new(7, DatabaseFaults::default());
+    database.record_query(LOADED_ICU, vec![SqlValue::Text("icu".to_owned())], vec![]);
     for text in MACROS {
         database.record_execute(text, vec![], 0);
     }
+    let columns = described(&[("id", "BIGINT"), ("name", "VARCHAR")]);
+    database.record_query(
+        format!("DESCRIBE {SQL}"),
+        vec![SqlValue::Integer(1)],
+        columns,
+    );
     let params = vec![SqlValue::Integer(1)];
     database.record_query(SQL, params, vec![rows(&[2, 3], &["b", "c"])]);
     database.record_execute(CREATE_OUTPUT, vec![], 0);

@@ -10,6 +10,7 @@
 
 #![forbid(unsafe_code)]
 
+mod checks;
 mod error;
 mod exact;
 mod hash;

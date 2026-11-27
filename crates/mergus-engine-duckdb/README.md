@@ -19,10 +19,14 @@ Execute DuckDB steps.
   `Transport::for_size` gives the rule: shared memory up to `MEMORY_BUDGET`, 1 GiB of Arrow
   per boundary, and Parquet above it.
 - Passes every table across a boundary in the types its schema declares, or fails the step
-  with `MG-0101` (MG-REQ-0180): a shared-memory input is conformed before its SQL runs, a
-  Parquet input is described and every declared column must have its declared type, and the
-  output is conformed before it is written. Decimals keep their precision, NULL stays NULL,
+  with `MG-0101` (MG-REQ-0180): every declared schema is checked before the session opens
+  (types DuckDB holds exactly, no column twice), a shared-memory input is conformed batch by
+  batch, a Parquet input and the step's result are described and every declared column must
+  have its declared type whatever the number of rows, and the output is conformed before it
+  is written. Decimals keep their precision, NULL stays NULL,
   and a value that would overflow or lose a digit is never rounded, truncated or cast.
+- Fails with `MG-0102` when the session has the `icu` extension loaded, checked with
+  `duckdb_extensions()` on every session.
 - Keeps time zones: an input must carry its declared zone, and DuckDB's `TIMESTAMPTZ`, which
   keeps only the instant and gives it back in UTC (the port never loads `icu`), gets the
   declared zone back on the same instants, whatever the host's zone.

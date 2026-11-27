@@ -10,22 +10,24 @@
 | `Transport`, `MEMORY_BUDGET` | Arrow in shared memory or Parquet in the work zone (MG-REQ-0633) |
 | `run_segment` | Runs one segment in a new DuckDB session |
 | `table_hash` | The hash of a table, independent of row order (MG-REQ-0638) |
-| `EngineError` | `Unrepresentable` (`MG-0101`), `Boundary`, `Hash` or a `PortError` |
+| `EngineError` | `Unrepresentable` (`MG-0101`), `ZoneExtensionLoaded` (`MG-0102`), `Boundary`, `Hash` or a `PortError` |
 
 ## Data flow
 
 ```
-Segment ─► Database::connect (in memory)
+Segment ─► check every declared schema                  (MG-REQ-0180)
+        ─► Database::connect (in memory) ─► no `icu` loaded (duckdb_extensions())
         ─► execute each macro text                      (MG-REQ-0643)
         ─► each input:
              SharedMemory: CREATE TABLE <name> ─► FileSystem::open ─► per Arrow IPC batch:
                            conform to schema (MG-REQ-0180) ─► append_arrow
              Parquet:      SET VARIABLE ─► DESCRIBE, check declared types (MG-REQ-0180)
                            ─► CREATE VIEW <name> AS SELECT <columns> FROM read_parquet(...)
-        ─► query_arrow(SQL, parameters) ─► conform to the output schema, zones restored
+        ─► DESCRIBE <SQL>, check declared types ─► query_arrow(SQL, parameters)
+        ─► conform to the output schema, zones restored
         ─► output:
              SharedMemory: FileSystem::create ─► Arrow IPC, one batch at a time
-             Parquet:      CREATE TABLE mergus_output ─► append_arrow ─► COPY TO <path>
+             Parquet:      CREATE TABLE mergus_output[_…] ─► append_arrow ─► COPY TO <path>
 ```
 
 `exact` maps each Arrow type to the type DuckDB describes for the column that holds it

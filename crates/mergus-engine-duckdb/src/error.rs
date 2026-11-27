@@ -20,6 +20,13 @@ pub enum EngineError {
         /// What cannot be represented, and in which type.
         reason: String,
     },
+    /// The DuckDB session has the `icu` extension loaded. With it, DuckDB gives a
+    /// `TIMESTAMPTZ` back in the session's time zone, which can be the host's, so zoned
+    /// timestamps would depend on the machine (MG-REQ-0180). The step failed before it ran.
+    #[error(
+        "the DuckDB session has the `icu` extension loaded, so time zones would depend on the host"
+    )]
+    ZoneExtensionLoaded,
     /// A boundary file cannot be encoded or decoded as Arrow IPC.
     #[error("the boundary `{path}` is not a readable Arrow IPC file: {reason}")]
     Boundary {
@@ -47,6 +54,7 @@ impl EngineError {
     pub fn code(&self) -> Option<&'static str> {
         match self {
             Self::Unrepresentable { .. } => Some("MG-0101"),
+            Self::ZoneExtensionLoaded => Some("MG-0102"),
             Self::Boundary { .. } | Self::Hash { .. } | Self::Port(_) => None,
         }
     }

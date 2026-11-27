@@ -1,15 +1,17 @@
 //! One segment: a DuckDB session that loads the project's macros, opens its inputs, runs the
 //! step's SQL and leaves its rows at its output boundary.
 
-use arrow::array::AsArray;
 use arrow::datatypes::{Schema, SchemaRef};
+use arrow::record_batch::RecordBatch;
 use mergus_ports::{Database, DatabaseConnection, DatabaseLocation, FileSystem, SqlValue};
 
+use crate::checks::{declared, described, without_icu};
 use crate::exact::{Zones, conform, duckdb_type, nullable, unrepresentable};
 use crate::transport::{boundary, open_arrow, write_arrow};
 use crate::{Boundary, EngineError, Transport};
 
-/// The table a Parquet output is gathered in before it is written.
+/// The table a Parquet output is gathered in before it is written, with `_` added until no
+/// input has its name.
 const OUTPUT_TABLE: &str = "mergus_output";
 
 /// What a segment runs: the input of this crate, onto which the runtime maps the plan.
@@ -43,6 +45,10 @@ pub struct Table {
 /// to the declared output schema and writes them with the transport the plan recorded
 /// (MG-REQ-0633).
 ///
+/// Every declared schema is checked first. The session must not have `icu` loaded, so that
+/// DuckDB gives zoned timestamps back in UTC. The step's result is described before it runs,
+/// and every declared column must have its declared type even when there are no rows.
+///
 /// A shared-memory input is read as Arrow, conformed to its schema and appended to a table of
 /// its name. A Parquet input is described first, every declared column must have its declared
 /// type, then it becomes a view of its name that reads the file lazily. A shared-memory output
@@ -54,8 +60,12 @@ pub struct Table {
 ///
 /// # Errors
 ///
-/// Fails with [`EngineError::Unrepresentable`] (`MG-0101`) when a value of an input or of the
-/// output cannot be represented exactly in its declared type, before anything is written;
+/// Fails with [`EngineError::Unrepresentable`] (`MG-0101`) when a declared schema has a type
+/// DuckDB cannot hold exactly or a column twice, before the session opens; when a Parquet
+/// input or the step's result, as DuckDB describes them, lacks a declared column or has it in
+/// another type, whatever the number of rows; or when a value cannot be represented exactly
+/// in its declared type, before anything is written. Fails with
+/// [`EngineError::ZoneExtensionLoaded`] (`MG-0102`) when the session has `icu` loaded;
 /// with [`EngineError::Boundary`] when a boundary file is not Arrow IPC; and with
 /// [`EngineError::Port`] when DuckDB or the file system fails.
 pub fn run_segment(
@@ -63,7 +73,11 @@ pub fn run_segment(
     files: &dyn FileSystem,
     segment: &Segment,
 ) -> Result<(), EngineError> {
+    for table in segment.inputs.iter().chain([&segment.output]) {
+        declared(table)?;
+    }
     let mut session = database.connect(&DatabaseLocation::InMemory)?;
+    without_icu(session.as_mut())?;
     for text in &segment.macros {
         session.execute(text, &[])?;
     }
@@ -71,6 +85,14 @@ pub fn run_segment(
         open_input(session.as_mut(), files, index, input)?;
     }
     let output = &segment.output;
+    let describe = format!("DESCRIBE {}", segment.sql);
+    described(
+        session.as_mut(),
+        &describe,
+        &segment.params,
+        output,
+        "the step's result",
+    )?;
     let batches = session
         .query_arrow(&segment.sql, &segment.params)?
         .iter()
@@ -81,16 +103,32 @@ pub fn run_segment(
             let schema: SchemaRef = nullable(&output.schema);
             write_arrow(files, &output.boundary.path, &schema, &batches)
         }
-        Transport::Parquet => {
-            create_table(session.as_mut(), &output.name, OUTPUT_TABLE, &output.schema)?;
-            for batch in &batches {
-                session.append_arrow(OUTPUT_TABLE, batch)?;
-            }
-            let path = path_value(&output.boundary)?;
-            session.execute("COPY \"mergus_output\" TO ? (FORMAT parquet)", &[path])?;
-            Ok(())
-        }
+        Transport::Parquet => write_parquet(session.as_mut(), segment, &batches),
     }
+}
+
+/// Writes `batches`, the rows of the output of `segment`, as its Parquet file: gathered in a
+/// table whose name no input of the segment has, then copied by DuckDB.
+fn write_parquet(
+    session: &mut dyn DatabaseConnection,
+    segment: &Segment,
+    batches: &[RecordBatch],
+) -> Result<(), EngineError> {
+    let output = &segment.output;
+    let mut table = OUTPUT_TABLE.to_owned();
+    while segment.inputs.iter().any(|input| input.name == table) {
+        table.push('_');
+    }
+    create_table(session, &output.name, &table, &output.schema)?;
+    for batch in batches {
+        session.append_arrow(&table, batch)?;
+    }
+    let path = path_value(&output.boundary)?;
+    let quoted = quote_identifier(&table);
+    // sql: identifiers quoted by quote_identifier
+    let copy = format!("COPY {quoted} TO ? (FORMAT parquet)");
+    session.execute(&copy, &[path])?;
+    Ok(())
 }
 
 /// Makes `input`, the `index`-th of its segment, readable by its name.
@@ -116,7 +154,8 @@ fn open_input(
             let set = format!("SET VARIABLE {variable} = ?");
             session.execute(&set, &[path_value(&input.boundary)?])?;
             let file = format!("read_parquet(getvariable('{variable}'))");
-            check_parquet(session, input, &file)?;
+            let describe = format!("DESCRIBE SELECT * FROM {file}");
+            described(session, &describe, &[], input, "the Parquet file")?;
             let name = quote_identifier(&input.name);
             let columns = input
                 .schema
@@ -129,47 +168,6 @@ fn open_input(
             let view = format!("CREATE VIEW {name} AS SELECT {columns} FROM {file}");
             session.execute(&view, &[])?;
         }
-    }
-    Ok(())
-}
-
-/// Returns the statement that describes the columns of the Parquet file `file` reads.
-fn describe(file: &str) -> String {
-    format!("DESCRIBE SELECT * FROM {file}")
-}
-
-/// Checks that the Parquet file `file` reads holds every declared column of `input` in the
-/// DuckDB type of its declared type (MG-REQ-0180).
-fn check_parquet(
-    session: &mut dyn DatabaseConnection,
-    input: &Table,
-    file: &str,
-) -> Result<(), EngineError> {
-    let mut found = Vec::new();
-    for batch in &session.query_arrow(&describe(file), &[])? {
-        let text = |name: &str| batch.column_by_name(name)?.as_string_opt::<i32>().cloned();
-        let (Some(names), Some(types)) = (text("column_name"), text("column_type")) else {
-            let reason = "DuckDB did not describe the Parquet file".to_owned();
-            return Err(unrepresentable(&input.name, "", reason));
-        };
-        for (name, data_type) in names.iter().zip(types.iter()) {
-            found.push((
-                name.unwrap_or_default().to_owned(),
-                data_type.unwrap_or_default().to_owned(),
-            ));
-        }
-    }
-    for field in input.schema.fields() {
-        let declared = duckdb_type(field.data_type())
-            .map_err(|reason| unrepresentable(&input.name, field.name(), reason))?;
-        let reason = match found.iter().find(|(name, _)| name == field.name()) {
-            Some((_, actual)) if *actual == declared => continue,
-            Some((_, actual)) => {
-                format!("the Parquet file holds {actual}, the schema declares {declared}")
-            }
-            None => "the Parquet file has no such column".to_owned(),
-        };
-        return Err(unrepresentable(&input.name, field.name(), reason));
     }
     Ok(())
 }

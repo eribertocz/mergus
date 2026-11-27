@@ -4,7 +4,7 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
-use arrow::array::{ArrayRef, Int64Array};
+use arrow::array::{ArrayRef, Int64Array, StringArray};
 use arrow::datatypes::{DataType, Field, Schema};
 use arrow::record_batch::RecordBatch;
 use mergus_engine_duckdb::{Boundary, Segment, Table, Transport, run_segment};
@@ -19,17 +19,41 @@ const MACROS: [&str; 2] = [
     "CREATE MACRO clean(t) AS TABLE SELECT * FROM query_table(t) WHERE status <> 'VOID';",
 ];
 const CREATE_OUTPUT: &str = "CREATE TABLE \"mergus_output\" (\"id\" BIGINT)";
+const LOADED_ICU: &str =
+    "SELECT extension_name FROM duckdb_extensions() WHERE loaded AND extension_name = ?";
 const COPY: &str = "COPY \"mergus_output\" TO ? (FORMAT parquet)";
+
+/// The answer of `DESCRIBE` for these columns and DuckDB types.
+#[cfg(test)]
+fn describe(columns: &[(&str, &str)]) -> Vec<RecordBatch> {
+    let schema = Arc::new(Schema::new(vec![
+        Field::new("column_name", DataType::Utf8, true),
+        Field::new("column_type", DataType::Utf8, true),
+    ]));
+    let names: Vec<&str> = columns.iter().map(|(name, _)| *name).collect();
+    let types: Vec<&str> = columns.iter().map(|(_, data_type)| *data_type).collect();
+    let arrays: Vec<ArrayRef> = vec![
+        Arc::new(StringArray::from(names)),
+        Arc::new(StringArray::from(types)),
+    ];
+    vec![RecordBatch::try_new(schema, arrays).unwrap()]
+}
 
 #[cfg(test)]
 fn database() -> SimDatabase {
     let database = SimDatabase::new(7, DatabaseFaults::default());
+    database.record_query(LOADED_ICU, vec![SqlValue::Text("icu".to_owned())], vec![]);
     for text in MACROS {
         database.record_execute(text, vec![], 0);
     }
     let schema = Arc::new(Schema::new(vec![Field::new("id", DataType::Int64, true)]));
     let ids: ArrayRef = Arc::new(Int64Array::from(vec![1, 2]));
     let batch = RecordBatch::try_new(schema, vec![ids]).unwrap();
+    database.record_query(
+        format!("DESCRIBE {SQL}"),
+        vec![],
+        describe(&[("id", "BIGINT")]),
+    );
     database.record_query(SQL, vec![], vec![batch]);
     database.record_execute(CREATE_OUTPUT, vec![], 0);
     let path = SqlValue::Text("/zone/work/a.parquet".to_owned());

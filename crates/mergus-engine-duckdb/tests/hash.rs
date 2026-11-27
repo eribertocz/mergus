@@ -44,3 +44,22 @@ fn mg_req_0638_hash_tells_types_apart() {
     let text = table_hash(&[column(Arc::new(StringArray::from(vec!["1.00"])))]).unwrap();
     assert_ne!(decimal, text);
 }
+
+#[test]
+fn mg_req_0638_columns_of_the_same_name_do_not_overwrite_each_other() {
+    let pair = |first: i64, second: i64| {
+        let schema = Arc::new(Schema::new(vec![
+            Field::new("a", DataType::Int64, true),
+            Field::new("a", DataType::Int64, true),
+        ]));
+        let columns: Vec<ArrayRef> = vec![
+            Arc::new(Int64Array::from(vec![first])),
+            Arc::new(Int64Array::from(vec![second])),
+        ];
+        RecordBatch::try_new(schema, columns).unwrap()
+    };
+    assert_ne!(
+        table_hash(&[pair(1, 2)]).unwrap(),
+        table_hash(&[pair(3, 2)]).unwrap()
+    );
+}

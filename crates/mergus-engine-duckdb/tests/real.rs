@@ -12,7 +12,7 @@ use arrow::ipc::writer::FileWriter;
 use arrow::record_batch::RecordBatch;
 use mergus_engine_duckdb::{Boundary, EngineError, Segment, Table, Transport, run_segment};
 use mergus_ports::real::{RealDatabase, RealFileSystem, RealRandom};
-use mergus_ports::{FileSystem, Random};
+use mergus_ports::{Database, DatabaseLocation, FileSystem, Random, SqlValue};
 
 const MADRID: &str = "Europe/Madrid";
 const MACRO: &str = "CREATE MACRO twice(a) AS a * 2;";
@@ -169,4 +169,18 @@ fn mg_req_0180_parquet_input_of_another_type_fails_on_duckdb() {
     assert_eq!(error.code(), Some("MG-0101"), "{error}");
     assert!(matches!(&error, EngineError::Unrepresentable { column, .. } if column == "id"));
     assert!(!RealFileSystem.exists(&out).unwrap());
+}
+
+#[test]
+fn mg_req_0180_sessions_have_no_icu_on_duckdb() {
+    let dir = scratch();
+    let database = RealDatabase::new(&dir.join("cache"));
+    let mut session = database.connect(&DatabaseLocation::InMemory).unwrap();
+    let loaded = session
+        .query_arrow(
+            "SELECT extension_name FROM duckdb_extensions() WHERE loaded AND extension_name = ?",
+            &[SqlValue::Text("icu".to_owned())],
+        )
+        .unwrap();
+    assert!(loaded.iter().all(|batch| batch.num_rows() == 0));
 }
