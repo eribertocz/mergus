@@ -9,6 +9,8 @@ use mergus_contracts::generated::mergus_events_v1::Step as EventStep;
 use mergus_contracts::generated::mergus_plan_v1::{StepAction, StepReason};
 use mergus_plan::{Plan, PlanModel, PlanRequest};
 use mergus_ports::{FileSystem, PortError};
+use mergus_project::{Configuration, read_configuration};
+use mergus_runtime::{raw_off_sources, raw_retention, show_retention};
 
 use crate::args::Invocation;
 use crate::commands::{EXCLUDE, MAX_PARALLEL, SELECTION};
@@ -66,9 +68,13 @@ pub(crate) fn plan(
     request.max_parallel = setting.value;
     let plan = mergus_plan::plan(&planned, &request)
         .map_err(|error| CliError::Internal(error.to_string()))?;
+    let configuration = read_configuration(ports.files, &project.root)
+        .map_err(|error| CliError::Internal(error.to_string()))?;
     let relative = write(ports.files, &project.root, &plan)?;
     output.plan_ready(steps(&plan))?;
-    output.report(&summary(&plan, &relative))?;
+    let mut text = summary(&plan, &relative);
+    text.push_str(&raw_summary(&configuration));
+    output.report(&text)?;
     Ok(Vec::new())
 }
 
@@ -123,6 +129,21 @@ fn summary(plan: &Plan, relative: &str) -> String {
             "stale upstream: {}; include it with `{}`",
             stale.model, stale.include
         );
+    }
+    text
+}
+
+/// What `mergus plan` prints about raw for a person: one line per source with
+/// `raw = false` (MG-REQ-0517.2), then the retention raw is expired with, when a source keeps
+/// raw (MG-REQ-0516.2).
+fn raw_summary(configuration: &Configuration) -> String {
+    let mut text = String::new();
+    for source in raw_off_sources(configuration) {
+        // Writing to a `String` cannot fail.
+        let _ = writeln!(text, "source {source}: raw = false");
+    }
+    if let Some(retention) = raw_retention(configuration) {
+        let _ = writeln!(text, "raw retention: {}", show_retention(retention));
     }
     text
 }
