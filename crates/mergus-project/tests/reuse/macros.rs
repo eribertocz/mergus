@@ -105,7 +105,7 @@ fn sandbox_runs() -> [(&'static str, MacroRun); 4] {
 fn mg_req_0641_macros_only_create_macro() {
     let (good, table, templated, set) = (GOOD, TABLE, TEMPLATED, SET);
     let parser = SimSqlParser::new();
-    parser.record("SELECT CASE WHEN b = 0 THEN NULL ELSE a / b END", tree(&[]));
+    parser.record_select_list("CASE WHEN b = 0 THEN NULL ELSE a / b END", tree(&[]));
     let runs = sandbox_runs();
     let only_good = read(&[("macros/finance.sql", good)], &runs, &parser).unwrap();
     let names: Vec<&String> = only_good.macros.keys().collect();
@@ -200,25 +200,41 @@ const MODELS: [(&str, &str, &[&str]); 3] = [
 /// `safe_div` defined as `division`.
 fn reuse_parser(division: &str) -> SimSqlParser {
     let parser = SimSqlParser::new();
-    parser.record(["SELECT ", division].concat(), tree(&[]));
-    parser.record("SELECT safe_div((p - c), p)", tree(&["safe_div", "-"]));
+    parser.record_select_list(division, tree(&[]));
+    parser.record_select_list("safe_div((p - c), p)", tree(&["safe_div", "-"]));
     parser.record("SELECT * FROM query_table(t)", tree(&["query_table"]));
-    parser.record("SELECT (a + 1)", tree(&["+"]));
+    parser.record_select_list("(a + 1)", tree(&["+"]));
     for (_, sql, calls) in MODELS {
         parser.record(sql, tree(calls));
     }
     parser
 }
 
-/// The macros of MG-REQ-0644, with `safe_div` defined as `division`.
-fn reuse_macros(division: &str, parser: &SimSqlParser) -> Result<Macros, LayoutError> {
-    let finance = [
-        "CREATE MACRO safe_div(a, b) AS ",
-        division,
-        ";\nCREATE MACRO margin(p, c) AS safe_div(p - c, p);\n\
-         CREATE MACRO clean(t) AS TABLE SELECT * FROM query_table(t);\n",
-    ]
-    .concat();
+/// The definition DuckDB gives for `safe_div`, and the macro file `macros/finance.sql` that
+/// defines it, with `margin`, which calls it, and the table macro `clean`.
+type Finance = (&'static str, &'static str);
+
+/// `macros/finance.sql` before its change.
+const BEFORE: Finance = (
+    "CASE WHEN (b = 0) THEN NULL ELSE (a / b) END",
+    "CREATE MACRO safe_div(a, b) AS CASE WHEN b = 0 THEN NULL ELSE a / b END;\n\
+     CREATE MACRO margin(p, c) AS safe_div(p - c, p);\n\
+     CREATE MACRO clean(t) AS TABLE SELECT * FROM query_table(t);\n",
+);
+
+/// `macros/finance.sql` after `safe_div` changed.
+const AFTER: Finance = (
+    "CASE WHEN (b = 0) THEN 0 ELSE (a / b) END",
+    "CREATE MACRO safe_div(a, b) AS CASE WHEN b = 0 THEN 0 ELSE a / b END;\n\
+     CREATE MACRO margin(p, c) AS safe_div(p - c, p);\n\
+     CREATE MACRO clean(t) AS TABLE SELECT * FROM query_table(t);\n",
+);
+
+/// The macros of MG-REQ-0644, from `finance` and `macros/other.sql`.
+fn reuse_macros(
+    (division, finance): Finance,
+    parser: &SimSqlParser,
+) -> Result<Macros, LayoutError> {
     let other = "CREATE MACRO other(a) AS a + 1;\n";
     let table = CatalogMacro {
         name: "clean".to_owned(),
@@ -231,23 +247,20 @@ fn reuse_macros(division: &str, parser: &SimSqlParser) -> Result<Macros, LayoutE
         scalar("safe_div", division),
     ]);
     let runs = [
-        (finance.as_str(), created_finance),
+        (finance, created_finance),
         (other, created(vec![scalar("other", "(a + 1)")])),
     ];
-    let files = [
-        ("macros/finance.sql", finance.as_str()),
-        ("macros/other.sql", other),
-    ];
+    let files = [("macros/finance.sql", finance), ("macros/other.sql", other)];
     read(&files, &runs, parser)
 }
 
-/// The fingerprint inputs of each model of [`MODELS`], by name, with `safe_div` defined as
-/// `division`.
+/// The fingerprint inputs of each model of [`MODELS`], by name, with `finance` as
+/// `macros/finance.sql`.
 fn inputs_with(
-    division: &str,
+    finance: Finance,
 ) -> Result<BTreeMap<&'static str, BTreeMap<String, String>>, LayoutError> {
-    let parser = reuse_parser(division);
-    let macros = reuse_macros(division, &parser)?;
+    let parser = reuse_parser(finance.0);
+    let macros = reuse_macros(finance, &parser)?;
     assert_eq!(
         macros.macros["margin"].calls,
         BTreeSet::from(["safe_div".to_owned()])
@@ -263,8 +276,8 @@ fn inputs_with(
 
 #[test]
 fn mg_req_0644_macro_change_refingerprints_callers_only() {
-    let before = inputs_with("CASE WHEN (b = 0) THEN NULL ELSE (a / b) END").unwrap();
-    let after = inputs_with("CASE WHEN (b = 0) THEN 0 ELSE (a / b) END").unwrap();
+    let before = inputs_with(BEFORE).unwrap();
+    let after = inputs_with(AFTER).unwrap();
     let keys: Vec<&String> = before["fact_margin"].keys().collect();
     assert_eq!(keys, ["macro:margin", "macro:safe_div"]);
     assert!(before["fact_margin"]["macro:safe_div"].starts_with("sha256:"));
@@ -298,8 +311,8 @@ fn mg_req_0644_each_overload_parsed_in_its_form() {
         ]),
     )];
     let parser = SimSqlParser::new();
-    parser.record("SELECT a", tree(&[]));
-    parser.record("SELECT helper(a)", tree(&["helper"]));
+    parser.record_select_list("a", tree(&[]));
+    parser.record_select_list("helper(a)", tree(&["helper"]));
     parser.record("SELECT * FROM query_table(t)", tree(&["query_table"]));
     let macros = read(&[("macros/pick.sql", file)], &runs, &parser).unwrap();
     let pick = &macros.macros["pick"];

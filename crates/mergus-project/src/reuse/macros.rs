@@ -72,19 +72,41 @@ impl Macros {
 /// Fails with [`LayoutError::Port`] when the parser cannot be reached, or does not read
 /// `sql`.
 pub fn sql_calls(parser: &dyn SqlParser, sql: &str) -> Result<BTreeSet<String>, LayoutError> {
-    let tree: Value = serde_json::from_str(&parser.parse(sql)?).map_err(|error| {
+    tree_calls(&parser.parse(sql)?, sql)
+}
+
+/// Returns the function names of `tree`, the parser's tree of `text`, lowercase.
+fn tree_calls(tree: &str, text: &str) -> Result<BTreeSet<String>, LayoutError> {
+    let tree: Value = serde_json::from_str(tree).map_err(|error| {
         PortError::Failed(format!(
             "the SQL parser returned a tree that is not JSON: {error}"
         ))
     })?;
     if tree.get("error").and_then(Value::as_bool) != Some(false) {
         return Err(LayoutError::Port(PortError::Failed(format!(
-            "the SQL parser does not read `{sql}`"
+            "the SQL parser does not read `{text}`"
         ))));
     }
     let mut calls = BTreeSet::new();
     function_names(&tree, &mut calls);
     Ok(calls)
+}
+
+/// Returns the function names of the tree of one overload of a macro (MG-REQ-0644.1): of
+/// `SELECT <definition>` for a scalar macro, composed by the parser port from the bound
+/// definition, and of the definition itself for a table macro.
+fn overload_calls(
+    parser: &dyn SqlParser,
+    overload: &CatalogMacro,
+) -> Result<BTreeSet<String>, LayoutError> {
+    if overload.table {
+        sql_calls(parser, &overload.definition)
+    } else {
+        tree_calls(
+            &parser.parse_select_list(&overload.definition)?,
+            &overload.definition,
+        )
+    }
 }
 
 /// Adds every `function_name` under `value` to `found`, lowercase.
@@ -138,14 +160,11 @@ pub fn read_macros(
     for found in read.macros.values_mut() {
         let mut calls = BTreeSet::new();
         for overload in &found.overloads {
-            // MG-REQ-0644.1: the text is only parsed, never run; a scalar macro's definition
-            // is an expression, read as the select list of `SELECT <definition>`.
-            let body = if overload.table {
-                overload.definition.clone()
-            } else {
-                ["SELECT ", overload.definition.as_str()].concat()
-            };
-            calls.extend(sql_calls(parser, &body)?.intersection(&names).cloned());
+            calls.extend(
+                overload_calls(parser, overload)?
+                    .intersection(&names)
+                    .cloned(),
+            );
         }
         found.calls = calls;
     }

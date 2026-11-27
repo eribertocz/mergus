@@ -115,12 +115,12 @@ fn mg_req_0644_macro_definitions_parse_back() {
     );
     let parser = RealSqlParser::new();
     for found in &run.macros {
-        let body = if found.table {
-            found.definition.clone()
+        let tree = if found.table {
+            parser.parse(&found.definition).unwrap()
         } else {
-            ["SELECT ", found.definition.as_str()].concat()
+            parser.parse_select_list(&found.definition).unwrap()
         };
-        let tree = parser.parse(&body).unwrap();
+        let body = &found.definition;
         assert!(tree.starts_with("{\"error\":false"), "{body}: {tree}");
         if found.name == "margin" {
             assert!(tree.contains("\"function_name\":\"safe_div\""), "{tree}");
