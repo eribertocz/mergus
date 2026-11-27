@@ -15,6 +15,16 @@
 | `open_raw` | The DuckLake adapter of raw, attached encrypted (MG-REQ-0515) |
 | `RawLoad` | The rows one load extracted from one table, and the keys it found deleted |
 | `write_raw` | Writes a `RawLoad` into `__changes` and the current table in one commit |
+| `load_raw` | Writes a load with `write_raw`, then records it in `ops.loads` |
+| `load_raw_off`, `load_raw_off_failed` | Record the extraction of a source with `raw = false`, done or failed |
+| `Watermarks` | The watermarks before and after a load, in text |
+| `record_load` | The one writer of `ops.loads`, for `mergus-ops` to take over |
+| `LoadRecord`, `LoadMode`, `LoadResult` | A row of `ops.loads`, its `mode` and its `result` |
+| `new_load_id` | A UUID version 7 from the `Clock` and `Random` ports |
+| `last_watermark` | The last recorded `watermark_after` of a table |
+| `source_retention`, `raw_retention` | The retention of a source, and of the raw catalog |
+| `expire_raw` | Expires raw with `raw_retention`; maintenance only |
+| `raw_off_sources`, `keeps_raw` | The sources with `raw = false` |
 | `RawError` | Why raw could not be opened or written, with its code |
 
 ## Data flow
@@ -47,6 +57,29 @@
    - turns the current rows found deleted into delete rows with the load's metadata.
    It appends the load's rows and the delete rows to `__changes`, replaces the current table,
    and commits. Rows read back are cast to the raw schema by column name.
+
+## The load registry
+
+1. `load_raw` takes the time of the end of the raw commit from the `Clock`, so `duration_ms`
+   runs from the load's `_extracted_at` to it. Its `mode` is `incremental` when the table has
+   `incremental` and the load starts from a watermark, `full` otherwise.
+2. The registry row is written and committed through the ops adapter after the raw commit,
+   since `[ops]` may be another store (MG-REQ-0514.2). When the raw write fails, the row is
+   still written, with the error's code, and the raw error is returned. When the row cannot
+   be written, `RawError::Registry` is returned: the raw version stays, unrecorded, and is
+   ignored.
+3. `last_watermark` reads `loads` at a version of the ops store and keeps the
+   `watermark_after` of the table's row with the greatest `started_at`, then the greatest
+   `load_id`, since storage returns rows in no set order. Failed rows count, as their
+   `watermark_after` equals their `watermark_before`.
+4. `load_raw_off_failed` records a failed extraction of a source with `raw = false`, with the
+   code the caller gives.
+
+## Retention
+
+`expire_raw` calls the adapter's `expire` with the versions given as live and a rollback
+window of `raw_retention`: the longest `retention` of the sources without `raw = false`, or
+30 days. Retentions are read as `<n>m`, `<n>h` or `<n>d`, the form the source schema checks.
 
 ## Dependencies
 

@@ -54,18 +54,24 @@ pub enum RawError {
     /// The storage adapter failed.
     #[error("raw storage failed: {0}")]
     Storage(#[from] AdapterError),
+    /// The load registry `ops.loads` could not be written or read (MG-REQ-0514).
+    #[error("the load registry `ops.loads` failed: {0}")]
+    Registry(AdapterError),
 }
 
 impl RawError {
     /// Returns the `MG-####` code of the error (MG-REQ-0008), or `None` for a failure of the
-    /// caller or of the storage, which carries its own cause.
+    /// load registry, which cannot record itself.
     #[must_use]
     pub fn code(&self) -> Option<&'static str> {
         match self {
             Self::CatalogInsideProject { .. } => Some("MG-0502"),
             Self::UnencryptedCatalog { .. } => Some("MG-0503"),
             Self::RepeatedKey { .. } => Some("MG-0504"),
-            Self::MissingConnection { .. } | Self::Rows { .. } | Self::Storage(_) => None,
+            Self::Rows { .. } => Some("MG-0505"),
+            Self::Storage(_) => Some("MG-0506"),
+            Self::MissingConnection { .. } => Some("MG-0507"),
+            Self::Registry(_) => None,
         }
     }
 }

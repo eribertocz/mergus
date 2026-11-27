@@ -296,7 +296,7 @@ fn mg_req_0429_session_is_read_only_and_identified() {
 #[test]
 fn mg_req_0429_session_parameter_already_set_is_refused() {
     // A value that already sets either parameter is refused before any statement, with the
-    // code MG-0405, the source and the parameter, and never the value.
+    // code MG-0410, the source and the parameter, and never the value.
     for (value, parameter) in [
         (
             "postgresql://db.example/crm?application_name=etl",
@@ -325,7 +325,7 @@ fn mg_req_0429_session_parameter_already_set_is_refused() {
             },
             "{value}"
         );
-        assert_eq!(error.code(), Some("MG-0405"));
+        assert_eq!(error.code(), Some("MG-0410"));
         let message = error.to_string();
         assert!(
             message.contains("`crm`") && message.contains(parameter),

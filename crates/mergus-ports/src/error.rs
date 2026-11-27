@@ -52,7 +52,7 @@ impl PortError {
     #[must_use]
     pub fn code(&self) -> Option<&'static str> {
         match self {
-            Self::SessionParameterSet { .. } => Some("MG-0405"),
+            Self::SessionParameterSet { .. } => Some("MG-0410"),
             Self::NotFound(_)
             | Self::Failed(_)
             | Self::ExtensionUnavailable { .. }

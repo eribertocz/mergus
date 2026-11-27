@@ -14,8 +14,9 @@ use arrow::record_batch::RecordBatch;
 use mergus_ports::{PortError, SqlValue};
 use mergus_project::Source;
 
+use crate::copied::copied_tables;
 use crate::engine::AttachedSource;
-use crate::table::{DeclaredTable, RawTables, declared_tables};
+use crate::table::{DeclaredTable, RawTables};
 
 /// The columns a read transfers (MG-REQ-0404).
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -52,7 +53,11 @@ pub struct TableExtraction {
 }
 
 /// Reads every table `source` declares, and no other (MG-REQ-0402), from `attached`, in
-/// the order of their names, each with the options `options` gives for it.
+/// the order of their names, each with the options `options` gives for it. A `connect` or
+/// `live` source returns no table and reads nothing (MG-REQ-0405).
+///
+/// It checks no breaking change (MG-REQ-0407) and records no read time (MG-REQ-0419): a run
+/// MUST extract with [`extract_source_timed`](crate::extract_source_timed), which does both.
 ///
 /// # Errors
 ///
@@ -63,7 +68,7 @@ pub fn extract_source(
     options: &dyn Fn(&DeclaredTable) -> ReadOptions,
 ) -> Result<Vec<TableExtraction>, PortError> {
     let mut extracted = Vec::new();
-    for table in declared_tables(source) {
+    for table in copied_tables(source) {
         let table_options = options(&table);
         let chunks = read_table(attached, &table, &table_options).collect::<Result<Vec<_>, _>>()?;
         extracted.push(TableExtraction {
@@ -283,6 +288,6 @@ fn as_text(column: &dyn Array, row: usize) -> Result<SqlValue, PortError> {
 }
 
 /// Quotes `identifier` for DuckDB: in double quotes, with each double quote doubled.
-fn quote_identifier(identifier: &str) -> String {
+pub(crate) fn quote_identifier(identifier: &str) -> String {
     format!("\"{}\"", identifier.replace('"', "\"\""))
 }

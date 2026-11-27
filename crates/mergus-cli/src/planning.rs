@@ -9,6 +9,8 @@ use mergus_contracts::generated::mergus_events_v1::Step as EventStep;
 use mergus_contracts::generated::mergus_plan_v1::{StepAction, StepReason};
 use mergus_plan::{Plan, PlanModel, PlanRequest};
 use mergus_ports::{FileSystem, PortError};
+use mergus_project::{Configuration, read_configuration};
+use mergus_runtime::{raw_off_sources, raw_retention, show_retention};
 
 use crate::args::Invocation;
 use crate::commands::{EXCLUDE, MAX_PARALLEL, SELECTION};
@@ -19,6 +21,7 @@ use crate::output::{ENVIRONMENT, Output};
 use crate::run::Ports;
 use crate::selection::select;
 use crate::settings::max_parallel;
+use crate::validate::collect;
 
 /// The folder of the plans, relative to the project root.
 const PLANS: &str = ".mergus/plans";
@@ -39,6 +42,14 @@ pub(crate) fn plan(
     let project = match models::read(ports)? {
         Ok(project) => project,
         Err(diagnostics) => return Ok(diagnostics),
+    };
+    let mut diagnostics = Vec::new();
+    let Some(configuration) = collect(
+        read_configuration(ports.files, &project.root),
+        &mut diagnostics,
+    )?
+    else {
+        return Ok(diagnostics);
     };
     let selected = select(
         &project,
@@ -68,7 +79,9 @@ pub(crate) fn plan(
         .map_err(|error| CliError::Internal(error.to_string()))?;
     let relative = write(ports.files, &project.root, &plan)?;
     output.plan_ready(steps(&plan))?;
-    output.report(&summary(&plan, &relative))?;
+    let mut text = summary(&plan, &relative);
+    text.push_str(&raw_summary(&configuration));
+    output.report(&text)?;
     Ok(Vec::new())
 }
 
@@ -123,6 +136,21 @@ fn summary(plan: &Plan, relative: &str) -> String {
             "stale upstream: {}; include it with `{}`",
             stale.model, stale.include
         );
+    }
+    text
+}
+
+/// What `mergus plan` prints about raw for a person: one line per source with
+/// `raw = false` (MG-REQ-0517.2), then the retention raw is expired with, when a source keeps
+/// raw (MG-REQ-0516.2).
+fn raw_summary(configuration: &Configuration) -> String {
+    let mut text = String::new();
+    for source in raw_off_sources(configuration) {
+        // Writing to a `String` cannot fail.
+        let _ = writeln!(text, "source {source}: raw = false");
+    }
+    if let Some(retention) = raw_retention(configuration) {
+        let _ = writeln!(text, "raw retention: {}", show_retention(retention));
     }
     text
 }
