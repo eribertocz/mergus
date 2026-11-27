@@ -5,6 +5,9 @@ use std::fmt;
 use mergus_ports::PortError;
 
 mod access;
+mod format;
+
+use format::{cycle_names, cycle_references, hint, key_prefix};
 
 /// The kind of a name checked by MG-REQ-0305.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -273,37 +276,6 @@ pub enum ProjectError {
         /// The parameter as written, such as `?` or `$1`.
         written: String,
     },
-}
-
-/// Formats the models of a cycle, back to the first.
-fn cycle_names(models: &[String]) -> String {
-    models
-        .iter()
-        .chain(models.first())
-        .map(|name| format!("`{name}`"))
-        .collect::<Vec<_>>()
-        .join(" -> ")
-}
-
-/// Formats each reference of a cycle with the model it reads.
-fn cycle_references(models: &[String], references: &[(String, usize)]) -> String {
-    let next = models.iter().skip(1).chain(models.first());
-    references
-        .iter()
-        .zip(next)
-        .map(|((path, line), name)| format!("`{path}` line {line} reads `{name}`"))
-        .collect::<Vec<_>>()
-        .join("; ")
-}
-
-/// Formats the key of an error, when there is one.
-fn key_prefix(key: Option<&str>) -> String {
-    key.map_or_else(String::new, |key| format!("key `{key}` "))
-}
-
-/// Formats the closest valid name of an error, when there is one.
-fn hint(suggestion: Option<&str>) -> String {
-    suggestion.map_or_else(String::new, |name| format!("; did you mean `{name}`?"))
 }
 
 /// Why a project layout could not be read.
