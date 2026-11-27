@@ -273,17 +273,22 @@ fn postgres_without_server() {
     };
     let offline = database(&user_cache, UNREACHABLE);
     let mut connection = offline.connect(&DatabaseLocation::InMemory).unwrap();
-    let value = "host=/nonexistent/mergus dbname=crm password=hunter2";
-    // The error is the attach's failure to reach the server, so the settings and the secret
-    // were accepted with their bound values.
-    let error = connection.attach_postgres(&crm(value)).unwrap_err();
-    let message = error.to_string();
-    assert!(matches!(error, PortError::Failed(_)), "{error:?}");
-    assert!(
-        message.contains("IO Error: Unable to connect to Postgres"),
-        "{message}"
-    );
-    assert!(!message.contains("hunter2"), "{message}");
+    // The error is the attach's failure to reach the server, so the settings and the secret,
+    // with the session parameters of MG-REQ-0429.2 in either form, were accepted with their
+    // bound values.
+    for value in [
+        "host=/nonexistent/mergus dbname=crm password=hunter2",
+        "postgresql://reader:hunter2@/crm?host=/nonexistent/mergus",
+    ] {
+        let error = connection.attach_postgres(&crm(value)).unwrap_err();
+        let message = error.to_string();
+        assert!(matches!(error, PortError::Failed(_)), "{error:?}");
+        assert!(
+            message.contains("IO Error: Unable to connect to Postgres"),
+            "{message}"
+        );
+        assert!(!message.contains("hunter2"), "{message}");
+    }
     for (setting, expected) in [
         ("pg_pool_max_connections", "3"),
         ("pg_pool_acquire_mode", "wait"),

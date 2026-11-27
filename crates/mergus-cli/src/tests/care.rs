@@ -38,6 +38,14 @@ fn text(value: &str) -> SqlValue {
     SqlValue::Text(value.to_owned())
 }
 
+/// The URI `uri` as the temporary secret holds it, with the session parameters of
+/// MG-REQ-0429.2.
+fn protected(uri: &str) -> SqlValue {
+    text(&format!(
+        "{uri}?application_name=mergus&options=-c%20lock_timeout%3D5000"
+    ))
+}
+
 /// A PostgreSQL server reached through the replica of `erp`, attached with a pool of
 /// `connections` and the default statement timeout.
 fn server(connections: i64) -> SimDatabase {
@@ -58,7 +66,7 @@ fn server(connections: i64) -> SimDatabase {
         database.record_execute(sql, vec![value], 0);
     }
     let create = "CREATE TEMPORARY SECRET \"mergus_source_erp\" (TYPE postgres, URI ?)";
-    database.record_execute(create, vec![text(REPLICA)], 0);
+    database.record_execute(create, vec![protected(REPLICA)], 0);
     let attach = "ATTACH '' AS \"erp\" (TYPE postgres, SECRET \"mergus_source_erp\", READ_ONLY)";
     database.record_execute(attach, Vec::new(), 0);
     database.record_execute("DETACH \"erp\"", Vec::new(), 0);
@@ -190,12 +198,12 @@ fn missing_indexes_are_warned() {
     assert!(
         executed
             .iter()
-            .any(|(_, params)| params == &vec![text(REPLICA)])
+            .any(|(_, params)| params == &vec![protected(REPLICA)])
     );
     assert!(
         executed
             .iter()
-            .all(|(_, params)| params != &vec![text(PRIMARY)])
+            .all(|(_, params)| params != &vec![protected(PRIMARY)])
     );
     assert!(executed.iter().any(|(sql, _)| sql == "DETACH \"erp\""));
 }

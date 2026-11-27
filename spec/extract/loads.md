@@ -36,15 +36,18 @@ An incremental table MUST read rows whose incremental column is greater than or 
 overlap are not duplicated.
 
 1. MG-REQ-0412.1: the watermark is the largest non-NULL incremental value among a load's
-   committed rows; rows with a NULL incremental value are loaded and do not move it;
+   committed rows; rows with a NULL incremental value are loaded and do not move it, and a
+   load with no non-NULL value keeps the previous watermark; after the first load, rows whose
+   incremental value is NULL are read again only by a full load;
 2. MG-REQ-0412.2: `overlap` is subtracted only from `DATE`, `TIMESTAMP` (read as UTC) and
-   `TIMESTAMPTZ` columns; any other incremental column is read from `>= watermark`;
+   `TIMESTAMPTZ` columns, from a `DATE` column as whole days, the overlap rounded up to the
+   next day; any other incremental column is read from `>= watermark`;
 3. MG-REQ-0412.3: a re-read row whose source columns equal the current row of its key is not
    appended to `__changes` again; a row that changed is a new version.
 
 - Kind: behavior
 - Verify: test `mg_req_0412_overlap_rereads_without_duplicates`
-- Decision: 0047
+- Decision: 0047, 0049
 
 ### MG-REQ-0413 · Watermark moves only after commit
 
@@ -54,7 +57,7 @@ It is stored as `watermark_after` of `ops.loads` (MG-REQ-0514), in the text Duck
 
 - Kind: behavior
 - Verify: test `mg_req_0413_watermark_after_commit`
-- Decision: 0047
+- Decision: 0047, 0049
 - Depends: MG-REQ-0143
 
 ### MG-REQ-0414 · Incremental needs a key
@@ -77,13 +80,16 @@ nothing. Detection time is stored in `_deleted_at`.
    appended to `__changes` as MG-REQ-0518.2 says; a source without the column fails with a
    typed error (`MG-04xx`);
 3. MG-REQ-0415.3: `compare` is due when `delete_check` is `every_run`, or when 1 hour, 24 hours
-   or 7 days have passed since the last compare of the table, stored as `deletes_checked_at`
-   of its last `ops.loads` row; `delete_window` filters the incremental column on both sides
-   and requires `incremental`; `_deleted_at` is the load's `_extracted_at` (MG-REQ-0518.2).
+   or 7 days have passed since the last compare of the table, the latest non-NULL
+   `deletes_checked_at` of its `ops.loads` rows; `delete_window` filters the incremental column
+   on both sides; `_deleted_at` is the load's `_extracted_at` (MG-REQ-0518.2);
+4. MG-REQ-0415.4: `mergus validate` refuses, with a typed error (`MG-04xx`), `compare` on a
+   table without `key`, and `delete_window` on a table whose `incremental` is missing or not a
+   date or time column; a delete detected for a key that is not current is ignored.
 
 - Kind: behavior
 - Verify: test `mg_req_0415_delete_policies`
-- Decision: 0047
+- Decision: 0047, 0049
 
 ### MG-REQ-0416 · Missing delete policy warns
 
@@ -111,13 +117,14 @@ rows of an uninterrupted extraction (INV-04).
    rows (MG-REQ-0518.1), and only then is its `ops.loads` row written;
 2. MG-REQ-0418.2: a `load_id` found in `__changes` with no `ops.loads` row is unfinished; the
    next extraction of that table resumes it with the same `load_id`, after the largest key
-   it holds; it is not recorded as failed;
+   it holds; it is not recorded as failed; when its last commit was already made, the next
+   extraction only writes its `ops.loads` row;
 3. MG-REQ-0418.3: a table without `key` cannot resume by chunk: its unfinished rows are
    ignored by every reader and it is read again whole.
 
 - Kind: behavior
 - Verify: test `mg_req_0418_extraction_resumes_from_last_chunk`
-- Decision: 0047
+- Decision: 0047, 0049
 - Depends: MG-REQ-0143
 
 ### MG-REQ-0419 · Consistent snapshot across tables
@@ -153,4 +160,4 @@ reported with the suggested `mergus backfill` command.
 
 - Kind: behavior
 - Verify: test `mg_req_0420_very_late_rows_reported`
-- Decision: 0047
+- Decision: 0047, 0049

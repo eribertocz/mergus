@@ -133,14 +133,16 @@ be reprocessed without the source. The choice MUST be recorded and shown by `pla
 1. MG-REQ-0518.1: both are tables of the raw catalog, written through the storage adapter: a
    load appends its rows to `__changes` (one commit per chunk, MG-REQ-0418.1) and its last
    commit rewrites the current table (`replace`); readers of `__changes` ignore the rows of a
-   `load_id` with no `ops.loads` row, so no reader sees a load in part;
+   `load_id` with no `ops.loads` row whose `result` is `ok`, so no reader sees a load in part;
 2. MG-REQ-0518.2: a detected delete is a row of `__changes` with the last known values of the
    deleted row, `_deleted` true, and the `_load_id` and `_extracted_at` of the load that
    detected it, with `_deleted_at` equal to that `_extracted_at`;
 3. MG-REQ-0518.3: a load that returns the same key twice fails with a typed error
-   (`MG-05xx`) naming the source, the table and the key, and writes nothing.
+   (`MG-05xx`) naming the source, the table and the key, and writes nothing; for a load read
+   in chunks the key is checked across all its chunks, and the load is recorded `failed`, so
+   readers ignore the chunks it already committed.
 
 - Kind: behavior
 - Verify: test `mg_req_0518_current_and_changes_views`
-- Decision: 0044, 0047
+- Decision: 0044, 0047, 0049
 - Depends: MG-REQ-0403

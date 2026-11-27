@@ -81,7 +81,11 @@ fn postgres_server(database: &SimDatabase, answer: Option<&str>) {
     ] {
         database.record_execute(sql, vec![value], 0);
     }
-    let uri = SqlValue::Text(postgres().connection);
+    // The secret holds the value with the session parameters of MG-REQ-0429.2.
+    let uri = SqlValue::Text(format!(
+        "{}?application_name=mergus&options=-c%20lock_timeout%3D5000",
+        postgres().connection
+    ));
     let create = "CREATE TEMPORARY SECRET \"mergus_source_erp\" (TYPE postgres, URI ?)";
     database.record_execute(create, vec![uri], 0);
     let attach = "ATTACH '' AS \"erp\" (TYPE postgres, SECRET \"mergus_source_erp\", READ_ONLY)";
