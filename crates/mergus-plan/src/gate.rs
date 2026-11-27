@@ -9,6 +9,9 @@ use crate::PlanError;
 /// The code of a required secret that does not resolve (MG-REQ-0721).
 const MISSING_SECRET: &str = "MG-0701";
 
+/// The current phase: a gate due in it or before is always evaluated (MG-REQ-0720).
+pub(crate) const CURRENT_PHASE: &str = "0.4";
+
 /// One gate of stage 4, in the order of the gate table of `run/gates.md`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum Gate {
@@ -145,8 +148,9 @@ pub enum GateCheck {
     },
 }
 
-/// Whether a secret reference resolves, as the caller's existence check found it. It holds
-/// no value.
+/// Whether a secret reference resolves, as the caller's existence check found it. No type
+/// of stage 4 can hold a secret value: the input has only references and this answer, so no
+/// output can show one (MG-REQ-0721).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Existence {
     /// The reference resolves.
@@ -284,11 +288,11 @@ pub fn evaluate(input: &GateInput) -> Result<GateReport, PlanError> {
         let check = if gate == Gate::Credentials {
             GateCheck::Checked(missing_secrets(input)?)
         } else {
-            input
+            let check = input
                 .checks
                 .get(&gate)
-                .cloned()
-                .ok_or(PlanError::GateNotGiven(gate))?
+                .ok_or(PlanError::GateNotGiven(gate))?;
+            checked(gate, check)?.clone()
         };
         let result = match check {
             GateCheck::NotApplicable { phase } => GateResult::NotApplicable { phase },
@@ -298,6 +302,54 @@ pub fn evaluate(input: &GateInput) -> Result<GateReport, PlanError> {
         results.push((gate, result));
     }
     Ok(GateReport { results })
+}
+
+/// Returns `check` when its errors all name `gate` and, when not applicable, its phase is a
+/// version after [`CURRENT_PHASE`].
+fn checked(gate: Gate, check: &GateCheck) -> Result<&GateCheck, PlanError> {
+    match check {
+        GateCheck::Checked(errors) => {
+            if let Some(error) = errors.iter().find(|error| error.gate != gate) {
+                return Err(PlanError::GateMismatch {
+                    filed: gate,
+                    found: error.gate,
+                });
+            }
+        }
+        GateCheck::NotApplicable { phase } => {
+            let later = matches!(
+                (version(phase), version(CURRENT_PHASE)),
+                (Some(given), Some(current)) if given > current
+            );
+            if !later {
+                return Err(PlanError::PhaseNotLater {
+                    gate,
+                    phase: phase.clone(),
+                });
+            }
+        }
+    }
+    Ok(check)
+}
+
+/// The numbers of a version `<n>.<n>[.<n>…]`, without trailing zeros so that `0.4` and
+/// `0.4.0` are equal, or `None` when `text` is not one.
+fn version(text: &str) -> Option<Vec<u64>> {
+    let mut numbers = text
+        .split('.')
+        .map(|part| {
+            (!part.is_empty() && part.bytes().all(|byte| byte.is_ascii_digit()))
+                .then(|| part.parse().ok())
+                .flatten()
+        })
+        .collect::<Option<Vec<u64>>>()?;
+    if numbers.len() < 2 {
+        return None;
+    }
+    while numbers.last() == Some(&0) {
+        numbers.pop();
+    }
+    Some(numbers)
 }
 
 /// One `MG-0701` error per required reference marked missing, in reference, model and step

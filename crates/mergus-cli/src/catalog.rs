@@ -139,7 +139,15 @@ mod tests {
     use mergus_ports::FileSystem;
     use mergus_ports::real::RealFileSystem;
 
-    use super::{FILES, entries};
+    use super::{FILES, entries, entry};
+
+    #[test]
+    fn mg_req_0721_missing_secret_is_a_security_failure() {
+        // MG-REQ-0262: a missing secret ends with the exit code of security failures, 6.
+        let missing = entry("MG-0701").unwrap();
+        assert_eq!(missing.exit_code, 6);
+        assert!(!missing.retryable);
+    }
 
     #[test]
     fn every_catalog_file_is_compiled_in_and_well_formed() {

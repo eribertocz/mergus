@@ -14,7 +14,7 @@
 | `Cleared`, `Blocked` | The clearance stage 5 needs, or every error of every blocking gate |
 | `GateCheck` | `Checked` (the errors found) or `NotApplicable` (the phase waited for) |
 | `Existence`, `RequiredSecret` | `Resolves` or `Missing`, and a secret reference a step needs |
-| `PlanError` | An internal error: an unknown selected model, a cycle, a broken contract, a gate or an existence not given |
+| `PlanError` | An internal error: an unknown selected model, a cycle, a broken contract, a bad stage-4 input |
 
 Functions: `plan`, `fingerprint`, `effective_config`, `lf_text` and `evaluate`.
 
@@ -37,8 +37,9 @@ Functions: `plan`, `fingerprint`, `effective_config`, `lf_text` and `evaluate`.
    canonical JSON.
 
 Stage 4: `evaluate` takes, for each gate but credentials, the errors the caller found or the
-later phase its checks belong to (`NotApplicable`, which does not block); a gate not given is
-an internal error. The credentials gate is always checked: every model and step that needs a
+later phase its checks belong to (`NotApplicable`, which does not block). A gate not given,
+an error given under another gate, or a phase that is not a version after `0.4` (compared
+number by number) is an internal error. The credentials gate is always checked: every model and step that needs a
 reference the existence map marks `Missing` gets an `MG-0701` error, in reference, model and
 step order; a reference the map does not answer is an internal error. `GateReport::clear` collects the errors of every blocking gate into `Blocked`, or
 returns `Cleared`, which only this crate can build.
@@ -52,3 +53,5 @@ Only `BTreeMap` and `BTreeSet` are used, so no output depends on hash order (MG-
 - `mergus-project`: the read project (`ModelOptions`, `Effective`, `Identifier`).
 - `serde_json`: the JSON values of options and documents.
 - `thiserror`: derives `PlanError` and `Blocked`.
+- Dev-dependencies on `mergus-ports` and `mergus-sim`: the tests build the existence map from
+  a simulated keychain whose value must never reach an output.

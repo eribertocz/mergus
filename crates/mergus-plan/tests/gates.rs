@@ -8,9 +8,27 @@ use mergus_plan::{
     Existence, Gate, GateCheck, GateError, GateInput, GateReport, GateResult, PlanError,
     RequiredSecret, evaluate,
 };
+use mergus_ports::Keychain;
+use mergus_sim::SimKeychain;
 
-/// A value the caller's secret `secret:crm` has, which no output of stage 4 may show.
+/// The value of the secret `secret:crm` in the keychain, which no output of stage 4 may show.
 const VALUE: &str = "crm-value-1234";
+
+/// The existence map of `references` as the runtime builds it: a reference resolves when
+/// the keychain holds an entry for its name. The value read here never enters the map.
+fn existence_from(keychain: &SimKeychain, references: &[&str]) -> BTreeMap<String, Existence> {
+    references
+        .iter()
+        .map(|reference| {
+            let name = reference.strip_prefix("secret:").unwrap();
+            let existence = match keychain.get("mergus", name).unwrap() {
+                Some(_) => Existence::Resolves,
+                None => Existence::Missing,
+            };
+            ((*reference).to_owned(), existence)
+        })
+        .collect()
+}
 
 fn required(reference: &str, model: &str) -> RequiredSecret {
     RequiredSecret {
@@ -116,10 +134,12 @@ fn mg_req_0720_later_phase_gate_does_not_block() {
 
 #[test]
 fn mg_req_0721_secret_existence_checked_only() {
-    let given = input(vec![
+    let keychain = SimKeychain::with_entries([("mergus", "crm", VALUE)]);
+    let mut given = input(vec![
         required("secret:crm", "stg_orders"),
         required("secret:lost", "dim_customer"),
     ]);
+    given.existence = existence_from(&keychain, &["secret:crm", "secret:lost"]);
     let report = evaluate(&given).unwrap();
     let GateResult::Blocked(errors) = result(&report, Gate::Credentials) else {
         panic!("the credentials gate does not block: {report}");
@@ -135,11 +155,13 @@ fn mg_req_0721_secret_existence_checked_only() {
         "MG-0701: gate `credentials`, model `dim_customer`, step `compute dim_customer`: \
          the secret `secret:lost` does not resolve; fix: run `mergus secret set lost`"
     );
-    // No value appears in any output of the gates.
+    // No value appears in any output of the gates: the input, the report, its errors.
     let outputs = [
+        format!("{given:?}"),
         report.to_string(),
         format!("{report:?}"),
         report.clear().unwrap_err().to_string(),
+        format!("{:?}", report.clear().unwrap_err()),
     ];
     for output in outputs {
         assert!(!output.contains(VALUE), "{output}");
@@ -187,4 +209,51 @@ fn mg_req_0722_all_gate_errors_reported() {
         shown.starts_with("stage 4 blocked: 4 errors in 2 gates\n"),
         "{shown}"
     );
+}
+
+#[test]
+fn mg_req_0720_errors_filed_under_another_gate_are_rejected() {
+    let mut given = input(Vec::new());
+    given.checks.insert(
+        Gate::Pii,
+        GateCheck::Checked(vec![found(Gate::SqlSafety, "MG-0308", "stg_orders")]),
+    );
+    assert!(matches!(
+        evaluate(&given),
+        Err(PlanError::GateMismatch {
+            filed: Gate::Pii,
+            found: Gate::SqlSafety
+        })
+    ));
+}
+
+#[test]
+fn mg_req_0720_not_applicable_needs_a_later_phase() {
+    let with_phase = |phase: &str| {
+        let mut given = input(Vec::new());
+        given.checks.insert(
+            Gate::Determinism,
+            GateCheck::NotApplicable {
+                phase: phase.to_owned(),
+            },
+        );
+        evaluate(&given)
+    };
+    // Gates due in 0.4 or before are always evaluated.
+    for phase in ["", "0.4", "0.4.0", "0.3", "0.1.9", "x", "0.", "1..2"] {
+        assert!(
+            matches!(
+                with_phase(phase),
+                Err(PlanError::PhaseNotLater {
+                    gate: Gate::Determinism,
+                    ..
+                })
+            ),
+            "{phase:?}"
+        );
+    }
+    // Phases are compared as versions, not as text.
+    for phase in ["0.5", "0.10", "0.4.1", "1.0"] {
+        assert!(with_phase(phase).is_ok(), "{phase:?}");
+    }
 }
