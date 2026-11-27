@@ -58,6 +58,7 @@ watermark before and after, duration and result:
 | `duration_ms` | `BIGINT` | milliseconds from start to the end of its commit |
 | `result` | `VARCHAR` | `ok` or `failed` |
 | `error_code` | `VARCHAR` | the `MG-####` code of a failed load, NULL otherwise |
+| `deletes_checked_at` | `TIMESTAMPTZ` | when this load ran a `compare` of deletes (MG-REQ-0415.3), NULL otherwise |
 
 1. MG-REQ-0514.1: a failed load, including one refused by MG-REQ-0518.3, is recorded with
    `result = 'failed'`;
@@ -67,7 +68,7 @@ watermark before and after, duration and result:
 
 - Kind: behavior
 - Verify: test `mg_req_0514_every_load_registered`
-- Decision: 0046
+- Decision: 0046, 0047
 
 ### MG-REQ-0515 · Raw is encrypted
 
@@ -129,9 +130,10 @@ be reprocessed without the source. The choice MUST be recorded and shown by `pla
 `key`, the rows of the latest load);
 `raw.<source>__<table>__changes` MUST show every version and detected delete.
 
-1. MG-REQ-0518.1: both are tables of the raw catalog, written through the storage adapter in
-   the same commit: each load appends its rows to `__changes` and rewrites the current table
-   (`replace`), so no reader sees one without the other;
+1. MG-REQ-0518.1: both are tables of the raw catalog, written through the storage adapter: a
+   load appends its rows to `__changes` (one commit per chunk, MG-REQ-0418.1) and its last
+   commit rewrites the current table (`replace`); readers of `__changes` ignore the rows of a
+   `load_id` with no `ops.loads` row, so no reader sees a load in part;
 2. MG-REQ-0518.2: a detected delete is a row of `__changes` with the last known values of the
    deleted row, `_deleted` true, and the `_load_id` and `_extracted_at` of the load that
    detected it, with `_deleted_at` equal to that `_extracted_at`;
@@ -140,5 +142,5 @@ be reprocessed without the source. The choice MUST be recorded and shown by `pla
 
 - Kind: behavior
 - Verify: test `mg_req_0518_current_and_changes_views`
-- Decision: 0044
+- Decision: 0044, 0047
 - Depends: MG-REQ-0403
