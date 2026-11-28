@@ -174,6 +174,14 @@ fn mg_req_0375_model_cycle_rejected() {
     let found = read(&[("cyc", "SELECT *\nFROM CYC"), ("ok", "SELECT *\nFROM cyc")]);
     assert_eq!(found, Err(LayoutError::Invalid(vec![cycle(&[("cyc", 2)])])));
 
+    assert_cycle_through_python();
+    assert_no_reference_in_comment_or_literal();
+
+    assert_no_cycle_listed();
+}
+
+/// A cycle through a `.py` model is found in the same pass as the `.sql` ones (MG-REQ-0375.1).
+fn assert_cycle_through_python() {
     // A cycle through a `.py` model, found in the same pass: the line of a `.py` reference
     // is the line of its parameter, not of its `def`.
     let found = read_with(
@@ -182,7 +190,10 @@ fn mg_req_0375_model_cycle_rejected() {
     );
     let expected = cycle(&[("a", 3), ("py_b", 4)]);
     assert_eq!(found, Err(LayoutError::Invalid(vec![expected])));
+}
 
+/// A word in a comment or a string literal is no reference (MG-REQ-0375.2).
+fn assert_no_reference_in_comment_or_literal() {
     // A comment and a string literal that name the next model before the real reference are
     // no reference: the line is the one of the parsed table name.
     let found = read(&[
@@ -191,8 +202,10 @@ fn mg_req_0375_model_cycle_rejected() {
     ]);
     let expected = cycle(&[("n_a", 3), ("n_b", 2)]);
     assert_eq!(found, Err(LayoutError::Invalid(vec![expected])));
+}
 
-    // Models without a cycle are listed, `.py` models among them.
+/// Models without a cycle are listed, `.py` models among them.
+fn assert_no_cycle_listed() {
     let found = read_with(
         &[
             ("x", "SELECT *\nFROM y\nJOIN z"),
