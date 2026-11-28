@@ -119,15 +119,17 @@ fn cancelled_call_runs_again() {
 fn mg_req_1313_record_is_written_whole_or_not_at_all() {
     let files = project(&[("project.toml", PROJECT)]);
     let record = format!(".mergus/idempotency/{}.json", sha256_hex(b"k1"));
-    // The process dies just before the record is moved into place: no record, not a
-    // truncated one, is left.
+    // The process dies just before the result is moved into place: the claim is left
+    // whole (MG-REQ-1313.2), not a truncated result.
     files.crash_before_next_rename();
     let crashed = mergus(
         &files,
         &["new", "model", "orders", "--idempotency-key", "k1"],
     );
     assert!(exists(&files, "models/orders.sql"), "{crashed:?}");
-    assert!(!exists(&files, &record), "{crashed:?}");
+    let left: Value = serde_json::from_str(&text(&files, &record).unwrap()).unwrap();
+    assert_eq!(left["state"], "running", "{crashed:?}");
+    assert!(left.get("exit_code").is_none(), "{crashed:?}");
 
     let kept = mergus(
         &files,
