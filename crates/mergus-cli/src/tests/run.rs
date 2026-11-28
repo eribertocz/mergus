@@ -128,7 +128,7 @@ fn mg_req_0710_backfill_rejects_a_date_that_is_not_one() {
     let files = orders();
     let outcome = run_on_duckdb(&files, &["backfill", "stg_orders", "--from", "2026-13-01"]);
     assert_eq!(outcome.exit, 1, "{outcome:?}");
-    assert!(outcome.stderr.contains("MG-0705"), "{outcome:?}");
+    assert!(outcome.stderr.contains("MG-0706"), "{outcome:?}");
 }
 
 #[test]
@@ -136,6 +136,6 @@ fn mg_req_0710_run_without_duckdb_executes_nothing() {
     let files = orders();
     let outcome = mergus(&files, &["run"]);
     assert_eq!(outcome.exit, 1, "{outcome:?}");
-    assert!(outcome.stderr.contains("MG-0706"), "{outcome:?}");
+    assert!(outcome.stderr.contains("MG-0707"), "{outcome:?}");
     assert!(!exists(&files, ".mergus/work"));
 }

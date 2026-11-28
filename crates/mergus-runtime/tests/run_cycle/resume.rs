@@ -12,8 +12,8 @@ use mergus_runtime::{
 use mergus_sim::SimFileSystem;
 
 use crate::fixture::{
-    COUNT, CrashAfter, Log, at, cleared, database, fingerprint, models, orders, plan, read, root,
-    tree,
+    COUNT, CrashAfter, Log, at, cleared, database, end, fingerprint, models, orders, plan, read,
+    root, tree,
 };
 
 const CANDIDATES: &str = ".mergus/work/candidates";
@@ -56,7 +56,7 @@ fn mg_req_0503_work_zone_cleaned() {
     run.execute(&run.adopt(&planned).unwrap(), &cleared(), &mut work)
         .unwrap();
     assert!(!tree(&files, run.scratch()).is_empty());
-    run.finish().unwrap();
+    end(run);
     assert!(tree(&files, &at(".mergus/work/runs")).is_empty());
     assert_eq!(tree(&files, &at(CANDIDATES)).len(), 9);
 
@@ -70,7 +70,7 @@ fn mg_req_0503_work_zone_cleaned() {
         .execute(&run.adopt(&planned).unwrap(), &cleared(), &mut work)
         .unwrap_err();
     assert_eq!(failed.code(), Some("MG-0101"));
-    run.finish().unwrap();
+    end(run);
     assert!(tree(&files, &at(".mergus/work/runs")).is_empty());
 }
 
@@ -84,7 +84,7 @@ fn mg_req_0707_retry_reuses_finished_work() {
     let mut work = models(&files, &database, &project, &Log::default(), None);
     run.execute(&run.adopt(&first).unwrap(), &cleared(), &mut work)
         .unwrap();
-    run.finish().unwrap();
+    end(run);
     // An incomplete candidate is deleted at the start of the next run.
     files.create_dir_all(&at(CANDIDATES).join("half")).unwrap();
     files
@@ -106,7 +106,7 @@ fn mg_req_0707_retry_reuses_finished_work() {
     let mut work = models(&files, &database, &project, &log, None);
     run.execute(&run.adopt(&retried).unwrap(), &cleared(), &mut work)
         .unwrap();
-    run.finish().unwrap();
+    end(run);
     assert!(log.events().is_empty());
 
     changed_model(&files, &database, &first);
@@ -136,7 +136,7 @@ fn changed_model(files: &SimFileSystem, database: &RealDatabase, first: &Plan) {
     let log = Log::default();
     let mut work = models(&files_changed, database, &changed, &log, None);
     let executed = run.execute(&adopted, &cleared(), &mut work).unwrap();
-    run.finish().unwrap();
+    end(run);
     assert_eq!(log.events(), ["start orders_count", "end orders_count"]);
     let Executed::Finished { rows } = executed else {
         panic!("not finished");
@@ -163,7 +163,7 @@ fn crash_then_retry(file: &'static str) -> (Vec<String>, Vec<String>) {
     let mut work = models(&files, &database, &project, &Log::default(), None);
     let crashed = run.execute(&adopted, &cleared(), &mut work);
     assert_eq!(crashed.unwrap_err().code(), Some("MG-0704"));
-    run.finish().unwrap();
+    end(run);
 
     let run = Run::begin(&files, root(), "run2", CancelToken::new()).unwrap();
     let available = run
@@ -183,7 +183,7 @@ fn crash_then_retry(file: &'static str) -> (Vec<String>, Vec<String>) {
     let log = Log::default();
     let mut work = models(&files, &database, &project, &log, None);
     run.execute(&adopted, &cleared(), &mut work).unwrap();
-    run.finish().unwrap();
+    end(run);
     let started = log
         .events()
         .into_iter()
@@ -238,7 +238,7 @@ fn mg_req_0708_cancel_cleans_and_exits_7() {
         ]
     );
     let scratch = run.scratch().to_path_buf();
-    run.finish().unwrap();
+    end(run);
     assert!(!files.exists(&scratch).unwrap());
     let kept = tree(&files, &at(CANDIDATES));
     let stg = format!("{CANDIDATES}/{}", fingerprint(&planned, "stg_orders"));
@@ -266,7 +266,7 @@ fn mg_req_0708_token_set_before_stage_5_starts_nothing() {
     let executed = run
         .execute(&run.adopt(&planned).unwrap(), &cleared(), &mut work)
         .unwrap();
-    run.finish().unwrap();
+    end(run);
     assert_eq!(executed, Executed::Cancelled);
     assert!(log.events().is_empty());
 }

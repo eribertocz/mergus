@@ -222,8 +222,8 @@ impl CliError {
             Self::InvalidSetting { .. } => "MG-1312",
             Self::InvalidUserConfig { .. } => "MG-1313",
             Self::IdempotencyConflict { .. } => "MG-1314",
-            Self::InvalidDate { .. } | Self::InvertedBackfill { .. } => "MG-0705",
-            Self::NoDatabase => "MG-0706",
+            Self::InvalidDate { .. } | Self::InvertedBackfill { .. } => "MG-0706",
+            Self::NoDatabase => "MG-0707",
         }
     }
 

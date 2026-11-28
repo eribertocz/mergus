@@ -81,9 +81,18 @@ Run cycle and scheduling; wires ports to crates.
   candidates (MG-REQ-0705.2). A failure of a candidate is `MG-0704`, of the scratch
   directory `MG-0508`.
 - A `CancelToken` is checked before each extraction and each segment, and between the batches
-  copied into a candidate; a cancelled stage 5 ends `Cancelled`, exit code 7. `Run::finish`
-  deletes the incomplete candidates and the scratch directory whether the run succeeded,
-  failed or was cancelled, and keeps the complete candidates (MG-REQ-0503.1, MG-REQ-0708).
+  copied into a candidate; a cancelled stage 5 ends `Cancelled`, exit code 7.
+- `Run::begin_with_limits` takes the run's `Limits`, already the smaller of `[limits]` and the
+  flags, and a `Clock`. Stage 5 checks the bytes the plan reads, `Work::bytes_scanned`, before
+  anything runs; the wall time from the run's start before each segment and each batch; and
+  the rows written before each batch, stopping before the batch that would cross the limit. A
+  stop is `RunError::Limit`, `MG-0705`, naming the limit, its value and the amount reached
+  (MG-REQ-0718).
+- `Run::finish`, the finalizer, deletes the incomplete candidates and the scratch directory
+  whether the run succeeded, failed, was cancelled or stopped by a limit, keeps the complete
+  candidates, and returns the `RunReport`: the run's outcome, with its error code, and the
+  finalizer's own failures as warnings after it. A `Run` dropped without `finish` is finalized
+  on drop. Notifications are a no-op (MG-REQ-0503.1, MG-REQ-0708, MG-REQ-0709).
 
 ## What it does not
 
@@ -97,7 +106,9 @@ Run cycle and scheduling; wires ports to crates.
   has `mergus-source` detect them.
 - The current table is rewritten in full at each load.
 - The run cycle does not publish (stage 6), emit events or handle Ctrl-C: the CLI sets the
-  token and emits `run_finished` with the exit code `Executed::exit_code` gives. It does not
+  token and emits `run_finished` from the `RunReport`: the exit code `Executed::exit_code`
+  gives, or the catalog's for the error's code. It does not read `[limits]` or the flags, nor
+  measure the DuckLake files the plan reads: the caller gives both. It does not
   kill a running Python child or interrupt a DuckDB segment mid-stream. It does not map the
   read project onto `ModelWork`s: the caller gives the work of each computed model and the
   extractions.

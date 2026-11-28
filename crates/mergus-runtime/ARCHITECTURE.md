@@ -35,6 +35,7 @@
 | `Run`, `Adopted`, `Executed` | One run: scratch, candidates, the adopted plan, stage 5 |
 | `Work`, `ModelWork`, `StepContext`, `Extraction`, `SqlWork`, `SqlInput` | What stage 5 runs beyond the plan |
 | `CancelToken`, `RunError`, `StepFailure` | Cancellation, shared by every clone, and failures with their code |
+| `Limits`, `Limit`, `LimitStop`, `RunReport` | Run limits and their stop; the finalizer's report |
 
 ## Data flow
 
@@ -129,21 +130,20 @@ window of `raw_retention`: the longest `retention` of the sources without `raw =
    while fewer than `max_parallel` run and none failed. Its work writes into `steps/<model>/`,
    copied batch by batch into a fresh candidate's `result.arrow.tmp`, renamed, then
    completed. A panic fails its step; the first failed step in plan order is returned.
-3. Not yet: a lock for concurrent runs, the input of a step skipped for a gold result (0.5).
+3. One meter adds each batch's rows atomically against the limit. `Run::finish` cleans once,
+   returning failures as warnings; `Drop` cleans if `finish` was not called.
+4. Not yet: a lock for concurrent runs, the input of a step skipped for a gold result (0.5).
 
 ## Dependencies
 
-- `arrow`: the record batches of raw, their keys and filters, and the Arrow IPC files of the
-  candidates; the version of `mergus-adapter`.
+- `arrow`: raw's record batches, keys and filters, the candidates' Arrow IPC files.
 - `mergus-adapter`, `mergus-adapter-ducklake`: the `StorageAdapter` contract and the DuckLake
   adapter raw is written through and stored in.
 - `mergus-ports`: the `FileSystem`, `Database` and `Clock` ports, and `PortError`.
 - `mergus-source`: `DeclaredTable` and the raw table names (MG-REQ-0403), and the
   incremental reads, deletes and very late rows of `load_table`.
-- `mergus-project`: `Configuration`, and `key_line`, so that this crate parses no TOML
-  (MG-REQ-0186).
+- `mergus-project`: `Configuration`, and `key_line`, so this crate parses no TOML (MG-REQ-0186).
 - `serde_json`: the JSON of `project.toml` and `complete.json`; `thiserror`: the errors.
-- `mergus-plan` and `mergus-contracts`: the plan, its steps and the `Cleared` of stage 5;
-  `mergus-engine-duckdb`: `run_segment`, which `SqlWork` calls.
+- `mergus-plan`, `mergus-contracts`: the plan, its steps, `Cleared`; `mergus-engine-duckdb`.
 - Dev-dependencies only: `mergus-sim`, the simulated file system, `Database` and `Python`;
   `mergus-ports` with `real`, the real DuckDB and SQL parser of the tests.

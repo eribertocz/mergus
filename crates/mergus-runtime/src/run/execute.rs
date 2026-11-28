@@ -1,6 +1,7 @@
 //! Stage 5: executes the approved plan exactly (MG-REQ-0704). Extractions run first, in
 //! order; then each computed step starts once every step it reads has finished, with at most
-//! the plan's `max_parallel` running at once. A `skip` step runs nothing.
+//! the plan's `max_parallel` running at once. A `skip` step runs nothing. The bytes the plan
+//! reads are checked before anything runs, and wall time before each segment (MG-REQ-0718.2).
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::panic::{self, AssertUnwindSafe};
@@ -13,6 +14,7 @@ use mergus_plan::Plan;
 
 use super::candidate::Candidates;
 use super::copy::copy_result;
+use super::limits::Meter;
 use super::{CancelToken, ModelWork, RunError, StepContext, Work};
 
 /// How stage 5 ended.
@@ -49,6 +51,7 @@ pub(crate) struct Stage<'a> {
     pub(crate) scratch: &'a Path,
     pub(crate) run_id: &'a str,
     pub(crate) cancel: &'a CancelToken,
+    pub(crate) meter: &'a Meter<'a>,
 }
 
 /// The progress of the computed steps.
@@ -66,6 +69,9 @@ struct Progress<'p> {
 impl Stage<'_> {
     /// Runs the extractions of `work`, then the steps of `plan`.
     pub(crate) fn execute(&self, plan: &Plan, work: &mut Work<'_>) -> Result<Executed, RunError> {
+        self.meter
+            .check_bytes(work.bytes_scanned)
+            .map_err(RunError::Limit)?;
         for extraction in &mut work.extractions {
             if self.cancel.is_cancelled() {
                 return Ok(Executed::Cancelled);
@@ -174,6 +180,7 @@ impl Stage<'_> {
         if self.cancel.is_cancelled() {
             return Ok(None);
         }
+        self.meter.check_time().map_err(RunError::Limit)?;
         let scratch = self.scratch.join("steps").join(&step.model);
         self.files
             .create_dir_all(&scratch)
@@ -189,8 +196,15 @@ impl Stage<'_> {
         work.run(&context).map_err(RunError::Step)?;
         self.candidates.start(&step.fingerprint)?;
         let target = self.candidates.result_temporary(&step.fingerprint);
-        let copied = copy_result(self.files, &output, &target, self.cancel)
-            .map_err(|error| RunError::work(self.root, &target, &error))?;
+        let failed = |error| RunError::work(self.root, &target, &error);
+        let copied = copy_result(
+            self.files,
+            &output,
+            &target,
+            self.cancel,
+            self.meter,
+            failed,
+        )?;
         let Some(rows) = copied else {
             return Ok(None);
         };
