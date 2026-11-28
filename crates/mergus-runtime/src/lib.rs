@@ -29,6 +29,12 @@
 //! [`load_table`] loads an incremental table by chunks, each a commit, records it only once
 //! its last commit is done, and resumes an interrupted load from its last committed chunk
 //! (MG-REQ-0412, MG-REQ-0413, MG-REQ-0415, MG-REQ-0418, MG-REQ-0420, MG-REQ-0143).
+//!
+//! It runs the cycle of a run (MG-REQ-0701): [`read_project`] is stage 1 and finds every
+//! error at once (MG-REQ-0702, MG-REQ-0703); [`plan_project`] is stages 2 and 3; a [`Run`]
+//! keeps the scratch directory and the candidates (MG-REQ-0503, MG-REQ-0705), reuses finished
+//! work (MG-REQ-0707), executes the plan in stage 5 (MG-REQ-0704) and stops at its
+//! [`CancelToken`] (MG-REQ-0708).
 
 #![forbid(unsafe_code)]
 
@@ -46,6 +52,7 @@ mod raw_write;
 mod registry;
 mod registry_read;
 mod retention;
+mod run;
 mod separate;
 mod zone;
 
@@ -63,6 +70,12 @@ pub use registry_read::{LastLoad, TableLoads, table_loads};
 pub use retention::{
     DEFAULT_RETENTION, expire_raw, keeps_raw, raw_off_sources, raw_retention, show_retention,
     source_retention,
+};
+pub use run::{
+    Adopted, CANCELLED_EXIT_CODE, CANDIDATES, COMPLETE, CancelToken, Executed, Extraction,
+    FileErrors, ModelWork, RESULT, RUNS, ReadError, ReadModel, ReadPorts, ReadProject, Run,
+    RunError, SqlInput, SqlWork, StepContext, StepFailure, Work, plan_models, plan_project,
+    read_project,
 };
 pub use separate::check_storage;
 pub use zone::{Catalog, Clients, Profile, Zone, ZoneStorage, zone_storage};

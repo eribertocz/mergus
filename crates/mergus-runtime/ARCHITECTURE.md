@@ -30,6 +30,11 @@
 | `LoadError` | Why `load_table` failed, with its code |
 | `table_loads`, `TableLoads`, `LastLoad` | The last load of a table and the ids of its recorded loads |
 | `finished_changes` | The rows of `__changes` of recorded loads, those readers see |
+| `read_project`, `ReadPorts`, `ReadProject`, `ReadModel`, `ReadError`, `FileErrors` | Stage 1, and its errors by file |
+| `plan_project`, `plan_models` | Stages 2 and 3, with the available candidates |
+| `Run`, `Adopted`, `Executed` | One run: scratch, candidates, the adopted plan, stage 5 |
+| `Work`, `ModelWork`, `StepContext`, `Extraction`, `SqlWork`, `SqlInput` | What stage 5 runs beyond the plan |
+| `CancelToken`, `RunError`, `StepFailure` | Cancellation, shared by every clone, and failures with their code |
 
 ## Data flow
 
@@ -114,19 +119,31 @@
 window of `raw_retention`: the longest `retention` of the sources without `raw = false`, or
 30 days. Retentions are read as `<n>m`, `<n>h` or `<n>d`, the form the source schema checks.
 
+## The run cycle
+
+1. `read_project` runs every pass whose inputs are valid, identifiers included. Errors are
+   grouped by path in layout order, each group by line. Cycles through a `.py` model are
+   found on every model's inputs; a `.sql` reference's line is found by its word (#300).
+2. `Run::begin` empties `.mergus/work/runs/` and deletes candidates without `complete.json`.
+   Stage 5, on scoped threads, starts the first pending step whose planned inputs finished,
+   while fewer than `max_parallel` run and none failed. Its work writes into `steps/<model>/`,
+   copied batch by batch into a fresh candidate's `result.arrow.tmp`, renamed, then
+   completed. A panic fails its step; the first failed step in plan order is returned.
+3. Not yet: a lock for concurrent runs, the input of a step skipped for a gold result (0.5).
+
 ## Dependencies
 
-- `arrow`: the record batches of raw, their keys and filters; the version of
-  `mergus-adapter`.
-- `mergus-adapter`: the `StorageAdapter` contract raw is written through.
-- `mergus-adapter-ducklake`: the DuckLake adapter raw is stored in.
+- `arrow`: the record batches of raw, their keys and filters, and the Arrow IPC files of the
+  candidates; the version of `mergus-adapter`.
+- `mergus-adapter`, `mergus-adapter-ducklake`: the `StorageAdapter` contract and the DuckLake
+  adapter raw is written through and stored in.
 - `mergus-ports`: the `FileSystem`, `Database` and `Clock` ports, and `PortError`.
 - `mergus-source`: `DeclaredTable` and the raw table names (MG-REQ-0403), and the
   incremental reads, deletes and very late rows of `load_table`.
 - `mergus-project`: `Configuration`, and `key_line`, so that this crate parses no TOML
   (MG-REQ-0186).
-- `serde_json`: the JSON values of `project.toml`.
-- `thiserror`: derives `StorageProblem`.
-- `mergus-sim`, as a dev-dependency only: the in-memory file system and the simulated
-  `Database` of the tests. `mergus-ports` with `real`, as a dev-dependency only: the real
-  DuckDB of the encryption test.
+- `serde_json`: the JSON of `project.toml` and `complete.json`; `thiserror`: the errors.
+- `mergus-plan` and `mergus-contracts`: the plan, its steps and the `Cleared` of stage 5;
+  `mergus-engine-duckdb`: `run_segment`, which `SqlWork` calls.
+- Dev-dependencies only: `mergus-sim`, the simulated file system, `Database` and `Python`;
+  `mergus-ports` with `real`, the real DuckDB and SQL parser of the tests.
