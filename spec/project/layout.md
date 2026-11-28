@@ -135,7 +135,14 @@ rejected construct, with exit code 1, when:
 
 The references of MG-REQ-0373 MUST NOT form a cycle between models. A cycle MUST be an error
 with exit code 1 naming every model of the cycle in reference order, starting from the first in
-name order, with the file and line of each reference that closes it.
+name order, with the file and line of each reference that closes it:
+
+1. MG-REQ-0375.1: `.sql` and `.py` models are checked together, in one pass when the project
+   is read, so a cycle through a `.py` model (`a.sql` → `b.py` → `a.sql`) is found there too.
+   A `.py` model's references are the parameters of its steps (MG-REQ-0614).
+2. MG-REQ-0375.2: the line of a `.sql` reference is the line of the referenced name in the
+   parsed SQL, never a word in a comment or a string literal. The line of a `.py` reference is
+   the line of the parameter that names the model.
 
 - Kind: behavior
 - Verify: test `mg_req_0375_model_cycle_rejected`
