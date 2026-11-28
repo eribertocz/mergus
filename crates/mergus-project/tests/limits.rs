@@ -36,12 +36,20 @@ fn mg_req_0718_limits_in_project_toml() {
     let hours = read("name = \"sales\"\n[limits]\nwall_time = \"2h\"\n").unwrap();
     assert_eq!(hours.limits().wall_time, Some(Duration::from_secs(7200)));
     assert_eq!(hours.limits().rows_written, None);
+    let largest = read("name = \"sales\"\n[limits]\nwall_time = \"999999999999999h\"\n").unwrap();
+    assert_eq!(
+        largest.limits().wall_time,
+        Some(Duration::from_secs(999_999_999_999_999 * 3600))
+    );
     let none = read("name = \"sales\"\n").unwrap();
     assert_eq!(none.limits(), ProjectLimits::default());
 
     for invalid in [
         "wall_time = \"30d\"",
         "wall_time = \"0s\"",
+        // Too large to hold: invalid, not silently no limit.
+        "wall_time = \"99999999999999999999h\"",
+        "wall_time = \"1000000000000000s\"",
         "wall_time = 30",
         "rows_written = 0",
         "bytes_scanned = \"10GB\"",

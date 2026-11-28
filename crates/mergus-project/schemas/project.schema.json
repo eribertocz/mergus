@@ -34,9 +34,9 @@
       "additionalProperties": false,
       "properties": {
         "wall_time": {
-          "description": "The longest a run may take: a positive integer and s, m or h, such as 30m.",
+          "description": "The longest a run may take: a positive integer of at most 15 digits and s, m or h, such as 30m.",
           "type": "string",
-          "pattern": "^0*[1-9][0-9]*[smh]$"
+          "pattern": "^0*[1-9][0-9]{0,14}[smh]$"
         },
         "rows_written": {
           "description": "The most rows a run may write.",
