@@ -4,9 +4,11 @@ use mergus_project::{InputSource, PythonModelError, StepInput};
 
 use super::{problems, read, summary};
 
-fn input(parameter: &str, source: InputSource) -> StepInput {
+/// The input of `parameter` on `line`, which reads `source`.
+fn input(parameter: &str, line: usize, source: InputSource) -> StepInput {
     StepInput {
         parameter: parameter.to_owned(),
+        line,
         source,
     }
 }
@@ -23,6 +25,7 @@ fn mg_req_0614_parameters_resolve_inputs() {
         step("stg_orders"),
         [input(
             "stg_orders",
+            1,
             InputSource::Model("stg_orders".to_owned())
         )]
     );
@@ -32,14 +35,15 @@ fn mg_req_0614_parameters_resolve_inputs() {
     assert_eq!(
         step("wiring"),
         [
-            input("stg_orders", InputSource::Step("stg_orders".to_owned())),
-            input("erp__orders", InputSource::Raw("erp__orders".to_owned())),
+            input("stg_orders", 5, InputSource::Step("stg_orders".to_owned())),
+            input("erp__orders", 5, InputSource::Raw("erp__orders".to_owned())),
             input(
                 "seed__countries",
+                5,
                 InputSource::Raw("seed__countries".to_owned())
             ),
-            input("fact_sales", InputSource::Model("fact_sales".to_owned())),
-            input("abc", InputSource::Model("abc".to_owned())),
+            input("fact_sales", 5, InputSource::Model("fact_sales".to_owned())),
+            input("abc", 5, InputSource::Model("abc".to_owned())),
         ]
     );
     assert_miswired();

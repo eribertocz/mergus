@@ -69,6 +69,8 @@ pub enum StepEngine {
 pub struct StepInput {
     /// The parameter name.
     pub parameter: String,
+    /// The line of the parameter (MG-REQ-0375.2).
+    pub line: usize,
     /// What the name resolves to.
     pub source: InputSource,
 }

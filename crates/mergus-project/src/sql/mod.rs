@@ -7,7 +7,7 @@ mod known;
 mod step;
 mod tree;
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::path::Path;
 
 use mergus_ports::{FileSystem, SqlParser};
@@ -16,7 +16,9 @@ use serde_json::Value;
 pub use known::KnownTables;
 pub use step::{RunParameters, SqlStep, read_sql_step, sql_schema};
 
-use crate::{Configuration, Layout, LayoutError, ModelLanguage, ProjectError};
+use crate::{
+    Configuration, InputSource, Layout, LayoutError, ModelLanguage, ProjectError, PythonModel,
+};
 
 /// Checks every `.sql` model of `layout`, parsed by `parser`, against the tables that
 /// `configuration` declares.
@@ -69,15 +71,34 @@ pub fn check_sql(
 ///
 /// # Errors
 ///
-/// Fails as [`check_sql_models`] does, with every problem of every model when one has any,
-/// followed by one [`ProjectError::ModelCycle`] for each group of models that read one
-/// another in a cycle (MG-REQ-0375).
+/// As [`read_model_references`] without `.py` models.
 pub fn read_sql_references(
     files: &dyn FileSystem,
     root: &Path,
     layout: &Layout,
     configuration: &Configuration,
     parser: &dyn SqlParser,
+) -> Result<BTreeMap<String, Vec<String>>, LayoutError> {
+    read_model_references(files, root, layout, configuration, parser, &[])
+}
+
+/// Returns the references of every `.sql` model of `layout`, as [`read_sql_references`]
+/// does, and of every `.py` model of `python`, already read: the models and raw tables its
+/// parameters read, named the same way. Cycles are found over both in one pass
+/// (MG-REQ-0375.1).
+///
+/// # Errors
+///
+/// Fails as [`check_sql_models`] does, with every problem of every `.sql` model when one has
+/// any, followed by one [`ProjectError::ModelCycle`] for each group of models, `.sql` or
+/// `.py`, that read one another in a cycle (MG-REQ-0375).
+pub fn read_model_references(
+    files: &dyn FileSystem,
+    root: &Path,
+    layout: &Layout,
+    configuration: &Configuration,
+    parser: &dyn SqlParser,
+    python: &[PythonModel],
 ) -> Result<BTreeMap<String, Vec<String>>, LayoutError> {
     let known = KnownTables::new(layout, configuration);
     let mut problems = Vec::new();
@@ -90,15 +111,29 @@ pub fn read_sql_references(
             found.push((model, checked.references));
         }
     }
-    problems.extend(cycle::cycles(&found));
-    if problems.is_empty() {
-        Ok(found
-            .into_iter()
-            .map(|(model, references)| (model.name.clone(), references.into_keys().collect()))
-            .collect())
-    } else {
-        Err(LayoutError::Invalid(problems))
+    problems.extend(cycle::cycles(&found, python));
+    if !problems.is_empty() {
+        return Err(LayoutError::Invalid(problems));
     }
+    let sql = found
+        .into_iter()
+        .map(|(model, references)| (model.name.clone(), references.into_keys().collect()));
+    let python = python
+        .iter()
+        .map(|model| (model.name.clone(), python_references(model)));
+    Ok(sql.chain(python).collect())
+}
+
+/// The tables the parameters of `model` read: each model bare, each raw table or seed as
+/// `raw.<table>`, sorted, each once. Its own steps are not references.
+fn python_references(model: &PythonModel) -> Vec<String> {
+    let names = model.steps.iter().flat_map(|step| &step.inputs);
+    let names = names.filter_map(|input| match &input.source {
+        InputSource::Step(_) => None,
+        InputSource::Model(name) => Some(name.clone()),
+        InputSource::Raw(table) => Some(format!("raw.{table}")),
+    });
+    names.collect::<BTreeSet<_>>().into_iter().collect()
 }
 
 /// Walks the `.sql` model at `path` holding `bytes`: its problems ordered by line, then

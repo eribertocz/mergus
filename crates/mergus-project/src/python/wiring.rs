@@ -81,8 +81,11 @@ fn input(
     }
     let candidates = candidates(names, steps, &function.name);
     if let Some(source) = resolve(&parameter.name, &candidates) {
-        let parameter = parameter.name.clone();
-        return Ok(Some(StepInput { parameter, source }));
+        return Ok(Some(StepInput {
+            parameter: parameter.name.clone(),
+            line: to_usize(parameter.line),
+            source,
+        }));
     }
     let suggestion = closest_within(&parameter.name, candidates.all(), SUGGESTION_LIMIT);
     Err(PythonModelError::UnresolvedParameter {

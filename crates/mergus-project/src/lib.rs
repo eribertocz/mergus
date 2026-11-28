@@ -20,7 +20,9 @@
 //! [`check_sql_models`] checks each `.sql` model on the tree DuckDB's parser gives through the
 //! [`SqlParser`](mergus_ports::SqlParser) port (MG-REQ-0193): it reads only models, declared
 //! source tables and seeds (MG-REQ-0373) and is one read-only `SELECT` (MG-REQ-0374).
-//! [`read_sql_references`] returns the references of each `.sql` model that resolve.
+//! [`read_sql_references`] returns the references of each `.sql` model that resolve, and
+//! [`read_model_references`] those of `.sql` and `.py` models, with the cycles of both found
+//! in one pass (MG-REQ-0375).
 //!
 //! [`read_sql_step`] reads one `.sql` model as a [`SqlStep`]: its text, unchanged, and its
 //! run parameters (MG-REQ-0603), bound by [`SqlStep::bind`], never substituted.
@@ -70,6 +72,6 @@ pub use python::{
 };
 pub use reuse::{LARGE_SEED_BYTES, Macro, Macros, Seed, Seeds, read_macros, read_seeds, sql_calls};
 pub use sql::{
-    KnownTables, RunParameters, SqlStep, check_sql, check_sql_models, read_sql_references,
-    read_sql_step, sql_schema,
+    KnownTables, RunParameters, SqlStep, check_sql, check_sql_models, read_model_references,
+    read_sql_references, read_sql_step, sql_schema,
 };
