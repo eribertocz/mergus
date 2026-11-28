@@ -17,6 +17,20 @@ fn read(project: &str) -> Result<mergus_project::Configuration, LayoutError> {
 }
 
 #[test]
+fn mg_req_0718_limits_of_configuration() {
+    let hours = read("name = \"sales\"\n[limits]\nwall_time = \"2h\"\n").unwrap();
+    assert_eq!(hours.limits().wall_time, Some(Duration::from_secs(7200)));
+    assert_eq!(hours.limits().rows_written, None);
+    let largest = read("name = \"sales\"\n[limits]\nwall_time = \"999999999999999h\"\n").unwrap();
+    assert_eq!(
+        largest.limits().wall_time,
+        Some(Duration::from_secs(999_999_999_999_999 * 3600))
+    );
+    let none = read("name = \"sales\"\n").unwrap();
+    assert_eq!(none.limits(), ProjectLimits::default());
+}
+
+#[test]
 fn mg_req_0718_limits_in_project_toml() {
     let valid = "name = \"sales\"\n[limits]\nwall_time = \"30m\"\nrows_written = 1000\n\
                  bytes_scanned = 5000000\n";
@@ -33,17 +47,6 @@ fn mg_req_0718_limits_in_project_toml() {
             bytes_scanned: Some(5_000_000),
         }
     );
-    let hours = read("name = \"sales\"\n[limits]\nwall_time = \"2h\"\n").unwrap();
-    assert_eq!(hours.limits().wall_time, Some(Duration::from_secs(7200)));
-    assert_eq!(hours.limits().rows_written, None);
-    let largest = read("name = \"sales\"\n[limits]\nwall_time = \"999999999999999h\"\n").unwrap();
-    assert_eq!(
-        largest.limits().wall_time,
-        Some(Duration::from_secs(999_999_999_999_999 * 3600))
-    );
-    let none = read("name = \"sales\"\n").unwrap();
-    assert_eq!(none.limits(), ProjectLimits::default());
-
     for invalid in [
         "wall_time = \"30d\"",
         "wall_time = \"0s\"",
