@@ -45,12 +45,19 @@ pub(crate) fn work<'a>(
     let macros = macro_texts(context.ports, project)?;
     let mut columns: BTreeMap<String, Vec<ResultColumn>> = BTreeMap::new();
     let mut models: BTreeMap<String, Box<dyn ModelWork + 'a>> = BTreeMap::new();
+    let extracted = extracted(project);
     for step in &plan.document().steps {
         let model = project
             .models
             .iter()
             .find(|model| model.options.name == step.model)
             .ok_or_else(|| CliError::Internal(format!("no model `{}`", step.model)))?;
+        if let Some(load) = step.inputs.iter().find(|input| extracted.contains(*input)) {
+            return Err(CliError::Internal(format!(
+                "`{}` reads `{load}`, whose extraction a run does not do yet (#318)",
+                model.options.path
+            )));
+        }
         let sql = match described(context, &known, model, &columns)? {
             Ok(described) => described,
             Err(diagnostics) => return Ok(Err(diagnostics)),
@@ -64,11 +71,6 @@ pub(crate) fn work<'a>(
         }
         columns.insert(step.model.clone(), sql.columns);
     }
-    if let Some(load) = extraction(project) {
-        return Err(CliError::Internal(format!(
-            "the run needs the extraction of {load}, which a run does not do yet (#318)"
-        )));
-    }
     Ok(Ok(Work {
         extractions: Vec::new(),
         models,
@@ -77,15 +79,17 @@ pub(crate) fn work<'a>(
     }))
 }
 
-/// The first load stage 5 would extract before any segment: a copied table of a source, as
-/// `raw.<source>__<table>`, or a seed, as `raw.seed__<name>` (MG-REQ-0704).
-fn extraction(project: &ReadProject) -> Option<String> {
-    let table = project.configuration.sources.iter().find_map(|source| {
+/// The tables an extraction loads before any segment reads them: each copied table of a
+/// source, as `raw.<source>__<table>`, and each seed, as `raw.seed__<name>` (MG-REQ-0704).
+fn extracted(project: &ReadProject) -> BTreeSet<String> {
+    let tables = project.configuration.sources.iter().flat_map(|source| {
         copied_tables(source)
-            .first()
+            .into_iter()
             .map(|table| table.raw(&source.name).current)
     });
-    table.or_else(|| project.seeds.seeds.first().map(Seed::table))
+    tables
+        .chain(project.seeds.seeds.iter().map(Seed::table))
+        .collect()
 }
 
 /// A `.sql` model read as a step, with the columns of its result.

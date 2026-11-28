@@ -156,19 +156,15 @@ const ERP: &str =
 fn mg_req_0710_run_names_what_it_cannot_execute_yet() {
     let polars = "import polars as pl\n\n\ndef orders() -> pl.DataFrame:\n    \
                   return pl.DataFrame({\"id\": [1]})\n";
-    let cases: [(&[(&str, &str)], &str); 3] = [
+    let cases: [(&[(&str, &str)], &str); 2] = [
         (
             &[
                 ("sources/erp.toml", ERP),
                 ("models/stg_orders.sql", "SELECT * FROM raw.erp__orders"),
             ],
-            "raw.erp__orders",
+            "`raw.erp__orders`, whose extraction",
         ),
         (&[("models/orders.py", polars)], "Polars"),
-        (
-            &[("sources/erp.toml", ERP), ("models/stg_orders.sql", STG)],
-            "extraction",
-        ),
     ];
     for (extra, missing) in cases {
         let mut all = vec![("project.toml", PROJECT)];
@@ -184,6 +180,16 @@ fn mg_req_0710_run_names_what_it_cannot_execute_yet() {
         assert!(outcome.of("step_started").is_empty(), "{outcome:?}");
         assert_eq!(complete(&files), 0);
     }
+
+    // A source no selected model reads needs no extraction: the run executes.
+    let files = project(&[
+        ("project.toml", PROJECT),
+        ("sources/erp.toml", ERP),
+        ("models/stg_orders.sql", STG),
+    ]);
+    let outcome = run_on_duckdb(&files, &["run", "--json"]);
+    assert_eq!(outcome.exit, 0, "{outcome:?}");
+    assert_eq!(complete(&files), 1);
 }
 
 #[test]
