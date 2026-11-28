@@ -12,7 +12,7 @@
 | `execute_step` | Calls a step with `pl.scan_ipc` inputs and returns its result (MG-REQ-0617.3) |
 | `step_dir` | The working directory of a step under the run's work directory |
 | `child_environment` | The allowlisted environment of the Python child (MG-REQ-0006) |
-| `PolarsError`, `StepFailure` | `StepFailed` (`MG-0627`), `LoadFailed` (`MG-0628`), `PolarsMissing` (`MG-0629`), `Child`, `Boundary` or a `PortError` |
+| `PolarsError`, `StepFailure` | `StepFailed` (`MG-0627`), `LoadFailed` (`MG-0628`), `PolarsMissing` (`MG-0629`), `Child`, `InvalidName`, `Boundary` or a `PortError` |
 
 ## Data flow
 
@@ -37,6 +37,24 @@ importable. Its report goes to `status.json`, not to standard output, so what th
 prints cannot be taken for it. A child that stops without a report is `PolarsError::Child`,
 with its exit code and standard error.
 
+The child is registered in `sys.modules` under `__mergus_model__`, a key no import can name,
+so a model file named like a module of the standard library or of `lib` never shadows it.
+Every exception, `BaseException` included (`SystemExit`, `KeyboardInterrupt`), becomes a
+report. The child records its working directory first and writes every file by absolute
+path, so a step that changes the current directory keeps its report.
+
+`step_dir` accepts a model or step name only when it is exactly one plain path component,
+and `fresh_dir` removes only a directory under the run's work directory.
+
+## Limits and caller duties
+
+- `RealPython` carries the child's environment from `RealPython::locate`, including `TMP`,
+  `TEMP` and `TMPDIR` set to the run's work directory. The caller builds one `RealPython`
+  per run, with `child_environment` for that run's work directory.
+- Until #265 adds limits, nothing bounds the child: `Python::run` has no time limit, stdout
+  and stderr are read whole into memory, and a grandchild that keeps a pipe open keeps the
+  call waiting.
+
 ## Dependencies
 
 - `mergus-ports`: the `Python` and `FileSystem` ports.
@@ -44,5 +62,5 @@ with its exit code and standard error.
 - `arrow` (feature `ipc`): writes and reads the Arrow IPC files of the step's directory.
 - `serde`, `serde_json`: read the child's `status.json`.
 - `thiserror`: derives `PolarsError` and `StepFailure`.
-- Tests: the real ports (`real`) and `mergus-sim`'s `SimEnvironment`; they need a Python with
-  `polars`.
+- Tests: the real ports (`real`), `mergus-sim`'s `SimEnvironment` and `SimPython`; most need
+  a Python with `polars`, and the contract tests use a fake child instead.

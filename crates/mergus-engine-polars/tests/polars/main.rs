@@ -2,7 +2,9 @@
 //! MG-REQ-0619, MG-REQ-0636). They skip when no interpreter with `polars` is found and `CI`
 //! is unset; in CI they fail instead.
 
+mod contract;
 mod isolation;
+mod loading;
 mod plain;
 mod planning;
 

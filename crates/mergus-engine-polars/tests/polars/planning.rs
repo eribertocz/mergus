@@ -70,7 +70,7 @@ fn plans_and_executes(
     inputs: &[Frame],
 ) {
     let in_usd = step(root, "sales", "in_usd");
-    let dir = step_dir(work, &in_usd);
+    let dir = step_dir(work, &in_usd).unwrap();
     let schema = plan_step(python, &RealFileSystem, &in_usd, parameters, work).unwrap();
     assert_eq!(*schema, *floats(&["amount", "rate", "amount_usd"]));
     assert_eq!(read(&dir.join("rows_seen")), "0");
@@ -177,12 +177,23 @@ fn missing_polars_is_typed(
     let error = plan_step(python, &RealFileSystem, &in_usd, parameters, work).unwrap_err();
     assert_eq!(error.code(), Some("MG-0629"));
     assert!(
-        matches!(&error, PolarsError::PolarsMissing { message, .. } if message == "no polars here"),
+        matches!(&error, PolarsError::PolarsMissing { kind, message, .. } if kind == "ImportError" && message == "no polars here"),
         "{error:?}"
     );
     assert!(
         error
             .to_string()
             .contains("install polars in the project's Python")
+    );
+    // Any exception the import raises counts, with its own type. (The text differs in size
+    // from the first one, so Python does not reuse the bytecode it cached in the same second.)
+    write(
+        &root.join("lib").join("polars.py"),
+        "raise RuntimeError('this polars is broken')\n",
+    );
+    let error = plan_step(python, &RealFileSystem, &in_usd, parameters, work).unwrap_err();
+    assert!(
+        matches!(&error, PolarsError::PolarsMissing { kind, .. } if kind == "RuntimeError"),
+        "{error:?}"
     );
 }

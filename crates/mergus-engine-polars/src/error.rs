@@ -32,16 +32,25 @@ pub enum PolarsError {
     },
     /// The Python child cannot import `polars` (MG-REQ-0617.4).
     #[error(
-        "model `{model}`, step `{step}`: the project's Python cannot import `polars` ({message}); \
-         install polars in the project's Python"
+        "model `{model}`, step `{step}`: the project's Python cannot import `polars` \
+         ({kind}: {message}); install polars in the project's Python"
     )]
     PolarsMissing {
         /// The model.
         model: String,
         /// The step.
         step: String,
-        /// The message of the `ImportError`.
+        /// The type of the exception the import raised, usually `ImportError`.
+        kind: String,
+        /// Its message.
         message: String,
+    },
+    /// A model or step name is not one plain path component, so the step's directory would
+    /// not be inside the run's work directory. The plan never gives such a name.
+    #[error("`{name}` cannot name a directory inside the run's work directory")]
+    InvalidName {
+        /// The model or step name.
+        name: String,
     },
     /// The Python child stopped without saying how its step went, for example because the
     /// interpreter crashed.
@@ -89,14 +98,18 @@ pub enum StepFailure {
 impl PolarsError {
     /// Returns the `MG-####` code of the error (MG-REQ-0008); `None` for a port failure,
     /// which the caller reports with the code of its port error, for a child that stopped
-    /// without a report, and for a file the run itself wrote or read.
+    /// without a report, for a name the plan never gives, and for a file the run itself wrote
+    /// or read.
     #[must_use]
     pub fn code(&self) -> Option<&'static str> {
         match self {
             Self::StepFailed { .. } => Some("MG-0627"),
             Self::LoadFailed { .. } => Some("MG-0628"),
             Self::PolarsMissing { .. } => Some("MG-0629"),
-            Self::Child { .. } | Self::Boundary { .. } | Self::Port(_) => None,
+            Self::Child { .. }
+            | Self::InvalidName { .. }
+            | Self::Boundary { .. }
+            | Self::Port(_) => None,
         }
     }
 }

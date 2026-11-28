@@ -1,6 +1,6 @@
 //! The `subprocess` level: one Python child per call of a step (MG-REQ-0617.1).
 
-use std::path::{Path, PathBuf};
+use std::path::{Component, Path, PathBuf};
 
 use arrow::array::RecordBatch;
 use arrow::datatypes::SchemaRef;
@@ -69,6 +69,8 @@ pub struct Output {
 enum Status {
     Ok,
     NoPolars {
+        #[serde(rename = "type")]
+        kind: String,
         message: String,
     },
     NotLazyFrame {
@@ -88,9 +90,28 @@ enum Status {
 
 /// Returns the working directory of `step` in the run whose work directory is `work_dir`:
 /// `<work_dir>/polars/<model>/<step>`.
-#[must_use]
-pub fn step_dir(work_dir: &Path, step: &Step) -> PathBuf {
-    work_dir.join("polars").join(&step.model).join(&step.step)
+///
+/// # Errors
+///
+/// Fails with [`PolarsError::InvalidName`] when the model or the step is not exactly one
+/// plain path component: empty, `.`, `..`, absolute, with a separator or a Windows prefix.
+pub fn step_dir(work_dir: &Path, step: &Step) -> Result<PathBuf, PolarsError> {
+    let dir = work_dir
+        .join("polars")
+        .join(component(&step.model)?)
+        .join(component(&step.step)?);
+    Ok(dir)
+}
+
+/// Returns `name` when it is exactly one plain path component.
+fn component(name: &str) -> Result<&str, PolarsError> {
+    let mut components = Path::new(name).components();
+    match (components.next(), components.next()) {
+        (Some(Component::Normal(part)), None) if part == name => Ok(name),
+        _ => Err(PolarsError::InvalidName {
+            name: name.to_owned(),
+        }),
+    }
 }
 
 /// Returns the whole environment of the Python child of a run whose work directory is
@@ -112,7 +133,8 @@ pub fn child_environment(work_dir: &str, environment: &dyn Environment) -> Vec<(
 /// does not return a LazyFrame, with [`PolarsError::LoadFailed`] (`MG-0628`) when the model
 /// file raises when imported or has no function named after the step, with
 /// [`PolarsError::PolarsMissing`] (`MG-0629`) when the
-/// child cannot import `polars`, with [`PolarsError::Child`] when the child stops without a
+/// child cannot import `polars`, with [`PolarsError::InvalidName`] when the model or the step
+/// cannot name a directory, with [`PolarsError::Child`] when the child stops without a
 /// report, with [`PolarsError::Boundary`] when a file of the step cannot be read as Arrow
 /// IPC, and with [`PolarsError::Port`] when the interpreter or the file system fails.
 pub fn plan_step(
@@ -166,9 +188,14 @@ fn input_file(index: usize) -> String {
 }
 
 /// Removes what an earlier call left in the step's directory and creates it empty
-/// (MG-REQ-0636.1).
+/// (MG-REQ-0636.1). It never removes a directory outside `work_dir`.
 fn fresh_dir(files: &dyn FileSystem, work_dir: &Path, step: &Step) -> Result<PathBuf, PolarsError> {
-    let dir = step_dir(work_dir, step);
+    let dir = step_dir(work_dir, step)?;
+    if !dir.starts_with(work_dir) {
+        return Err(PolarsError::InvalidName {
+            name: dir.display().to_string(),
+        });
+    }
     if files.exists(&dir)? {
         files.remove_dir_all(&dir)?;
     }
@@ -214,9 +241,10 @@ fn outcome(step: &Step, report: Option<Status>, output: &ProcessOutput) -> Resul
     };
     match report {
         Some(Status::Ok) if output.code == Some(0) => Ok(()),
-        Some(Status::NoPolars { message }) => Err(PolarsError::PolarsMissing {
+        Some(Status::NoPolars { kind, message }) => Err(PolarsError::PolarsMissing {
             model: step.model.clone(),
             step: step.step.clone(),
+            kind,
             message,
         }),
         Some(Status::LoadFailed { kind, message }) => Err(PolarsError::LoadFailed {

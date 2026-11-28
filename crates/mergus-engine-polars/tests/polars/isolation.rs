@@ -121,7 +121,7 @@ fn mg_req_0636_server_mode_isolates_python() {
     let other = step(&root, "sales", "other");
 
     plan_step(&python, &RealFileSystem, &spy, &parameters, &first_run).unwrap();
-    let dir = step_dir(&first_run, &spy);
+    let dir = step_dir(&first_run, &spy).unwrap();
     assert!(dir.starts_with(&first_run));
     let first = seen(&dir);
     no_secret_reaches_python(&first, &first_run, &dir);
@@ -135,14 +135,14 @@ fn mg_req_0636_server_mode_isolates_python() {
 
     // Another step has its own directory.
     plan_step(&python, &RealFileSystem, &other, &parameters, &first_run).unwrap();
-    let other_dir = step_dir(&first_run, &other);
+    let other_dir = step_dir(&first_run, &other).unwrap();
     assert_ne!(other_dir, dir);
     assert_eq!(seen(&other_dir)["cwd"], other_dir.display().to_string());
 
     // Another run has its own directory too.
     let second_run = root.join("run-2");
     plan_step(&python, &RealFileSystem, &spy, &parameters, &second_run).unwrap();
-    let second_dir = step_dir(&second_run, &spy);
+    let second_dir = step_dir(&second_run, &spy).unwrap();
     assert_ne!(second_dir, dir);
     assert_eq!(seen(&second_dir)["cwd"], second_dir.display().to_string());
     no_secret_in_files(&second_dir);

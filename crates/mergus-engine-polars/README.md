@@ -9,7 +9,8 @@ Execute Polars steps.
   (`Python::run`), never through the `Process` port.
 - Runs the child in the step's own directory, `<work dir>/polars/<model>/<step>`
   (`step_dir`), which it removes and creates empty before each call, so the directory is
-  fresh for each step and each run (MG-REQ-0636.1).
+  fresh for each step and each run (MG-REQ-0636.1). A model or step name that is not one
+  plain path component is refused, so nothing outside the work directory is ever removed.
 - Gives the caller the child's whole environment (`child_environment`): the allowlisted one
   of `mergus_security::python_command`, with no secret value (MG-REQ-0006). The caller
   passes it to `RealPython::locate`.
@@ -29,7 +30,8 @@ Execute Polars steps.
   raises when imported or has no function named after the step, naming the model, the file,
   and the exception's type and message (MG-REQ-0617.5); and with `MG-0629` when the child
   cannot import `polars`, with the fix "install polars in the project's Python".
-- Adds nothing to the model's module: a step stays a plain function that a Python test calls
+- Registers the model under `__mergus_model__`, so a model file named like another module
+  never shadows it, and adds nothing to the model's module: a step stays a plain function that a Python test calls
   with a LazyFrame built by hand, without Mergus (MG-REQ-0619.1).
 
 ## What it does not

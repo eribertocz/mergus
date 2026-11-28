@@ -44,14 +44,18 @@ jobs:
           tool: cargo-deny
       - name: Install polars for the Python tests
         # The Polars engine tests run a real Python child with `polars` and do not skip in CI.
-        # The interpreter is the one `RealPython` finds: `python3`, or `python` on Windows. The
-        # runners' interpreters are externally managed (PEP 668), and the child ignores the
-        # user site (`-I`), so the packages go into the interpreter's own site-packages.
+        # `polars` goes into a virtual environment whose interpreter comes first on `PATH`, so
+        # `RealPython` finds it there; the child runs with `-I`, which hides the user site.
         shell: bash
         run: |
-          if [ "$RUNNER_OS" = Windows ]; then python=python; else python=python3; fi
-          "$python" -m pip install --break-system-packages --require-hashes \
-            -r .github/python-requirements.txt
+          if [ "$RUNNER_OS" = Windows ]; then
+            python=python; bin="$RUNNER_TEMP/mergus-py/Scripts"
+          else
+            python=python3; bin="$RUNNER_TEMP/mergus-py/bin"
+          fi
+          "$python" -m venv "$RUNNER_TEMP/mergus-py"
+          "$bin/python" -m pip install --require-hashes -r .github/python-requirements.txt
+          echo "$bin" >> "$GITHUB_PATH"
       - name: Run every blocking check
         run: cargo xtask ci
 
