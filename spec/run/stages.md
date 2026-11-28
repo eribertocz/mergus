@@ -35,8 +35,10 @@ Stages 1 to 4 MUST NOT read or write table data; stage 2 MAY read metadata only.
 
 Stage 1 MUST report every error it finds in one pass, grouped by file, not stop at the first:
 
-1. MG-REQ-0702.1: the groups follow the layout order of the files, and the errors of one file
-   keep the order in which the file states them.
+1. MG-REQ-0702.1: the groups follow the layout order of the files: `project.toml`, `ids.toml`,
+   `sources/`, `models/`, `macros/`, `lib/`, `seeds/`, `contracts/`, then any other file, as
+   the tree of `project/layout.md` lists them. The errors of one file keep the order in which
+   the file states them.
 
 - Kind: behavior
 - Verify: test `mg_req_0702_all_errors_reported_together`
@@ -115,6 +117,29 @@ useful for resuming, delete other temporary files, and exit with code 7:
 
 - Kind: behavior
 - Verify: test `mg_req_0708_cancel_cleans_and_exits_7`
+
+### MG-REQ-0710 · The run and backfill commands
+
+`mergus run [<selection>]` MUST run stages 1 to 5 for the selected models, and `mergus
+backfill <model> --from <date> [--to <date>]` MUST do the same with the backfill of
+MG-REQ-0657:
+
+1. MG-REQ-0710.1: both take the selection, `--max-wall-time`, `--max-rows-written`,
+   `--max-bytes-scanned`, `--idempotency-key` and `--json`, as `plan` does for what they share.
+   An error in stages 1 to 4 is reported like `plan`'s and exits with code 1. Nothing is executed
+   then.
+2. MG-REQ-0710.2: stage 5 writes events as it runs: `plan_ready`, one event per step started and
+   finished with its action and reason, then `run_finished` with the exit code. The exit code is
+   0 when every step succeeded or was skipped, the failing step's code when a step failed, and 7
+   when cancelled.
+3. MG-REQ-0710.3: until a phase adds publication (stage 6), a run ends with its results as
+   candidates in work. The human output says how many steps were computed and skipped, and that
+   nothing was published.
+4. MG-REQ-0710.4: Ctrl-C sets the run's cancel token (MG-REQ-0708.1). A second Ctrl-C does not
+   skip the finalizer.
+
+- Kind: behavior
+- Verify: test `mg_req_0710_run_executes_into_candidates`
 
 ### MG-REQ-0709 · Finalizer always runs
 
