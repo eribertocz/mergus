@@ -107,7 +107,7 @@ simulated `SqlParser` does, and injects the faults of `architecture/testing.md`.
 - Reason: database sources are read by DuckDB (MG-REQ-0196); ADBC serves only databases DuckDB
   does not read (MG-REQ-0197). Decision 0040.
 - Kind: behavior
-- Verify: test `mg_req_0195_adbc_driver_pinned_and_cached`
+- Verify: review `retired_by_decision_0040`
 - Phase: 0.3
 - Decision: 0033, 0036, 0038, 0040
 
