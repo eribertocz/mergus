@@ -7,14 +7,16 @@ use serde_json::Value;
 use super::{PROJECT, mergus, project};
 
 /// Every command of the binary, sorted by name.
-const COMMANDS: [&str; 10] = [
+const COMMANDS: [&str; 12] = [
     "add source",
+    "backfill",
     "doctor",
     "explain",
     "init",
     "ls",
     "new model",
     "plan",
+    "run",
     "schema",
     "secret set",
     "validate",
@@ -65,19 +67,19 @@ fn mg_req_0263_schema_describes_every_command() {
             assert_eq!(argument(command, global)["kind"], "flag", "{name}");
         }
     }
-    let new_model = &all["commands"][5];
+    let new_model = &all["commands"][6];
     assert_eq!(argument(new_model, "name")["kind"], "positional");
     assert_eq!(argument(new_model, "name")["required"], true);
     assert_eq!(argument(new_model, "--gold")["kind"], "option");
     assert_eq!(argument(new_model, "--py")["type"], "boolean");
-    let init = &all["commands"][3];
+    let init = &all["commands"][4];
     assert_eq!(
         argument(init, "--profile")["values"],
         serde_json::json!(["local"])
     );
     assert_eq!(argument(init, "--profile")["default"], "local");
     assert_eq!(argument(init, "--location")["default"], "gold");
-    let schema = &all["commands"][7];
+    let schema = &all["commands"][9];
     assert_eq!(
         argument(schema, "command")["values"],
         serde_json::json!(COMMANDS)
@@ -97,14 +99,42 @@ fn mg_req_0263_schema_describes_every_command() {
 #[test]
 fn mg_req_0263_schema_describes_selections_and_settings() {
     let all = document(&["schema", "--all"]);
-    let plan = &all["commands"][6];
+    let plan = &all["commands"][7];
     assert_eq!(argument(plan, "selection")["type"], "selection");
     assert_eq!(argument(plan, "selection")["repeatable"], true);
     assert_eq!(argument(plan, "--exclude")["type"], "selection");
     assert_eq!(argument(plan, "--max-parallel")["type"], "integer");
     assert_eq!(argument(plan, "--max-parallel")["default"], "4");
-    let explain = &all["commands"][2];
+    let explain = &all["commands"][3];
     assert_eq!(argument(explain, "argument")["required"], true);
+}
+
+#[test]
+fn mg_req_0710_schema_describes_run_and_backfill() {
+    let all = document(&["schema", "--all"]);
+    let run = &all["commands"][8];
+    let backfill = &all["commands"][1];
+    for command in [run, backfill] {
+        for option in [
+            "--max-parallel",
+            "--max-wall-time",
+            "--max-rows-written",
+            "--max-bytes-scanned",
+            "--idempotency-key",
+        ] {
+            assert_eq!(argument(command, option)["kind"], "option", "{option}");
+        }
+        let codes = command["exit_codes"].as_array().unwrap();
+        assert!(codes.contains(&Value::from(7)));
+    }
+    assert_eq!(argument(run, "selection")["type"], "selection");
+    assert_eq!(argument(backfill, "model")["required"], true);
+    assert_eq!(argument(backfill, "--from")["required"], true);
+    assert_eq!(argument(backfill, "--to")["required"], false);
+    for keyed in [0, 4, 6, 10] {
+        let command = &all["commands"][keyed];
+        assert_eq!(argument(command, "--idempotency-key")["kind"], "option");
+    }
 }
 
 #[test]
@@ -112,7 +142,7 @@ fn mg_req_1348_cli_schema_document() {
     let all = document(&["schema", "--all"]);
     assert_eq!(all, document(&["schema", "--all", "--json"]));
     let one = document(&["--json", "schema", "new", "model"]);
-    assert_eq!(one["commands"][0], all["commands"][5]);
+    assert_eq!(one["commands"][0], all["commands"][6]);
     assert_eq!(one["mergus_version"], all["mergus_version"]);
     let typed: MergusCli = serde_json::from_value(all.clone()).unwrap();
     assert_eq!(validate(&typed).unwrap().value(), &all);

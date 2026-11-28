@@ -27,6 +27,15 @@ pub enum EngineError {
         "the DuckDB session has the `icu` extension loaded, so time zones would depend on the host"
     )]
     ZoneExtensionLoaded,
+    /// DuckDB rejected the step's SQL when the segment ran it: a parser, catalog or binder
+    /// error in its text (MG-REQ-0710.2). No output was written.
+    #[error("model `{model}`: DuckDB rejected its SQL: {message}")]
+    Sql {
+        /// The model, the name of the segment's output.
+        model: String,
+        /// DuckDB's message.
+        message: String,
+    },
     /// A boundary file cannot be encoded or decoded as Arrow IPC.
     #[error("the boundary `{path}` is not a readable Arrow IPC file: {reason}")]
     Boundary {
@@ -114,6 +123,7 @@ impl EngineError {
         match self {
             Self::Unrepresentable { .. } => Some("MG-0101"),
             Self::ZoneExtensionLoaded => Some("MG-0102"),
+            Self::Sql { .. } => Some("MG-0103"),
             Self::HistoryRebuild { .. } => Some("MG-0607"),
             Self::HistoryRepeatedKey { .. } => Some("MG-0608"),
             Self::HistoryByType { .. } => Some("MG-0609"),

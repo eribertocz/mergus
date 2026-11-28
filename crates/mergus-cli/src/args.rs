@@ -7,13 +7,15 @@ use crate::error::CliError;
 use crate::mode::Verbosity;
 
 /// The commands in the order they are suggested when nothing is closer.
-const SUGGESTED: [&str; 9] = [
+const SUGGESTED: [&str; 11] = [
     "validate",
     "init",
     "new model",
     "add source",
     "schema",
     "plan",
+    "run",
+    "backfill",
     "ls",
     "explain",
     "secret set",
@@ -46,6 +48,11 @@ impl Invocation {
             .filter(|(given, _)| *given == name)
             .map(|(_, value)| value.as_str())
             .collect()
+    }
+
+    /// Returns every argument given, by name, in the order given.
+    pub(crate) fn given(&self) -> &[(&'static str, String)] {
+        &self.given
     }
 
     /// Returns the value given to the option or positional argument `name`.
@@ -249,6 +256,7 @@ fn check_value(command: Command, name: &str, value: &str) -> Result<(), CliError
     let Some(spec) = command.arguments().iter().find(|spec| spec.name == name) else {
         return Ok(());
     };
+    crate::limits::check(spec.name, value)?;
     if spec.values.is_empty() || spec.values.contains(&value) {
         return Ok(());
     }
