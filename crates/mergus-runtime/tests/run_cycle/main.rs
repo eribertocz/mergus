@@ -3,6 +3,7 @@
 //! MG-REQ-0708), the finalizer (MG-REQ-0709) and the run limits (MG-REQ-0718), on the
 //! simulated file system and the real DuckDB in memory.
 
+mod events;
 mod execute;
 mod finalizer;
 mod fixture;

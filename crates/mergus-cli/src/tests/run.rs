@@ -76,11 +76,45 @@ fn mg_req_0710_run_executes_into_candidates() {
         "{outcome:?}"
     );
 
-    // A second run reuses every candidate.
-    let again = run_on_duckdb(&files, &["run"]);
+    step_events(&files, &outcome);
+
+    // A second run reuses every candidate, and a `skip` step has no step events.
+    let again = run_on_duckdb(&files, &["run", "--json"]);
     assert_eq!(again.exit, 0, "{again:?}");
-    assert!(again.stdout.contains("0 computed, 3 skipped"), "{again:?}");
-    assert!(again.stdout.contains("nothing was published"), "{again:?}");
+    assert!(again.stderr.contains("0 computed, 3 skipped"), "{again:?}");
+    assert!(again.stderr.contains("nothing was published"), "{again:?}");
+    assert!(again.of("step_started").is_empty(), "{again:?}");
+    assert!(again.of("step_finished").is_empty(), "{again:?}");
+}
+
+/// Each computed step of `outcome` has `step_started` then `step_finished`, with its
+/// fingerprint, its engine, its rows and the size of its candidate's rows file
+/// (MG-REQ-0710.2).
+fn step_events(files: &SimFileSystem, outcome: &Outcome) {
+    let started = outcome.of("step_started");
+    let finished = outcome.of("step_finished");
+    assert_eq!((started.len(), finished.len()), (3, 3), "{outcome:?}");
+    let rows = [("orders_big", 2), ("orders_count", 1), ("stg_orders", 3)];
+    for (model, count) in rows {
+        let start = started.iter().find(|e| e["model"] == model).unwrap();
+        let end = finished.iter().find(|e| e["model"] == model).unwrap();
+        let id = start["step_id"].as_str().unwrap();
+        assert_eq!(end["step_id"], id);
+        assert_eq!(start["engine"], "duckdb");
+        assert!(start["sequence"].as_i64() < end["sequence"].as_i64());
+        assert_eq!(end["status"], "succeeded");
+        assert_eq!(end["rows"], count);
+        let result = Path::new(ROOT)
+            .join(".mergus/work/candidates")
+            .join(id)
+            .join("result.arrow");
+        let size = files.read(&result).unwrap().len();
+        assert_eq!(end["bytes"], size, "{model}");
+        assert!(end["duration_ms"].is_i64());
+    }
+    let last_step = finished.iter().filter_map(|e| e["sequence"].as_i64()).max();
+    let run_end = outcome.of("run_finished")[0]["sequence"].as_i64();
+    assert!(last_step < run_end);
 }
 
 #[test]

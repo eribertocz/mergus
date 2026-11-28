@@ -3,7 +3,7 @@
 //! through the run cycle of `mergus-runtime`. Nothing is published until a phase adds
 //! stage 6 (MG-REQ-0710.3).
 
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 use std::fmt::Write as _;
 use std::path::Path;
 
@@ -31,6 +31,7 @@ use crate::planning::{refresh_diagnostics, steps};
 use crate::run::Ports;
 use crate::selection::select;
 use crate::settings::max_parallel;
+use crate::step_events::Events;
 use crate::work::{Context, work};
 
 /// The phase whose checks the gates this phase does not check wait for.
@@ -153,14 +154,33 @@ fn stages(
         Err(error) => return Ok(Staged::Refused(vec![of_run(&error)?])),
     };
     output.plan_ready(steps(&plan))?;
-    let outcome = cycle.execute(&adopted, &cleared, &mut work);
+    let engines = engines(read);
+    let mut events = Events::new(output, &engines);
+    let outcome = cycle.execute_with_events(&adopted, &cleared, &mut work, &mut events);
+    events.end()?;
     Ok(Staged::Ran {
         plan: Box::new(plan),
         outcome,
     })
 }
 
-/// The plan request of `invocation`: the selection, or the backfilled model and its range
+/// The engine of the segment of each model: DuckDB for a `.sql` model, Polars for a `.py`
+/// one (MG-REQ-0710.2).
+fn engines(read: &ReadProject) -> BTreeMap<String, &'static str> {
+    read.models
+        .iter()
+        .map(|model| {
+            let engine = if model.options.path.ends_with(".py") {
+                "polars"
+            } else {
+                "duckdb"
+            };
+            (model.options.name.clone(), engine)
+        })
+        .collect()
+}
+
+/// The plan request of `invocation`:the selection, or the backfilled model and its range
 /// (MG-REQ-0657), and `max_parallel`.
 fn request(
     ports: &Ports<'_>,

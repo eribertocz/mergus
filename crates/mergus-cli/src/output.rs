@@ -10,6 +10,7 @@ use mergus_contracts::generated::mergus_events_v1::{
 };
 use mergus_contracts::{Contract, ValidDocument, validate_event};
 use mergus_ports::{Clock, MonotonicTime, Random};
+use mergus_runtime::StepEnd;
 
 use crate::diagnostic::Diagnostic;
 use crate::error::CliError;
@@ -122,6 +123,52 @@ impl<'a> Output<'a> {
         event.environment = Some(ENVIRONMENT.to_owned());
         event.steps = Some(steps);
         self.emit(&event)
+    }
+
+    /// Reports, with `--json`, that the step `step_id` of `model` starts on `engine`
+    /// (MG-REQ-0710.2).
+    pub(crate) fn step_started(
+        &mut self,
+        step_id: &str,
+        model: &str,
+        engine: &str,
+    ) -> Result<(), CliError> {
+        if !self.json {
+            return Ok(());
+        }
+        let mut event = self.event(MergusEventsType::StepStarted);
+        event.step_id = Some(step_id.to_owned());
+        event.model = Some(model.to_owned());
+        event.engine = Some(engine.to_owned());
+        self.emit(&event)
+    }
+
+    /// Reports, with `--json`, that the step `step_id` of `model` ended as `end` says, after
+    /// `duration` (MG-REQ-0710.2).
+    pub(crate) fn step_finished(
+        &mut self,
+        step_id: &str,
+        model: &str,
+        end: &StepEnd,
+        duration: Duration,
+    ) -> Result<(), CliError> {
+        if !self.json {
+            return Ok(());
+        }
+        let count = |value: u64| i64::try_from(value).unwrap_or(i64::MAX);
+        let mut event = self.event(MergusEventsType::StepFinished);
+        event.step_id = Some(step_id.to_owned());
+        event.model = Some(model.to_owned());
+        event.status = Some(if end.succeeded { "succeeded" } else { "failed" }.to_owned());
+        event.rows = Some(count(end.rows));
+        event.bytes = Some(count(end.bytes));
+        event.duration_ms = Some(i64::try_from(duration.as_millis()).unwrap_or(i64::MAX));
+        self.emit(&event)
+    }
+
+    /// The clock of the run.
+    pub(crate) fn clock(&self) -> &'a dyn Clock {
+        self.clock
     }
 
     /// Reports `diagnostic` and returns the exit code it calls for.

@@ -54,6 +54,7 @@ mod scaffold;
 mod secret;
 mod selection;
 mod settings;
+mod step_events;
 mod time;
 mod validate;
 mod work;
