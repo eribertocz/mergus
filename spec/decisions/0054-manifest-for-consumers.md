@@ -17,7 +17,7 @@ implemented. Points 1 and 2 block it.
    (MG-REQ-0255).
 4. **Withdrawn (0.7, with rollback):** a marker file per withdrawn manifest, written before the
    pointer moves; manifests stay immutable (MG-REQ-0256).
-5. **Error codes (0.5):** two `MG-02xx` codes, expired and missing version,, for Mergus's own
+5. **Error codes (0.5):** two `MG-02xx` codes, expired and missing version, for Mergus's own
    pinned reads (MG-REQ-0252.1). Consumers reading storage directly check `readable_until`.
 6. **Credentials and encryption:** consumers hold their own read-only credentials (identities,
    0.6); no Mergus document carries a credential. Gold is encrypted only with `encrypted =
