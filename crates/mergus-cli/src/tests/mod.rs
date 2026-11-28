@@ -122,12 +122,32 @@ impl Setup<'_> {
         self.run_all(None, &SimKeychain::new(), &NoInput, Some(database))
     }
 
+    /// Runs the binary on simulated ports and `database`, its cancel token set before it
+    /// starts, as if Ctrl-C came at once.
+    pub(crate) fn run_cancelled(&self, database: &dyn Database) -> Outcome {
+        let cancel = mergus_runtime::CancelToken::new();
+        cancel.cancel();
+        self.run_with(None, &SimKeychain::new(), &NoInput, Some(database), cancel)
+    }
+
     fn run_all(
         &self,
         config_dir: Option<&str>,
         keychain: &dyn Keychain,
         stdin: &dyn SecretInput,
         database: Option<&dyn Database>,
+    ) -> Outcome {
+        let cancel = mergus_runtime::CancelToken::new();
+        self.run_with(config_dir, keychain, stdin, database, cancel)
+    }
+
+    fn run_with(
+        &self,
+        config_dir: Option<&str>,
+        keychain: &dyn Keychain,
+        stdin: &dyn SecretInput,
+        database: Option<&dyn Database>,
+        cancel: mergus_runtime::CancelToken,
     ) -> Outcome {
         let environment =
             SimEnvironment::new(self.vars.iter().copied(), config_dir.map(Into::into))
@@ -150,7 +170,7 @@ impl Setup<'_> {
             secret_input: stdin,
             keychain,
             database,
-            cancel: mergus_runtime::CancelToken::new(),
+            cancel,
         };
         let mut stdout = Vec::new();
         let mut stderr = Vec::new();

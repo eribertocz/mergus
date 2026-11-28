@@ -3,6 +3,7 @@
 use std::fs::{self, File};
 use std::io::{BufReader, BufWriter, Write};
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicU64, Ordering};
 
 use super::port_error;
 use crate::file_system::SeekRead;
@@ -15,6 +16,35 @@ pub struct RealFileSystem;
 /// Returns the path as text for an error message.
 fn shown(path: &Path) -> String {
     path.display().to_string()
+}
+
+/// How many names [`unique_sibling`] tries before it gives up.
+const SIBLING_ATTEMPTS: u32 = 64;
+
+/// Creates a new file beside `path`, under a name no other call of this process or of another
+/// one uses, and returns its path and the open file.
+fn unique_sibling(path: &Path) -> Result<(PathBuf, File), PortError> {
+    static NEXT: AtomicU64 = AtomicU64::new(0);
+    let name = path
+        .file_name()
+        .map(|name| name.to_string_lossy().into_owned())
+        .unwrap_or_default();
+    let mut last = None;
+    for _ in 0..SIBLING_ATTEMPTS {
+        let number = NEXT.fetch_add(1, Ordering::Relaxed);
+        let sibling = path.with_file_name(format!(".{name}.{}.{number}.tmp", std::process::id()));
+        match fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(&sibling)
+        {
+            Ok(file) => return Ok((sibling, file)),
+            Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => last = Some(error),
+            Err(error) => return Err(port_error(&shown(path), &error)),
+        }
+    }
+    let error = last.unwrap_or_else(|| std::io::Error::other("no attempt was made"));
+    Err(port_error(&shown(path), &error))
 }
 
 impl FileSystem for RealFileSystem {
@@ -34,6 +64,34 @@ impl FileSystem for RealFileSystem {
 
     fn write(&self, path: &Path, contents: &[u8]) -> Result<(), PortError> {
         fs::write(path, contents).map_err(|error| port_error(&shown(path), &error))
+    }
+
+    fn create_new(&self, path: &Path, contents: &[u8]) -> Result<bool, PortError> {
+        // Written whole under a name of its own, then linked into place: the link fails if
+        // anything is at `path`, and a reader never sees the file half written.
+        let (temporary, mut file) = unique_sibling(path)?;
+        let written = file
+            .write_all(contents)
+            .and_then(|()| file.sync_all())
+            .and_then(|()| fs::hard_link(&temporary, path));
+        drop(file);
+        let removed = fs::remove_file(&temporary);
+        match written {
+            Ok(()) => {}
+            Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => return Ok(false),
+            Err(error) => return Err(port_error(&shown(path), &error)),
+        }
+        removed.map_err(|error| port_error(&shown(&temporary), &error))?;
+        #[cfg(unix)]
+        if let Some(parent) = path
+            .parent()
+            .filter(|parent| !parent.as_os_str().is_empty())
+        {
+            File::open(parent)
+                .and_then(|directory| directory.sync_all())
+                .map_err(|error| port_error(&shown(parent), &error))?;
+        }
+        Ok(true)
     }
 
     fn remove_file(&self, path: &Path) -> Result<(), PortError> {
@@ -169,5 +227,21 @@ mod tests {
             fs.rename(&dir.join("missing"), &dir.join("other")),
             Err(PortError::NotFound(_))
         ));
+    }
+
+    #[test]
+    fn real_file_system_creates_a_new_file_exclusively() {
+        let dir = scratch("create-new");
+        let fs = RealFileSystem;
+        let path = dir.join("claim.json");
+        assert!(fs.create_new(&path, b"first").unwrap());
+        assert!(!fs.create_new(&path, b"second").unwrap());
+        assert_eq!(fs.read(&path).unwrap(), b"first");
+        assert!(matches!(
+            fs.create_new(&dir.join("no").join("parent"), b""),
+            Err(PortError::NotFound(_))
+        ));
+        // Nothing but the file is left beside it.
+        assert_eq!(fs.list_dir(&dir).unwrap(), [path]);
     }
 }

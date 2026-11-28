@@ -59,6 +59,28 @@ pub trait FileSystem: Send + Sync {
     /// [`PortError::Failed`] when the file cannot be written.
     fn write(&self, path: &Path, contents: &[u8]) -> Result<(), PortError>;
 
+    /// Creates the file at `path` with `contents` only if nothing exists there, in one step,
+    /// so that of two callers that race for the same path one alone creates it. Its parent
+    /// must exist. Returns `false`, and changes nothing, when something already exists at
+    /// `path`.
+    ///
+    /// The default checks [`FileSystem::exists`], then writes: it is not exclusive, and is
+    /// meant only for a file system that no other caller changes at the same time, such as
+    /// the simulator. The real file system creates the file exclusively, and whole: a reader
+    /// sees no file or all of `contents`.
+    ///
+    /// # Errors
+    ///
+    /// Fails with [`PortError::NotFound`] when the parent directory does not exist, and with
+    /// [`PortError::Failed`] when the file cannot be created.
+    fn create_new(&self, path: &Path, contents: &[u8]) -> Result<bool, PortError> {
+        if self.exists(path)? {
+            return Ok(false);
+        }
+        self.write(path, contents)?;
+        Ok(true)
+    }
+
     /// Removes the file at `path`.
     ///
     /// # Errors

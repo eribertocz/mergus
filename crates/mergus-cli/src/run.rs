@@ -92,14 +92,14 @@ pub(crate) fn run(ports: &Ports<'_>, stdout: &mut dyn Write, stderr: &mut dyn Wr
         return once(ports, &arguments, None, stdout, stderr);
     };
     let path = match idempotency::find(ports, &invocation) {
-        Ok(Found::Fresh(path)) => path,
+        Ok(Found::Claimed(path)) => path,
         Ok(Found::Replay(outcome)) => {
             return match idempotency::replay(&outcome, stdout, stderr) {
                 Ok(()) => outcome.exit_code,
                 Err(_) => exit::INTERNAL,
             };
         }
-        Ok(Found::Conflict(error)) | Err(error) => {
+        Ok(Found::Refused(error)) | Err(error) => {
             return once(ports, &arguments, Some(error), stdout, stderr);
         }
     };
@@ -107,12 +107,17 @@ pub(crate) fn run(ports: &Ports<'_>, stdout: &mut dyn Write, stderr: &mut dyn Wr
     let mut out = Tee::new(stdout);
     let mut err = Tee::new(stderr);
     let exit_code = once(ports, &arguments, None, &mut out, &mut err);
-    let kept = idempotency::Outcome {
-        stdout: out.copy,
-        stderr: err.copy,
-        exit_code,
+    let ended = if idempotency::is_kept(exit_code) {
+        let kept = idempotency::Outcome {
+            stdout: out.copy,
+            stderr: err.copy,
+            exit_code,
+        };
+        idempotency::keep(ports, &invocation, &path, &kept)
+    } else {
+        idempotency::release(ports, &path)
     };
-    if let Err(error) = idempotency::keep(ports, &invocation, &path, &kept) {
+    if let Err(error) = ended {
         let text = format!("error[{}]: {error}\n", error.code());
         if stderr.write_all(text.as_bytes()).is_err() {
             return exit::INTERNAL;
