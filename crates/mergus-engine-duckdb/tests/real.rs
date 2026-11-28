@@ -233,3 +233,20 @@ fn mg_req_0633_duckdb_streams_a_result_in_several_batches() {
     assert_eq!(rows, 10_000);
     assert!(calls > 1, "{calls} batches");
 }
+
+#[test]
+fn mg_req_0710_rejected_sql_names_the_model_and_duckdb_message() {
+    let dir = scratch();
+    let schema = events_schema(DataType::Int64);
+    let out = dir.join("out.arrow");
+    let output = table("orders", schema, Transport::SharedMemory, &out);
+    let sql = "SELECT id, amount, \"at\" FROM no_such_table";
+    let error = run(&dir, &segment(sql, vec![], output)).unwrap_err();
+    assert_eq!(error.code(), Some("MG-0103"));
+    let EngineError::Sql { model, message } = &error else {
+        panic!("not a SQL failure: {error}");
+    };
+    assert_eq!(model, "orders");
+    assert!(message.contains("Catalog Error: "), "{message}");
+    assert!(error.to_string().contains("orders"), "{error}");
+}

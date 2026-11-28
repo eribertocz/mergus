@@ -2,7 +2,9 @@
 //! step's SQL and leaves its rows at its output boundary.
 
 use arrow::datatypes::{Schema, SchemaRef};
-use mergus_ports::{Database, DatabaseConnection, DatabaseLocation, FileSystem, SqlValue};
+use mergus_ports::{
+    Database, DatabaseConnection, DatabaseLocation, FileSystem, PortError, SqlValue,
+};
 
 use crate::checks::{declared, described, without_icu};
 use crate::exact::{Zones, conform, duckdb_type, unrepresentable};
@@ -68,7 +70,8 @@ pub struct Table {
 /// another type, whatever the number of rows; or when a value cannot be represented exactly
 /// in its declared type, before anything is written. Fails with
 /// [`EngineError::ZoneExtensionLoaded`] (`MG-0102`) when the session has `icu` loaded;
-/// with [`EngineError::Boundary`] when a boundary file is not Arrow IPC; and with
+/// with [`EngineError::Sql`] (`MG-0103`) when DuckDB rejects the step's SQL, naming the
+/// output; with [`EngineError::Boundary`] when a boundary file is not Arrow IPC; and with
 /// [`EngineError::Port`] when DuckDB or the file system fails.
 pub fn run_segment(
     database: &dyn Database,
@@ -91,11 +94,30 @@ pub fn run_segment(
     let output = &segment.output;
     let describe = format!("DESCRIBE {}", segment.sql);
     let result = ("the step's result", true);
-    described(session.as_mut(), &describe, &segment.params, output, result)?;
+    // `DESCRIBE` is the first statement that runs the step's SQL: DuckDB failing it is
+    // DuckDB rejecting that SQL.
+    described(session.as_mut(), &describe, &segment.params, output, result)
+        .map_err(|error| rejected(&output.name, error, true))?;
     without_icu(session.as_mut())?;
-    match output.boundary.transport {
+    let written = match output.boundary.transport {
         Transport::SharedMemory => write_shared(session.as_mut(), files, segment),
         Transport::Parquet => write_parquet(session.as_mut(), database, files, segment),
+    };
+    written.map_err(|error| rejected(&output.name, error, false))
+}
+
+/// `error`, or [`EngineError::Sql`] for `model` when it is DuckDB's rejection of the step's
+/// SQL (MG-REQ-0710.2): a refusal of a statement's text, or, when `describing` the step's
+/// SQL, any failure of DuckDB.
+fn rejected(model: &str, error: EngineError, describing: bool) -> EngineError {
+    let sql = |message| EngineError::Sql {
+        model: model.to_owned(),
+        message,
+    };
+    match error {
+        EngineError::Port(PortError::Refused(message)) => sql(message),
+        EngineError::Port(PortError::Failed(message)) if describing => sql(message),
+        other => other,
     }
 }
 
