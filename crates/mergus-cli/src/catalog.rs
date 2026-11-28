@@ -95,6 +95,7 @@ const FILES: [(&str, &str); 92] = [
     ("MG-1312", include_str!("../errors/MG-1312.md")),
     ("MG-1313", include_str!("../errors/MG-1313.md")),
     ("MG-1314", include_str!("../errors/MG-1314.md")),
+    ("MG-1315", include_str!("../errors/MG-1315.md")),
 ];
 
 /// What the catalog says about one code.

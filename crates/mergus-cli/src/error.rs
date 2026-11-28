@@ -175,6 +175,12 @@ pub(crate) enum CliError {
         /// The key given.
         key: String,
     },
+    /// An idempotency key is claimed by a call still running (MG-REQ-1313.2).
+    #[error("idempotency key `{key}` is claimed by a call still running")]
+    IdempotencyClaimed {
+        /// The key given.
+        key: String,
+    },
     /// `--from` or `--to` of `backfill` is not a date (MG-REQ-0710, MG-REQ-0657).
     #[error("`{option}` is `{given}`, which is not a date `YYYY-MM-DD`")]
     InvalidDate {
@@ -231,6 +237,7 @@ impl CliError {
             Self::InvalidSetting { .. } => "MG-1312",
             Self::InvalidUserConfig { .. } => "MG-1313",
             Self::IdempotencyConflict { .. } => "MG-1314",
+            Self::IdempotencyClaimed { .. } => "MG-1315",
             Self::InvalidDate { .. } | Self::InvertedBackfill { .. } => "MG-0706",
             Self::NoDatabase => "MG-0707",
         }
@@ -279,6 +286,7 @@ impl CliError {
             | Self::InvalidSetting { .. }
             | Self::InvalidUserConfig { .. }
             | Self::IdempotencyConflict { .. }
+            | Self::IdempotencyClaimed { .. }
             | Self::InvalidDate { .. }
             | Self::InvertedBackfill { .. }
             | Self::NoDatabase => None,

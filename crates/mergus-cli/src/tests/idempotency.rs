@@ -5,10 +5,12 @@ use std::path::Path;
 
 use mergus_contracts::hash::sha256_hex;
 use mergus_ports::FileSystem;
-use serde_json::Value;
+use mergus_ports::real::RealDatabase;
+use mergus_sim::{SimFileSystem, SimRandom};
+use serde_json::{Value, json};
 
 use super::run::{orders, run_on_duckdb};
-use super::{PROJECT, ROOT, exists, mergus, project, text};
+use super::{PROJECT, ROOT, START, Setup, exists, mergus, project, text};
 use crate::idempotency::Tee;
 
 #[test]
@@ -43,6 +45,74 @@ fn mg_req_1313_same_key_has_no_second_effect() {
     assert_eq!(other.exit, 1, "{other:?}");
     assert!(other.stderr.contains("MG-1314"), "{other:?}");
     assert!(!exists(&files, "models/customers.sql"));
+
+    claimed_key_has_no_effect();
+    cancelled_call_runs_again();
+}
+
+/// The claim of a call still running, made `age` seconds before the simulated start.
+fn claim(files: &SimFileSystem, key: &[u8], age: i64) -> std::path::PathBuf {
+    let now = i64::try_from(START / 1_000_000_000).unwrap();
+    let claim = json!({
+        "arguments": "0".repeat(64),
+        "created_unix_seconds": now - age,
+        "state": "running",
+    });
+    let path = Path::new(ROOT).join(format!(".mergus/idempotency/{}.json", sha256_hex(key)));
+    files.create_dir_all(path.parent().unwrap()).unwrap();
+    files.write(&path, claim.to_string().as_bytes()).unwrap();
+    path
+}
+
+/// MG-REQ-1313.2: a call that finds its key claimed by a call still running fails with
+/// MG-1315, exit code 3, and does nothing; a claim older than 24 hours has expired.
+fn claimed_key_has_no_effect() {
+    let files = project(&[("project.toml", PROJECT)]);
+    let args = ["new", "model", "orders", "--idempotency-key", "c1"];
+    let path = claim(&files, b"c1", 60);
+    let before = files.read(&path).unwrap();
+    let claimed = mergus(&files, &args);
+    assert_eq!(claimed.exit, 3, "{claimed:?}");
+    assert!(claimed.stderr.contains("MG-1315"), "{claimed:?}");
+    assert!(!exists(&files, "models/orders.sql"));
+    // The claim is the running call's: it is left as it was.
+    assert_eq!(files.read(&path).unwrap(), before);
+
+    // A stale claim counts as expired: the command runs and keeps its result.
+    claim(&files, b"c1", 24 * 3600 + 1);
+    let stale = mergus(&files, &args);
+    assert_eq!(stale.exit, 0, "{stale:?}");
+    assert!(exists(&files, "models/orders.sql"));
+    let stored: Value = serde_json::from_slice(&files.read(&path).unwrap()).unwrap();
+    assert_eq!(stored["exit_code"], 0);
+}
+
+/// MG-REQ-1313.3: a cancelled call, exit code 7, keeps no result, so its retry runs again.
+fn cancelled_call_runs_again() {
+    let files = orders();
+    let args = ["run", "--json", "--idempotency-key", "x1"];
+    let database = RealDatabase::new(Path::new("/nonexistent"));
+    let random = SimRandom::new(7);
+    let cancelled = Setup {
+        files: &files,
+        cwd: ROOT,
+        args: &args,
+        vars: &[],
+        random: &random,
+        seed: 7,
+        terminal: false,
+        input: None,
+    }
+    .run_cancelled(&database);
+    assert_eq!(cancelled.exit, 7, "{cancelled:?}");
+    let record = format!(".mergus/idempotency/{}.json", sha256_hex(b"x1"));
+    assert!(!exists(&files, &record), "{cancelled:?}");
+
+    let retried = run_on_duckdb(&files, &args);
+    assert_eq!(retried.exit, 0, "{retried:?}");
+    assert_eq!(retried.of("run_finished")[0]["exit_code"], 0);
+    let stored: Value = serde_json::from_str(&text(&files, &record).unwrap()).unwrap();
+    assert_eq!(stored["exit_code"], 0);
 }
 
 #[test]

@@ -36,6 +36,23 @@ impl FileSystem for RealFileSystem {
         fs::write(path, contents).map_err(|error| port_error(&shown(path), &error))
     }
 
+    fn create_new(&self, path: &Path, contents: &[u8]) -> Result<bool, PortError> {
+        let failed = |error: std::io::Error| port_error(&shown(path), &error);
+        let mut file = match fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(path)
+        {
+            Ok(file) => file,
+            Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => return Ok(false),
+            Err(error) => return Err(failed(error)),
+        };
+        file.write_all(contents)
+            .and_then(|()| file.sync_all())
+            .map_err(failed)?;
+        Ok(true)
+    }
+
     fn remove_file(&self, path: &Path) -> Result<(), PortError> {
         fs::remove_file(path).map_err(|error| port_error(&shown(path), &error))
     }
@@ -167,6 +184,20 @@ mod tests {
         assert!(!fs.exists(&dir.join("complete.json.tmp")).unwrap());
         assert!(matches!(
             fs.rename(&dir.join("missing"), &dir.join("other")),
+            Err(PortError::NotFound(_))
+        ));
+    }
+
+    #[test]
+    fn real_file_system_creates_a_new_file_exclusively() {
+        let dir = scratch("create-new");
+        let fs = RealFileSystem;
+        let path = dir.join("claim.json");
+        assert!(fs.create_new(&path, b"first").unwrap());
+        assert!(!fs.create_new(&path, b"second").unwrap());
+        assert_eq!(fs.read(&path).unwrap(), b"first");
+        assert!(matches!(
+            fs.create_new(&dir.join("no").join("parent"), b""),
             Err(PortError::NotFound(_))
         ));
     }
