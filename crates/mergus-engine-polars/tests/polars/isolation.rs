@@ -88,14 +88,16 @@ fn no_secret_reaches_python(first: &serde_json::Value, run: &Path, dir: &Path) {
     no_secret_in_files(dir);
 }
 
-/// The search path and locale of this process, and secret values in variables that hold
+/// Every variable of this process that `mergus_security::python_command` passes, as a run
+/// gives them (`SYSTEMROOT` is needed on Windows), and secret values in variables that hold
 /// credentials.
 #[cfg(test)]
 fn with_secrets() -> SimEnvironment {
-    let mut vars: Vec<(String, String)> = ["PATH", "VIRTUAL_ENV", "LANG"]
-        .iter()
-        .filter_map(|name| Some(((*name).to_owned(), RealEnvironment.var(name)?)))
-        .collect();
+    let mut vars: Vec<(String, String)> =
+        ["PATH", "LANG", "LC_ALL", "TZ", "SYSTEMROOT", "VIRTUAL_ENV"]
+            .iter()
+            .filter_map(|name| Some(((*name).to_owned(), RealEnvironment.var(name)?)))
+            .collect();
     for name in ["WAREHOUSE_TOKEN", "AWS_SECRET_ACCESS_KEY", "PGPASSWORD"] {
         vars.push((name.to_owned(), SECRET.to_owned()));
     }

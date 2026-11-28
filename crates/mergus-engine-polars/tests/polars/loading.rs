@@ -14,11 +14,11 @@ use super::{batch, column, floats, python, read, scratch, write};
 const COUNTED: &str = r#"import polars as pl
 
 def counted(joined):
-    with open("calls", "a") as file:
+    with open("calls", "a", newline="\n") as file:
         file.write("call\n")
 
     def mark(series):
-        with open("collects", "a") as file:
+        with open("collects", "a", newline="\n") as file:
             file.write("collect\n")
         return series
 
