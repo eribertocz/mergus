@@ -5,7 +5,6 @@
 const FILES: [(&str, &str); 92] = [
     ("MG-0101", include_str!("../errors/MG-0101.md")),
     ("MG-0102", include_str!("../errors/MG-0102.md")),
-    ("MG-0103", include_str!("../errors/MG-0103.md")),
     ("MG-0301", include_str!("../errors/MG-0301.md")),
     ("MG-0302", include_str!("../errors/MG-0302.md")),
     ("MG-0303", include_str!("../errors/MG-0303.md")),
@@ -78,6 +77,7 @@ const FILES: [(&str, &str); 92] = [
     ("MG-0705", include_str!("../errors/MG-0705.md")),
     ("MG-0706", include_str!("../errors/MG-0706.md")),
     ("MG-0707", include_str!("../errors/MG-0707.md")),
+    ("MG-0708", include_str!("../errors/MG-0708.md")),
     ("MG-1001", include_str!("../errors/MG-1001.md")),
     ("MG-1002", include_str!("../errors/MG-1002.md")),
     ("MG-1003", include_str!("../errors/MG-1003.md")),

@@ -123,7 +123,7 @@ impl EngineError {
         match self {
             Self::Unrepresentable { .. } => Some("MG-0101"),
             Self::ZoneExtensionLoaded => Some("MG-0102"),
-            Self::Sql { .. } => Some("MG-0103"),
+            Self::Sql { .. } => Some("MG-0708"),
             Self::HistoryRebuild { .. } => Some("MG-0607"),
             Self::HistoryRepeatedKey { .. } => Some("MG-0608"),
             Self::HistoryByType { .. } => Some("MG-0609"),

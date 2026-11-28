@@ -70,7 +70,7 @@ pub struct Table {
 /// another type, whatever the number of rows; or when a value cannot be represented exactly
 /// in its declared type, before anything is written. Fails with
 /// [`EngineError::ZoneExtensionLoaded`] (`MG-0102`) when the session has `icu` loaded;
-/// with [`EngineError::Sql`] (`MG-0103`) when DuckDB rejects the step's SQL, naming the
+/// with [`EngineError::Sql`] (`MG-0708`) when DuckDB rejects the step's SQL, naming the
 /// output; with [`EngineError::Boundary`] when a boundary file is not Arrow IPC; and with
 /// [`EngineError::Port`] when DuckDB or the file system fails.
 pub fn run_segment(

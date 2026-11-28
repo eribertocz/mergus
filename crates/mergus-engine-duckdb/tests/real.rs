@@ -242,7 +242,7 @@ fn mg_req_0710_rejected_sql_names_the_model_and_duckdb_message() {
     let output = table("orders", schema, Transport::SharedMemory, &out);
     let sql = "SELECT id, amount, \"at\" FROM no_such_table";
     let error = run(&dir, &segment(sql, vec![], output)).unwrap_err();
-    assert_eq!(error.code(), Some("MG-0103"));
+    assert_eq!(error.code(), Some("MG-0708"));
     let EngineError::Sql { model, message } = &error else {
         panic!("not a SQL failure: {error}");
     };
