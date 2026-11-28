@@ -71,6 +71,7 @@ Implementers never use this map: they use `just spec-context`.
 | Command map, init, selection, confirmations, precedence | cli | [commands](cli/commands.md) |
 | Output modes and error layout | cli | [output](cli/output.md) |
 | Error code catalog | cli | [errors](cli/errors.md) |
+| Idempotency keys | cli | [idempotency](cli/idempotency.md) |
 | Performance targets | cli | [performance](cli/performance.md) |
 | UI architecture and ecosystem rule (post-MVP) | ui | [integration](ui/integration.md) |
 | UI sections, capabilities, identity (post-MVP) | ui | [experience](ui/experience.md) |
