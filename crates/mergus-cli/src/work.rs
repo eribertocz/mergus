@@ -1,12 +1,16 @@
 //! The read project mapped onto the runtime's [`Work`]: one [`SqlWork`] per `.sql` model the
 //! plan computes, through `mergus-engine-duckdb`, with each output schema as DuckDB
-//! describes it against empty inputs (MG-REQ-0604).
+//! describes it against empty inputs (MG-REQ-0604), and one Polars work per `.py` model
+//! ([`crate::polars`]).
 
 use std::collections::{BTreeMap, BTreeSet};
+use std::path::PathBuf;
+
+use arrow::datatypes::SchemaRef;
 
 use mergus_contracts::generated::mergus_plan_v1::StepAction;
 use mergus_plan::Plan;
-use mergus_ports::{Database, ResultColumn};
+use mergus_ports::{Database, Python, ResultColumn};
 use mergus_project::Seed;
 use mergus_project::{KnownTables, LayoutError, Macros, RunParameters, read_sql_step, sql_schema};
 use mergus_runtime::{ModelWork, ReadModel, ReadProject, SqlInput, SqlWork, Work};
@@ -15,15 +19,20 @@ use mergus_source::copied_tables;
 use crate::arrow_types::schema;
 use crate::diagnostic::Diagnostic;
 use crate::error::CliError;
+use crate::polars::polars_work;
 use crate::run::Ports;
 
 /// The code of a column type a segment cannot hold exactly (MG-REQ-0604).
-const UNREPRESENTABLE: &str = "MG-0101";
+pub(crate) const UNREPRESENTABLE: &str = "MG-0101";
 
 /// What the work of a run needs besides the project.
 pub(crate) struct Context<'a> {
     pub(crate) ports: &'a Ports<'a>,
     pub(crate) database: &'a dyn Database,
+    /// The Python of the Polars steps, located once per run; `None` without a `.py` model.
+    pub(crate) python: Option<&'a dyn Python>,
+    /// The run's scratch directory, where the Polars steps are planned.
+    pub(crate) scratch: PathBuf,
     /// The run parameters every step binds (MG-REQ-0603).
     pub(crate) parameters: RunParameters,
 }
@@ -34,8 +43,9 @@ pub(crate) struct Context<'a> {
 /// # Errors
 ///
 /// Fails with [`CliError::Internal`], naming what is missing, for a plan the run cannot
-/// execute yet: a model that reads `raw.<table>` (#316), a Polars step (#317) or an
-/// extraction (#318); and when a port fails.
+/// execute yet: a model that reads `raw.<table>` (#316) or an extraction (#318), a `.sql`
+/// model that reads a `.py` one, or a `.py` model with a step that returns SQL; and when a
+/// port fails.
 pub(crate) fn work<'a>(
     context: &Context<'a>,
     project: &ReadProject,
@@ -44,6 +54,7 @@ pub(crate) fn work<'a>(
     let known = KnownTables::new(&project.layout, &project.configuration);
     let macros = macro_texts(context.ports, project)?;
     let mut columns: BTreeMap<String, Vec<ResultColumn>> = BTreeMap::new();
+    let mut schemas: BTreeMap<String, SchemaRef> = BTreeMap::new();
     let mut models: BTreeMap<String, Box<dyn ModelWork + 'a>> = BTreeMap::new();
     let extracted = extracted(project);
     for step in &plan.document().steps {
@@ -58,7 +69,18 @@ pub(crate) fn work<'a>(
                 model.options.path
             )));
         }
-        let sql = match described(context, &known, model, &columns)? {
+        if model.options.path.ends_with(".py") {
+            let (work, schema) = match polars_work(context, project, model, &columns, &schemas)? {
+                Ok(planned) => planned,
+                Err(diagnostics) => return Ok(Err(diagnostics)),
+            };
+            if step.action == StepAction::Compute {
+                models.insert(step.model.clone(), Box::new(work));
+            }
+            schemas.insert(step.model.clone(), schema);
+            continue;
+        }
+        let sql = match described(context, &known, model, &columns, &schemas)? {
             Ok(described) => described,
             Err(diagnostics) => return Ok(Err(diagnostics)),
         };
@@ -106,15 +128,16 @@ fn described(
     known: &KnownTables,
     model: &ReadModel,
     columns: &BTreeMap<String, Vec<ResultColumn>>,
+    schemas: &BTreeMap<String, SchemaRef>,
 ) -> Result<Result<Described, Vec<Diagnostic>>, CliError> {
     let path = &model.options.path;
-    if !path.ends_with(".sql") {
-        return Err(CliError::Internal(format!(
-            "`{path}` is a Polars step, which a run does not execute yet (#317)"
-        )));
-    }
     let mut inputs = BTreeMap::new();
     for input in &model.inputs {
+        if schemas.contains_key(input) {
+            return Err(CliError::Internal(format!(
+                "`{path}` reads the Polars model `{input}`, which a SQL segment does not read yet"
+            )));
+        }
         let found = columns.get(input).ok_or_else(|| {
             CliError::Internal(format!(
                 "`{path}` reads the raw input `{input}`, which a SQL segment does not read yet (#316)"

@@ -2,8 +2,11 @@
 
 use std::cell::RefCell;
 use std::io::{BufRead, Write};
+use std::path::Path;
 
-use mergus_ports::{Clock, Database, Environment, FileSystem, Keychain, Random, SqlParser};
+use mergus_ports::{
+    Clock, Database, Environment, FileSystem, Keychain, PortError, Python, Random, SqlParser,
+};
 use mergus_runtime::CancelToken;
 
 use crate::args::{self, Invocation};
@@ -56,6 +59,16 @@ pub(crate) trait SecretInput {
     fn all(&self) -> Option<String>;
 }
 
+/// Finds the Python interpreter of a project (MG-REQ-0617.1).
+pub(crate) trait Interpreters {
+    /// The interpreter of the project at `root`, whose children get exactly `env`.
+    ///
+    /// # Errors
+    ///
+    /// Fails with [`PortError::PythonNotFound`] when there is none.
+    fn locate(&self, root: &Path, env: Vec<(String, String)>) -> Result<Box<dyn Python>, PortError>;
+}
+
 /// The ports a run uses, created by `main` or by a test.
 pub(crate) struct Ports<'a> {
     pub(crate) environment: &'a dyn Environment,
@@ -78,6 +91,8 @@ pub(crate) struct Ports<'a> {
     pub(crate) database: Option<&'a dyn Database>,
     /// The cancel token of `run` and `backfill`, which Ctrl-C sets (MG-REQ-0710.4).
     pub(crate) cancel: CancelToken,
+    /// Where `run` and `backfill` find the Python of the Polars steps, once per run.
+    pub(crate) python: &'a dyn Interpreters,
 }
 
 /// Runs the command of the arguments of `ports.environment` and returns its exit code

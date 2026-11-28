@@ -31,7 +31,7 @@ use mergus_ports::{FileSystem, Random, Timestamp};
 use mergus_sim::{ClockFaults, SimClock, SimEnvironment, SimFileSystem, SimKeychain, SimRandom};
 use serde_json::Value;
 
-use crate::run::{Answers, Ports, SecretInput, run};
+use crate::run::{Answers, Interpreters, Ports, SecretInput, run};
 
 /// The root of the simulated project.
 pub(crate) const ROOT: &str = "/work/sales";
@@ -151,6 +151,7 @@ impl Setup<'_> {
             keychain,
             database,
             cancel: mergus_runtime::CancelToken::new(),
+            python: &NoPython,
         };
         let mut stdout = Vec::new();
         let mut stderr = Vec::new();
@@ -160,6 +161,21 @@ impl Setup<'_> {
             stderr: String::from_utf8(stderr).unwrap(),
             exit,
         }
+    }
+}
+
+/// A machine without a Python interpreter: the simulated ports run no child.
+pub(crate) struct NoPython;
+
+impl Interpreters for NoPython {
+    fn locate(
+        &self,
+        root: &Path,
+        _env: Vec<(String, String)>,
+    ) -> Result<Box<dyn mergus_ports::Python>, mergus_ports::PortError> {
+        Err(mergus_ports::PortError::PythonNotFound {
+            searched: vec![root.join(".venv/bin/python").display().to_string()],
+        })
     }
 }
 
