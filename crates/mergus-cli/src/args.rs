@@ -256,6 +256,7 @@ fn check_value(command: Command, name: &str, value: &str) -> Result<(), CliError
     let Some(spec) = command.arguments().iter().find(|spec| spec.name == name) else {
         return Ok(());
     };
+    crate::limits::check(spec.name, value)?;
     if spec.values.is_empty() || spec.values.contains(&value) {
         return Ok(());
     }

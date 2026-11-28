@@ -64,6 +64,14 @@ pub(crate) enum CliError {
         /// The closest allowed value (MG-REQ-0359).
         closest: &'static str,
     },
+    /// A run limit is not in its format (MG-REQ-0718.1).
+    #[error("`{given}` is not a value of `{option}`")]
+    InvalidLimit {
+        /// The option.
+        option: &'static str,
+        /// The value given.
+        given: String,
+    },
     /// `secret set` is given a word it does not take, which may be the value; the word is
     /// never shown (MG-REQ-1007.5).
     #[error(
@@ -207,6 +215,7 @@ impl CliError {
             | Self::MissingValue { .. }
             | Self::RepeatedOption { .. }
             | Self::InvalidValue { .. }
+            | Self::InvalidLimit { .. }
             | Self::SecretArgument
             | Self::MissingArgument { .. } => "MG-1301",
             Self::ProjectNotFound { .. } => "MG-1302",
@@ -245,6 +254,7 @@ impl CliError {
                 ..
             } => Some(format!("Use `{closest}`.")),
             Self::MissingValue { option } => Some(format!("Write the value after `{option}`.")),
+            Self::InvalidLimit { option, .. } => Some(limit_hint(option).to_owned()),
             Self::RepeatedOption { option } => Some(format!("Give `{option}` once.")),
             Self::MissingArgument {
                 command: "schema", ..
@@ -283,6 +293,15 @@ impl CliError {
             }
             _ => Vec::new(),
         }
+    }
+}
+
+/// What to give the limit option `option` (MG-REQ-0718.1).
+fn limit_hint(option: &str) -> &'static str {
+    if option == crate::commands::LIMITS[0] {
+        "Give a positive integer and `s`, `m` or `h`, such as `30m`."
+    } else {
+        "Give a positive integer, such as `1000`."
     }
 }
 

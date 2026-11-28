@@ -15,7 +15,7 @@ use mergus_plan::{
 use mergus_ports::Database;
 use mergus_project::RunParameters;
 use mergus_runtime::{
-    Executed, Limits, ReadError, ReadPorts, ReadProject, Run, RunError, RunReport, plan_models,
+    Executed, ReadError, ReadPorts, ReadProject, Run, RunError, RunReport, plan_models,
     plan_project, read_project,
 };
 
@@ -24,6 +24,7 @@ use crate::commands::{Command, EXCLUDE, FROM, MAX_PARALLEL, MODEL, SELECTION, TO
 use crate::diagnostic::Diagnostic;
 use crate::error::CliError;
 use crate::exit;
+use crate::limits;
 use crate::models::{self, Project};
 use crate::output::{ENVIRONMENT, Output};
 use crate::planning::{refresh_diagnostics, steps};
@@ -65,7 +66,7 @@ pub(crate) fn run(
         &project.root,
         output.run_id(),
         ports.cancel.clone(),
-        Limits::default(),
+        limits::of(invocation, limits::of_project(&read.configuration)),
         ports.clock,
     );
     let cycle = match cycle {

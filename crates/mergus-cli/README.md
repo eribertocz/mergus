@@ -31,7 +31,10 @@ The `mergus` binary; translates arguments and output only.
   stages 1 to 4 as `plan`, where an error exits with code 1 and executes nothing, then
   stage 5 into candidates in work. `.sql` models that read other models run in DuckDB; the
   human output counts the steps computed and skipped and says nothing was published. Ctrl-C
-  sets the cancel token and the run exits with code 7 (MG-REQ-0710).
+  sets the cancel token and the run exits with code 7 (MG-REQ-0710). The limits of
+  `[limits]` in `project.toml` and of `--max-wall-time` (`90s`, `30m`, `2h`),
+  `--max-rows-written` and `--max-bytes-scanned` (positive integers), the smaller of each
+  pair, go to the run cycle; an invalid flag value is an invalid command line (MG-REQ-0718).
 - Takes `--idempotency-key <key>` on `init`, `new model`, `add source`, `secret set`, `run`
   and `backfill`: within 24 hours the same key and arguments print the first result again
   without new effects, and other arguments fail with `MG-1314` (MG-REQ-1313).
@@ -72,8 +75,7 @@ The `mergus` binary; translates arguments and output only.
 ## What it does not
 
 - `run` does not execute `.py` models, models that read `raw.<table>` or seeds, or
-  extractions yet; it parses the `--max-*` limits without passing them on, and emits no
-  step events yet.
+  extractions yet, and emits no step events yet.
 - It has no live tree or summary of the interactive mode, and `mergus doctor` has no
   `--source`, `--security` or `--network` yet.
 - It never sets `actor` and ignores any actor given in an argument, a variable or a project

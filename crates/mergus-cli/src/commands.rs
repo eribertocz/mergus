@@ -25,21 +25,19 @@ pub(crate) const SOURCE: &str = "--source";
 /// The option that makes a command that changes state idempotent (MG-REQ-1313).
 pub(crate) const IDEMPOTENCY_KEY: &str = "--idempotency-key";
 
-/// The run limits of MG-REQ-0710.1, whose values wait for #303.
+/// The run limits of MG-REQ-0710.1 and MG-REQ-0718.1.
 pub(crate) const LIMITS: [&str; 3] = [
     "--max-wall-time",
     "--max-rows-written",
     "--max-bytes-scanned",
 ];
 
-/// The first and last date of a backfill (MG-REQ-0657).
-pub(crate) const FROM: &str = "--from";
-
-/// The last date of a backfill; the run's start without it (MG-REQ-0657.1).
-pub(crate) const TO: &str = "--to";
-
-/// The model a backfill recomputes (MG-REQ-0657).
+/// The model a backfill recomputes, and its first and last dates (MG-REQ-0657).
 pub(crate) const MODEL: &str = "model";
+/// The first date of a backfill.
+pub(crate) const FROM: &str = "--from";
+/// The last date of a backfill.
+pub(crate) const TO: &str = "--to";
 
 /// The positional words of a selection (MG-REQ-1305).
 pub(crate) const SELECTION: &str = "selection";
@@ -47,8 +45,7 @@ pub(crate) const SELECTION: &str = "selection";
 /// The exit codes every command may end with: success, a project error, an internal error.
 const EXIT_CODES: [u8; 3] = [0, 1, 10];
 
-/// The exit codes of `run` and `backfill`: those of every command, a failing step's code and
-/// 7 when cancelled (MG-REQ-0710.2).
+/// The exit codes of `run` and `backfill`, 7 when cancelled (MG-REQ-0710.2).
 const RUN_EXIT_CODES: [u8; 5] = [0, 1, 6, 7, 10];
 
 /// A command the binary runs.
@@ -230,23 +227,33 @@ const EXCLUDED: Argument = Argument {
 
 const LS: [Argument; 5] = [SELECTED, EXCLUDED, GLOBAL[0], GLOBAL[1], GLOBAL[2]];
 
-const PARALLEL: Argument = Argument {
-    r#type: Type::Integer,
-    ..option(MAX_PARALLEL, Some("4"))
-};
+/// `argument`, with integer values.
+const fn integer(argument: Argument) -> Argument {
+    Argument {
+        r#type: Type::Integer,
+        ..argument
+    }
+}
+
+const PARALLEL: Argument = integer(option(MAX_PARALLEL, Some("4")));
 
 const PLAN: [Argument; 6] = [
     SELECTED, EXCLUDED, PARALLEL, GLOBAL[0], GLOBAL[1], GLOBAL[2],
 ];
+
+/// The run limits (MG-REQ-0718.1): a wall time is a string, rows and bytes are integers.
+const WALL_TIME: Argument = option(LIMITS[0], None);
+const ROWS_WRITTEN: Argument = integer(option(LIMITS[1], None));
+const BYTES_SCANNED: Argument = integer(option(LIMITS[2], None));
 
 /// What `run` and `backfill` share with `plan`, then the limits and the key (MG-REQ-0710.1).
 const RUN: [Argument; 10] = [
     SELECTED,
     EXCLUDED,
     PARALLEL,
-    option(LIMITS[0], None),
-    option(LIMITS[1], None),
-    option(LIMITS[2], None),
+    WALL_TIME,
+    ROWS_WRITTEN,
+    BYTES_SCANNED,
     KEY,
     GLOBAL[0],
     GLOBAL[1],
@@ -261,9 +268,9 @@ const BACKFILL: [Argument; 11] = [
     },
     option(TO, None),
     PARALLEL,
-    option(LIMITS[0], None),
-    option(LIMITS[1], None),
-    option(LIMITS[2], None),
+    WALL_TIME,
+    ROWS_WRITTEN,
+    BYTES_SCANNED,
     KEY,
     GLOBAL[0],
     GLOBAL[1],

@@ -256,8 +256,8 @@ fn children(map: &serde_json::Map<String, serde_json::Value>) -> Vec<(String, &s
 #[test]
 fn mg_req_0362_only_due_keys_are_known() {
     let project: serde_json::Value = serde_json::from_str(ConfigKind::Project.schema()).unwrap();
-    let keys: Vec<&String> = project["properties"].as_object().unwrap().keys().collect();
-    assert_eq!(keys, ["gold", "mergus", "name", "ops", "raw", "seeds"]);
+    let keys = project["properties"].as_object().unwrap().keys();
+    assert!(keys.eq(["gold", "limits", "mergus", "name", "ops", "raw", "seeds"]));
     assert_eq!(project["required"], serde_json::json!(["name"]));
     let zone = &project["$defs"]["zone"]["properties"];
     let zone_keys: Vec<&String> = zone.as_object().unwrap().keys().collect();

@@ -139,3 +139,60 @@ fn mg_req_0710_run_without_duckdb_executes_nothing() {
     assert!(outcome.stderr.contains("MG-0707"), "{outcome:?}");
     assert!(!exists(&files, ".mergus/work"));
 }
+
+#[test]
+fn mg_req_0718_run_stops_at_limit_without_publishing() {
+    let files = orders();
+    let outcome = run_on_duckdb(&files, &["run", "--json", "--max-rows-written", "2"]);
+    assert_eq!(outcome.exit, 1, "{outcome:?}");
+    let diagnostics = outcome.of("diagnostic");
+    assert_eq!(diagnostics.len(), 1, "{outcome:?}");
+    assert_eq!(diagnostics[0]["code"], "MG-0705");
+    assert!(outcome.of("published").is_empty());
+    // The finalizer ran: nothing is left in scratch, and the stopped step left no candidate.
+    let runs = Path::new(ROOT).join(".mergus/work/runs");
+    assert!(files.list_dir(&runs).map_or(true, |runs| runs.is_empty()));
+    assert!(complete(&files) < 3);
+}
+
+#[test]
+fn mg_req_0718_invalid_limit_is_an_invalid_command_line() {
+    let files = orders();
+    for args in [
+        &["run", "--json", "--max-wall-time", "30d"][..],
+        &["run", "--json", "--max-rows-written", "0"],
+        &[
+            "backfill",
+            "stg_orders",
+            "--from",
+            "2026-01-01",
+            "--json",
+            "--max-bytes-scanned",
+            "1e3",
+        ],
+    ] {
+        let outcome = run_on_duckdb(&files, args);
+        assert_eq!(outcome.exit, 1, "{args:?}: {outcome:?}");
+        assert!(outcome.of("run_started").is_empty(), "{outcome:?}");
+        assert_eq!(outcome.of("diagnostic")[0]["code"], "MG-1301");
+    }
+}
+
+#[test]
+fn mg_req_0718_project_limit_and_flag_take_the_smaller() {
+    let files = orders();
+    let toml = "name = \"sales\"\n[limits]\nrows_written = 2\n";
+    files
+        .write(&Path::new(ROOT).join("project.toml"), toml.as_bytes())
+        .unwrap();
+    let stopped = run_on_duckdb(&files, &["run", "--json", "--max-rows-written", "1000"]);
+    assert_eq!(stopped.exit, 1, "{stopped:?}");
+    assert_eq!(stopped.of("diagnostic")[0]["code"], "MG-0705");
+
+    let toml = "name = \"sales\"\n[limits]\nrows_written = 1000\nwall_time = \"2h\"\n";
+    files
+        .write(&Path::new(ROOT).join("project.toml"), toml.as_bytes())
+        .unwrap();
+    let ran = run_on_duckdb(&files, &["run", "--json"]);
+    assert_eq!(ran.exit, 0, "{ran:?}");
+}
