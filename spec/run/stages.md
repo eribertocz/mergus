@@ -128,10 +128,15 @@ MG-REQ-0657:
    `--max-bytes-scanned`, `--idempotency-key` and `--json`, as `plan` does for what they share.
    An error in stages 1 to 4 is reported like `plan`'s and exits with code 1. Nothing is executed
    then.
-2. MG-REQ-0710.2: stage 5 writes events as it runs: `plan_ready`, one event per step started and
-   finished with its action and reason, then `run_finished` with the exit code. The exit code is
-   0 when every step succeeded or was skipped, the failing step's code when a step failed, and 7
-   when cancelled.
+2. MG-REQ-0710.2: stage 5 writes events as it runs: `plan_ready`, which carries every step's
+   action and reason; then, for each computed step, `step_started` and `step_finished`, with
+   `step_id` the step's fingerprint, `engine` its segment's engine, `rows` the rows written to
+   its candidate and `bytes` the size of the candidate's rows file; then `run_finished`. A
+   `skip` step has no step events. The exit code is 0 when every step succeeded or was
+   skipped, the exit code of the failing step's error code when a step failed, and 7 when
+   cancelled. A
+   step whose engine rejects the user's SQL at execution fails with the next free `MG-01xx`
+   code and exit code 1, naming the model and the engine's message.
 3. MG-REQ-0710.3: until a phase adds publication (stage 6), a run ends with its results as
    candidates in work. The human output says how many steps were computed and skipped, and that
    nothing was published.
@@ -163,10 +168,13 @@ A run MUST accept limits on wall time, rows written and bytes scanned, from `pro
 the command line, the stricter one winning. Before a limit is exceeded the run MUST stop the
 step, publish nothing, and end with a typed error naming the limit:
 
-1. MG-REQ-0718.1: the limits are `[limits] wall_time` (a duration such as `"30m"`),
-   `rows_written` and `bytes_scanned` (integers) in `project.toml`, and the flags
-   `--max-wall-time`, `--max-rows-written` and `--max-bytes-scanned`. When both a file value and
-   a flag value are set, the smaller one applies.
+1. MG-REQ-0718.1: the limits are `[limits] wall_time`, `rows_written` and `bytes_scanned` in
+   `project.toml`, and the flags `--max-wall-time`, `--max-rows-written` and
+   `--max-bytes-scanned`. A wall time is a string of a positive integer and a unit, `s`, `m` or
+   `h` (`"90s"`, `"30m"`, `"2h"`); rows and bytes are positive integers (the flags' schema type
+   is `string` for the first and `integer` for the others). An invalid value is an invalid
+   command line or configuration (MG-REQ-0297). When a file value and a flag value are both
+   set, the smaller one applies.
 2. MG-REQ-0718.2: bytes scanned are the sum of the sizes of the DuckLake files the plan reads.
    They are checked before stage 5 starts. Rows written are counted per batch, and the run
    stops before it writes the batch that would cross the limit. Wall time is measured from the

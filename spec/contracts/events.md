@@ -96,7 +96,7 @@ closest valid word (MG-REQ-0359). When `--json` is among the arguments, the outp
 | 4 | Publication conflict: another writer moved the pointer | Yes, after a new plan |
 | 5 | Menura rejected the catalog (schema gate) | No |
 | 6 | Security: permission, secret, undecided PII | No |
-| 7 | Cancelled by the user or by the time limit | Depends |
+| 7 | Cancelled by the user (a run limit stops with 1, MG-REQ-0718.3) | Yes: a re-run resumes from its candidates |
 | 10–19 | Internal error of Mergus, with a report for an issue | No |
 
 ### MG-REQ-0262 · Exit codes have fixed meanings
