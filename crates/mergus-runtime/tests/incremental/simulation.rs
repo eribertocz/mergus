@@ -26,6 +26,9 @@ use crate::world::{World, texts, versions};
 const DEFAULT_SEEDS: u64 = 16;
 /// The keys a load can hold.
 const KEYS: i64 = 8;
+/// Seeds that broke INV-04 once, run before the others: 4608102607500001924 drew a first load
+/// of no row, which writes no `__changes` (issue #290).
+const REGRESSION_SEEDS: [u64; 1] = [4_608_102_607_500_001_924];
 
 /// INV-04 over incremental loads by chunks, with a crash where the seed says.
 struct ExactlyOnce;
@@ -80,15 +83,26 @@ impl Scenario for ExactlyOnce {
     }
 
     fn apply(&self, worlds: &mut Worlds, load: &Load) -> Result<(), Violation> {
-        catch_unwind(AssertUnwindSafe(|| apply(worlds, load))).unwrap_or_else(|panic| {
-            let message = panic
-                .downcast_ref::<String>()
-                .cloned()
-                .or_else(|| panic.downcast_ref::<&str>().map(|text| (*text).to_owned()))
-                .unwrap_or_default();
-            Err(Violation::new(format!("panicked: {message}")))
-        })
+        catch_unwind(AssertUnwindSafe(|| apply(worlds, load)))
+            .unwrap_or_else(|panic| Err(Violation::new(format!("panicked: {}", message(&*panic)))))
     }
+}
+
+#[cfg(test)]
+/// The message of `panic`, or an empty text when it carries none.
+fn message(panic: &(dyn std::any::Any + Send)) -> String {
+    panic
+        .downcast_ref::<String>()
+        .cloned()
+        .or_else(|| panic.downcast_ref::<&str>().map(|text| (*text).to_owned()))
+        .unwrap_or_default()
+}
+
+#[cfg(test)]
+/// Runs `run` on the world `name`, a panic becoming a violation that names that world.
+fn in_world<T>(name: &str, run: impl FnOnce() -> T) -> Result<T, Violation> {
+    catch_unwind(AssertUnwindSafe(run))
+        .map_err(|panic| Violation::new(format!("the {name} world panicked: {}", message(&*panic))))
 }
 
 #[cfg(test)]
@@ -131,15 +145,17 @@ fn apply(worlds: &mut Worlds, load: &Load) -> Result<(), Violation> {
     let source_of = || attached(load, earlier);
     let before = commits(whole);
     let mut attached = source_of();
-    whole
-        .load(&mut attached, source, table, Some(load.chunk), None)
-        .map_err(|error| Violation::new(format!("the uninterrupted load failed: {error}")))?;
+    in_world(UNINTERRUPTED, || {
+        whole.load(&mut attached, source, table, Some(load.chunk), None)
+    })?
+    .map_err(|error| Violation::new(format!("the uninterrupted load failed: {error}")))?;
     let made = commits(whole) - before;
     if let Some(crash) = load.crash {
         let after = usize::try_from(crash % u64::try_from(made).unwrap()).unwrap();
         let mut attached = source_of();
-        let crashed_load =
-            crashed.load(&mut attached, source, table, Some(load.chunk), Some(after));
+        let crashed_load = in_world(CRASHED, || {
+            crashed.load(&mut attached, source, table, Some(load.chunk), Some(after))
+        })?;
         if crashed_load.is_ok() {
             return Err(Violation::new(format!(
                 "the load did not crash after {after} of its {made} commits"
@@ -147,11 +163,13 @@ fn apply(worlds: &mut Worlds, load: &Load) -> Result<(), Violation> {
         }
     }
     let mut attached = source_of();
-    crashed
-        .load(&mut attached, source, table, Some(load.chunk), None)
-        .map_err(|error| Violation::new(format!("the resumed load failed: {error}")))?;
+    in_world(CRASHED, || {
+        crashed.load(&mut attached, source, table, Some(load.chunk), None)
+    })?
+    .map_err(|error| Violation::new(format!("the resumed load failed: {error}")))?;
     earlier.extend(load.rows.iter().filter_map(|row| row.hour));
-    let (expected, seen) = (shown(whole), shown(crashed));
+    let expected = in_world(UNINTERRUPTED, || shown(whole))?;
+    let seen = in_world(CRASHED, || shown(crashed))?;
     if seen == expected {
         Ok(())
     } else {
@@ -177,16 +195,23 @@ fn attached(load: &Load, earlier: &[i64]) -> mergus_source::AttachedSource {
     )
 }
 
-/// [`snapshot`], `(sale_id, amount, _deleted)` of every row of `__changes`, and each load's
-/// `result`.
-type Shown = (Snapshot, Vec<(i64, i64, bool)>, Vec<Option<String>>);
+/// The name of the world that never crashes, in violations.
+const UNINTERRUPTED: &str = "uninterrupted";
+/// The name of the world that crashes and resumes, in violations.
+const CRASHED: &str = "crashed";
+
+/// [`snapshot`], `(sale_id, amount, _deleted)` of every row of `__changes`, `None` while the
+/// table does not exist, and each load's `result`.
+type Shown = (Snapshot, Option<Vec<(i64, i64, bool)>>, Vec<Option<String>>);
 
 #[cfg(test)]
-/// What `world` shows: [`snapshot`], every row of `__changes`, finished or not, and the
+/// What `world` shows: [`snapshot`], every row of `__changes`, finished or not, or that it
+/// does not exist, and the
 /// `result` of each row of `ops.loads`.
 fn shown(world: &World) -> Shown {
     let results = texts(&world.registry(), "result");
-    (snapshot(world), versions(&world.every_change()), results)
+    let changes = world.recorded_changes().as_ref().map(versions);
+    (snapshot(world), changes, results)
 }
 
 #[cfg(test)]
@@ -242,7 +267,8 @@ fn mg_req_0143_resume_is_exactly_once_under_the_simulator() {
             );
         }
     }
-    for seed in first..first.checked_add(seeds).unwrap() {
+    let regressions = REGRESSION_SEEDS.into_iter().filter(|_| seeds != 1);
+    for seed in regressions.chain(first..first.checked_add(seeds).unwrap()) {
         if let Outcome::Failed(failure) = simulator.run(seed) {
             let minimal = simulator.shrink(&failure);
             panic!(
@@ -304,4 +330,42 @@ fn mg_req_0198_a_duplicated_load_is_a_violation() {
             .message()
             .contains("after a crash the world shows")
     );
+}
+
+#[test]
+fn mg_req_0143_resume_is_exactly_once_after_a_load_of_no_rows() {
+    // The minimal case of seed 4608102607500001924: a first load that reads no row, whose
+    // process crashes at its first commit, under both delete policies.
+    let load = Load {
+        rows: Vec::new(),
+        chunk: 2,
+        crash: Some(998_423_305_015_648_030),
+    };
+    for seed in [0, 1] {
+        let mut worlds = ExactlyOnce.start(seed);
+        ExactlyOnce.apply(&mut worlds, &load).unwrap();
+        // Neither world has `__changes`: no row was ever written to it.
+        assert!(worlds.whole.recorded_changes().is_none());
+        assert!(worlds.crashed.recorded_changes().is_none());
+        assert_eq!(shown(&worlds.whole), shown(&worlds.crashed));
+    }
+}
+
+#[test]
+fn mg_req_0143_resume_is_exactly_once_for_the_regression_seeds() {
+    let simulator = Simulator::new(ExactlyOnce);
+    for seed in REGRESSION_SEEDS {
+        let outcome = simulator.run(seed);
+        assert!(
+            matches!(outcome, Outcome::Passed { .. }),
+            "seed {seed}: {outcome:?}"
+        );
+    }
+}
+
+#[test]
+fn mg_req_0198_a_panic_names_its_world() {
+    let violation = in_world(CRASHED, || -> () { panic!("no table") }).unwrap_err();
+    assert_eq!(violation.message(), "the crashed world panicked: no table");
+    assert_eq!(in_world(UNINTERRUPTED, || 7).unwrap(), 7);
 }
