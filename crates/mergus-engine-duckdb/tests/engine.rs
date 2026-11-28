@@ -70,6 +70,8 @@ fn segment(output: Boundary, inputs: Vec<Table>) -> Segment {
         sql: SQL.to_owned(),
         params: vec![SqlValue::Integer(1)],
         macros: MACROS.iter().map(|text| (*text).to_owned()).collect(),
+        catalogs: Vec::new(),
+        snapshot: None,
         inputs,
         output: table("orders_out", rows_schema(), output),
     }

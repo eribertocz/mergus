@@ -45,6 +45,8 @@ fn segment(output: Table, inputs: Vec<Table>) -> Segment {
         sql: SQL.to_owned(),
         params: vec![],
         macros: vec![MACRO.to_owned()],
+        catalogs: Vec::new(),
+        snapshot: None,
         inputs,
         output,
     }

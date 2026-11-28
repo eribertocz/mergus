@@ -74,6 +74,8 @@ fn segment() -> Segment {
         sql: SQL.to_owned(),
         params: vec![],
         macros: MACROS.iter().map(|text| (*text).to_owned()).collect(),
+        catalogs: Vec::new(),
+        snapshot: None,
         inputs: vec![],
         output: Table {
             name: "orders_out".to_owned(),

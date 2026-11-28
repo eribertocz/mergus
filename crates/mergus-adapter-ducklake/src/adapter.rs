@@ -114,6 +114,17 @@ impl DuckLakeAdapter {
         Ok((newest > 0).then(|| VersionRef::new(newest.to_string())))
     }
 
+    /// Returns the id of the latest snapshot of the catalog, as [`DuckLakeAdapter::latest`]
+    /// names it: `None` when the catalog has no commit of Mergus yet.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`AdapterError::Storage`] when the snapshots cannot be read.
+    pub fn latest_snapshot(&self) -> Result<Option<i64>, AdapterError> {
+        let newest = self.newest()?;
+        Ok((newest > 0).then_some(newest))
+    }
+
     /// Returns the id of the newest snapshot of the catalog.
     fn newest(&self) -> Result<i64, AdapterError> {
         let rows = self.query(sql::LATEST, &[self.alias()])?;

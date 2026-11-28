@@ -7,8 +7,8 @@ use arrow::record_batch::RecordBatch;
 use mergus_adapter::AdapterError;
 use mergus_adapter_ducklake::{DuckLakeAdapter, DuckLakeError};
 use mergus_ports::{
-    Clock, Database, DatabaseConnection, DatabaseLocation, DuckLakeCatalog, Extension,
-    LoadedExtension, PortError, ResultColumn, SqlValue,
+    Clock, Database, DatabaseConnection, DatabaseLocation, DuckLakeAccess, DuckLakeCatalog,
+    Extension, LoadedExtension, PortError, ResultColumn, SqlValue,
 };
 
 use crate::{Catalog, RawError, ZoneStorage};
@@ -35,32 +35,66 @@ pub fn open_raw(
     connection: Option<&str>,
     clock: Arc<dyn Clock>,
 ) -> Result<DuckLakeAdapter, RawError> {
-    let name = match &storage.catalog {
-        Catalog::DuckDb { file } | Catalog::Sqlite { file } => {
-            check_outside(file, root, &storage.catalog)?;
-            file.clone()
+    let catalog = raw_catalog(storage, root, connection)?;
+    DuckLakeAdapter::open(&Encrypted(database), &catalog, clock).map_err(|error| {
+        if is_unencrypted(&error) {
+            RawError::UnencryptedCatalog {
+                catalog: catalog_name(&storage.catalog),
+            }
+        } else {
+            RawError::Storage(error)
         }
-        Catalog::Postgres { secret } => secret.clone(),
-    };
+    })
+}
+
+/// The DuckLake catalog of the raw zone `storage`, of the project at `root`, attached as
+/// [`RAW_ALIAS`]. `connection` is the resolved value of the catalog secret of a `cloud`
+/// zone; it is ignored for `local` and `shared`. Nothing is attached.
+///
+/// # Errors
+///
+/// - [`RawError::CatalogInsideProject`] when a `local` or `shared` catalog resolves inside
+///   `root` (MG-REQ-0515.2);
+/// - [`RawError::MissingConnection`] for a `cloud` zone without `connection`.
+pub fn raw_catalog(
+    storage: &ZoneStorage,
+    root: &Path,
+    connection: Option<&str>,
+) -> Result<DuckLakeCatalog, RawError> {
+    if let Catalog::DuckDb { file } | Catalog::Sqlite { file } = &storage.catalog {
+        check_outside(file, root, &storage.catalog)?;
+    }
     let metadata = storage
         .catalog
         .attach(connection)
         .and_then(|attach| attach.strip_prefix("ducklake:").map(str::to_owned))
         .ok_or_else(|| RawError::MissingConnection {
-            secret: name.clone(),
+            secret: catalog_name(&storage.catalog),
         })?;
-    let catalog = DuckLakeCatalog {
+    Ok(DuckLakeCatalog {
         alias: RAW_ALIAS.to_owned(),
         metadata,
         data_path: storage.data_path.clone(),
-    };
-    DuckLakeAdapter::open(&Encrypted(database), &catalog, clock).map_err(|error| {
-        if is_unencrypted(&error) {
-            RawError::UnencryptedCatalog { catalog: name }
-        } else {
-            RawError::Storage(error)
-        }
     })
+}
+
+/// The snapshot of raw every segment of a run reads (MG-REQ-0704): the latest snapshot of
+/// `adapter`, taken once after the extractions; `None` when raw has no commit of Mergus yet.
+///
+/// # Errors
+///
+/// Fails with [`RawError::Storage`] when the snapshots cannot be read.
+pub fn raw_snapshot(adapter: &DuckLakeAdapter) -> Result<Option<i64>, RawError> {
+    Ok(adapter.latest_snapshot()?)
+}
+
+/// The name errors give `catalog` by: its file, or the reference of its secret, never the
+/// secret's value.
+fn catalog_name(catalog: &Catalog) -> String {
+    match catalog {
+        Catalog::DuckDb { file } | Catalog::Sqlite { file } => file.clone(),
+        Catalog::Postgres { secret } => secret.clone(),
+    }
 }
 
 /// Fails when the catalog file `file` resolves inside `root` (MG-REQ-0515.2).
@@ -142,13 +176,19 @@ impl DatabaseConnection for EncryptedConnection {
         self.0.append_arrow(table, batch)
     }
 
-    /// Attaches `catalog` encrypted: raw is never attached otherwise (MG-REQ-0515.3).
+    /// Attaches `catalog` encrypted, read-write: raw is never attached otherwise
+    /// (MG-REQ-0515.3).
     fn attach_ducklake(&mut self, catalog: &DuckLakeCatalog) -> Result<(), PortError> {
-        self.0.attach_ducklake_encrypted(catalog)
+        self.0
+            .attach_ducklake_encrypted(catalog, &DuckLakeAccess::default())
     }
 
-    fn attach_ducklake_encrypted(&mut self, catalog: &DuckLakeCatalog) -> Result<(), PortError> {
-        self.0.attach_ducklake_encrypted(catalog)
+    fn attach_ducklake_encrypted(
+        &mut self,
+        catalog: &DuckLakeCatalog,
+        access: &DuckLakeAccess,
+    ) -> Result<(), PortError> {
+        self.0.attach_ducklake_encrypted(catalog, access)
     }
 
     fn load_extension(&mut self, extension: Extension) -> Result<(), PortError> {

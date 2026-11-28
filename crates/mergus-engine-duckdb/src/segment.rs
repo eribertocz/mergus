@@ -3,7 +3,8 @@
 
 use arrow::datatypes::{Schema, SchemaRef};
 use mergus_ports::{
-    Database, DatabaseConnection, DatabaseLocation, FileSystem, PortError, SqlValue,
+    Database, DatabaseConnection, DatabaseLocation, DuckLakeAccess, DuckLakeCatalog, FileSystem,
+    PortError, SqlValue,
 };
 
 use crate::checks::{declared, described, without_icu};
@@ -22,6 +23,11 @@ pub struct Segment {
     pub params: Vec<SqlValue>,
     /// The text of each of the project's macro files, in the order they are loaded.
     pub macros: Vec<String>,
+    /// The DuckLake catalogs the SQL reads directly, such as raw's as `raw`, each attached
+    /// encrypted and read-only before the macros.
+    pub catalogs: Vec<DuckLakeCatalog>,
+    /// The snapshot every catalog is attached at; `None` attaches each at its latest.
+    pub snapshot: Option<i64>,
     /// The boundaries the SQL reads, each as a table of its name.
     pub inputs: Vec<Table>,
     /// The step's output: its name, its declared columns and where its rows go.
@@ -40,8 +46,10 @@ pub struct Table {
     pub boundary: Boundary,
 }
 
-/// Runs `segment` in a new in-memory DuckDB session of `database`: executes the built-in
-/// `as_of` macro (MG-REQ-0666), then each macro text (MG-REQ-0643), opens each input, runs the SQL, conforms its rows
+/// Runs `segment` in a new in-memory DuckDB session of `database`: attaches each of its
+/// catalogs encrypted, read-only and at its snapshot, so that the session cannot write to
+/// them, executes the built-in `as_of` macro (MG-REQ-0666), then each macro text
+/// (MG-REQ-0643), opens each input, runs the SQL, conforms its rows
 /// to the declared output schema and writes them with the transport the plan recorded
 /// (MG-REQ-0633).
 ///
@@ -83,6 +91,13 @@ pub fn run_segment(
     }
     let mut session = database.connect(&DatabaseLocation::InMemory)?;
     without_icu(session.as_mut())?;
+    let access = DuckLakeAccess {
+        read_only: true,
+        snapshot: segment.snapshot,
+    };
+    for catalog in &segment.catalogs {
+        session.attach_ducklake_encrypted(catalog, &access)?;
+    }
     session.execute(AS_OF, &[])?;
     for text in &segment.macros {
         session.execute(text, &[])?;

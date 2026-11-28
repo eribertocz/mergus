@@ -180,6 +180,7 @@ pub fn models<'a>(
             sql: model.code.clone(),
             params: Vec::new(),
             macros: Vec::new(),
+            catalogs: Vec::new(),
             inputs,
             output,
         };
@@ -192,6 +193,7 @@ pub fn models<'a>(
     }
     Work {
         extractions: Vec::new(),
+        raw_snapshot: None,
         models,
         bytes_scanned: 0,
     }
