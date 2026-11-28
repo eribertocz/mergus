@@ -82,7 +82,7 @@ fn plans_and_executes(
 }
 
 /// An exception in the call, a return value that is not a LazyFrame, and an exception while
-/// the result is collected are `MG-0618`.
+/// the result is collected are `MG-0627`.
 #[cfg(test)]
 fn failures_are_typed(
     python: &RealPython,
@@ -93,7 +93,7 @@ fn failures_are_typed(
 ) {
     let fails = step(root, "sales", "fails");
     let error = plan_step(python, &RealFileSystem, &fails, parameters, work).unwrap_err();
-    assert_eq!(error.code(), Some("MG-0618"));
+    assert_eq!(error.code(), Some("MG-0627"));
     assert!(
         matches!(
             &error,
@@ -105,7 +105,7 @@ fn failures_are_typed(
     );
     let not_lazy = step(root, "sales", "not_lazy");
     let error = execute_step(python, &RealFileSystem, &not_lazy, inputs, work).unwrap_err();
-    assert_eq!(error.code(), Some("MG-0618"));
+    assert_eq!(error.code(), Some("MG-0627"));
     assert!(
         matches!(
             &error,
@@ -116,7 +116,7 @@ fn failures_are_typed(
     );
     let bad_column = step(root, "sales", "bad_column");
     let error = execute_step(python, &RealFileSystem, &bad_column, inputs, work).unwrap_err();
-    assert_eq!(error.code(), Some("MG-0618"));
+    assert_eq!(error.code(), Some("MG-0627"));
     assert!(
         matches!(&error, PolarsError::StepFailed { failure: StepFailure::Exception { kind, .. }, .. }
             if kind == "ColumnNotFoundError"),
@@ -125,7 +125,7 @@ fn failures_are_typed(
 }
 
 /// A model file that raises when imported, or that lacks the step's function, did not load:
-/// `MG-0619`, naming the model and the file.
+/// `MG-0628`, naming the model and the file.
 #[cfg(test)]
 fn load_failures_are_typed(
     python: &RealPython,
@@ -135,7 +135,7 @@ fn load_failures_are_typed(
 ) {
     let missing = step(root, "sales", "no_such_step");
     let error = plan_step(python, &RealFileSystem, &missing, parameters, work).unwrap_err();
-    assert_eq!(error.code(), Some("MG-0619"));
+    assert_eq!(error.code(), Some("MG-0628"));
     assert!(
         matches!(&error, PolarsError::LoadFailed { model, file, kind, .. }
             if model == "sales" && *file == missing.module.display().to_string()
@@ -152,7 +152,7 @@ fn load_failures_are_typed(
         ..step(root, "broken", "broken")
     };
     let error = plan_step(python, &RealFileSystem, &broken, parameters, work).unwrap_err();
-    assert_eq!(error.code(), Some("MG-0619"));
+    assert_eq!(error.code(), Some("MG-0628"));
     assert!(
         matches!(&error, PolarsError::LoadFailed { kind, message, .. }
             if kind == "RuntimeError" && message == "broken at import"),
@@ -161,7 +161,7 @@ fn load_failures_are_typed(
     assert!(error.to_string().contains("fix the file"));
 }
 
-/// A child that cannot import `polars` is `MG-0620`, with its fix.
+/// A child that cannot import `polars` is `MG-0629`, with its fix.
 #[cfg(test)]
 fn missing_polars_is_typed(
     python: &RealPython,
@@ -175,7 +175,7 @@ fn missing_polars_is_typed(
     );
     let in_usd = step(root, "sales", "in_usd");
     let error = plan_step(python, &RealFileSystem, &in_usd, parameters, work).unwrap_err();
-    assert_eq!(error.code(), Some("MG-0620"));
+    assert_eq!(error.code(), Some("MG-0629"));
     assert!(
         matches!(&error, PolarsError::PolarsMissing { message, .. } if message == "no polars here"),
         "{error:?}"

@@ -93,9 +93,9 @@ impl PolarsError {
     #[must_use]
     pub fn code(&self) -> Option<&'static str> {
         match self {
-            Self::StepFailed { .. } => Some("MG-0618"),
-            Self::LoadFailed { .. } => Some("MG-0619"),
-            Self::PolarsMissing { .. } => Some("MG-0620"),
+            Self::StepFailed { .. } => Some("MG-0627"),
+            Self::LoadFailed { .. } => Some("MG-0628"),
+            Self::PolarsMissing { .. } => Some("MG-0629"),
             Self::Child { .. } | Self::Boundary { .. } | Self::Port(_) => None,
         }
     }

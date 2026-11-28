@@ -108,10 +108,10 @@ pub fn child_environment(work_dir: &str, environment: &dyn Environment) -> Vec<(
 ///
 /// # Errors
 ///
-/// Fails with [`PolarsError::StepFailed`] (`MG-0618`) when the step raises an exception or
-/// does not return a LazyFrame, with [`PolarsError::LoadFailed`] (`MG-0619`) when the model
+/// Fails with [`PolarsError::StepFailed`] (`MG-0627`) when the step raises an exception or
+/// does not return a LazyFrame, with [`PolarsError::LoadFailed`] (`MG-0628`) when the model
 /// file raises when imported or has no function named after the step, with
-/// [`PolarsError::PolarsMissing`] (`MG-0620`) when the
+/// [`PolarsError::PolarsMissing`] (`MG-0629`) when the
 /// child cannot import `polars`, with [`PolarsError::Child`] when the child stops without a
 /// report, with [`PolarsError::Boundary`] when a file of the step cannot be read as Arrow
 /// IPC, and with [`PolarsError::Port`] when the interpreter or the file system fails.
