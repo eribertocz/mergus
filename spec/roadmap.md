@@ -76,13 +76,13 @@ Post-MVP items become rules with `Phase: 1.x` when the specifier details them.
 |---|---|---|---|
 | `validation_report` schema and CLI output | Menura | 0.2.0 | Schema gate (MG-REQ-0232) |
 | Official type mapping JSON, invalid examples, producer suite | Menura | 0.2.0 | MG-REQ-0215, CI |
-| `producer_requirements` and its command, summary build SQL, time zone | Menura | 0.6.0 | MG-REQ-0237 |
+| Summary build SQL and time zone, from `integrity_checks` checks of kind `summary` (decision 0053) | Menura | 1.1.1, available | MG-REQ-0237 |
 | Summary without catalog `source` does not reject the model; expression coverage; several grains | Menura | 0.6.0 | Summaries |
 | Checks that fail to run are omitted | Menura | 0.7.0 | MG-REQ-0235 |
 | `describe`, `explain`, column lineage | Menura | 0.7.0 | UI cross-navigation |
 | Contract-name aliases, then `menura.*` only | Menura | alias after 0.2.0, removed in 1.0.0 | MG-REQ-0217 |
 | Model-dependencies contract (metric → fields → tables, per user) | Menura | to be specified | MG-REQ-1423 |
-| Validity columns of history tables in the catalog | Menura | to be specified | MG-REQ-0663 |
+| Half-open validity with a sentinel, and "as of" joins, in `populations` (decision 0053) | Menura | `consumer-request` to file | MG-REQ-0663 |
 | ClickHouse dialect and pinned sessions | Menura | 1.1.0 | Level C |
 | UI manifest, message protocol, W3C tokens, search index, stable references | Host / distribution | not scheduled | `ui/integration.md` |
 | Host and executor specifications | Ecosystem | not scheduled | `contracts/consumers.md` |
