@@ -7,10 +7,12 @@ mod doctor;
 mod explain;
 mod formats;
 mod human;
+mod idempotency;
 mod init;
 mod layout;
 mod plan;
 mod project;
+mod run;
 mod scaffold;
 mod schema;
 mod secret;
@@ -148,6 +150,7 @@ impl Setup<'_> {
             secret_input: stdin,
             keychain,
             database,
+            cancel: mergus_runtime::CancelToken::new(),
         };
         let mut stdout = Vec::new();
         let mut stderr = Vec::new();

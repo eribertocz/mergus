@@ -4,15 +4,18 @@ use std::cell::RefCell;
 use std::io::{BufRead, Write};
 
 use mergus_ports::{Clock, Database, Environment, FileSystem, Keychain, Random, SqlParser};
+use mergus_runtime::CancelToken;
 
 use crate::args::{self, Invocation};
 use crate::cli_schema;
-use crate::commands::{Command, DRY_RUN, EXCLUDE, SELECTION};
+use crate::commands::{Command, DRY_RUN, EXCLUDE, IDEMPOTENCY_KEY, SELECTION};
 use crate::diagnostic::{Diagnostic, group};
 use crate::doctor::doctor;
 use crate::error::CliError;
+use crate::execution;
 use crate::exit;
 use crate::explain::explain;
+use crate::idempotency::{self, Found, Tee};
 use crate::init::{init, next_steps};
 use crate::mode::{colors, detect};
 use crate::models;
@@ -73,20 +76,67 @@ pub(crate) struct Ports<'a> {
     /// The DuckDB `doctor --source` and `plan` attach database sources to (MG-REQ-0431,
     /// MG-REQ-0432); `None` when there is no user cache directory for its extensions.
     pub(crate) database: Option<&'a dyn Database>,
+    /// The cancel token of `run` and `backfill`, which Ctrl-C sets (MG-REQ-0710.4).
+    pub(crate) cancel: CancelToken,
 }
 
 /// Runs the command of the arguments of `ports.environment` and returns its exit code
-/// (MG-REQ-0262).
+/// (MG-REQ-0262). A command given `--idempotency-key` runs at most once per key and
+/// arguments (MG-REQ-1313).
 pub(crate) fn run(ports: &Ports<'_>, stdout: &mut dyn Write, stderr: &mut dyn Write) -> u8 {
     let arguments = ports.environment.args();
+    let keyed = args::parse(&arguments)
+        .ok()
+        .filter(|invocation| invocation.value(IDEMPOTENCY_KEY).is_some());
+    let Some(invocation) = keyed else {
+        return once(ports, &arguments, None, stdout, stderr);
+    };
+    let path = match idempotency::find(ports, &invocation) {
+        Ok(Found::Fresh(path)) => path,
+        Ok(Found::Replay(outcome)) => {
+            return match idempotency::replay(&outcome, stdout, stderr) {
+                Ok(()) => outcome.exit_code,
+                Err(_) => exit::INTERNAL,
+            };
+        }
+        Ok(Found::Conflict(error)) | Err(error) => {
+            return once(ports, &arguments, Some(error), stdout, stderr);
+        }
+    };
+    // The output streams as the command runs, and the record keeps a copy of it.
+    let mut out = Tee::new(stdout);
+    let mut err = Tee::new(stderr);
+    let exit_code = once(ports, &arguments, None, &mut out, &mut err);
+    let kept = idempotency::Outcome {
+        stdout: out.copy,
+        stderr: err.copy,
+        exit_code,
+    };
+    if let Err(error) = idempotency::keep(ports, &invocation, &path, &kept) {
+        let text = format!("error[{}]: {error}\n", error.code());
+        if stderr.write_all(text.as_bytes()).is_err() {
+            return exit::INTERNAL;
+        }
+    }
+    exit_code
+}
+
+/// Runs the command of `arguments` once, or reports `failure` in its place.
+fn once(
+    ports: &Ports<'_>,
+    arguments: &[String],
+    failure: Option<CliError>,
+    stdout: &mut dyn Write,
+    stderr: &mut dyn Write,
+) -> u8 {
     let mode = detect(
-        args::wants_json(&arguments),
+        args::wants_json(arguments),
         ports.terminal,
         ports.environment,
     );
     let color = colors(mode, ports.environment);
     let mut output = Output::new(mode, color, ports.clock, ports.random, stdout, stderr);
-    match drive(ports, &arguments, &mut output) {
+    match drive(ports, arguments, failure, &mut output) {
         Ok(code) => code,
         Err(error) => {
             output.internal(&error);
@@ -95,10 +145,17 @@ pub(crate) fn run(ports: &Ports<'_>, stdout: &mut dyn Write, stderr: &mut dyn Wr
     }
 }
 
-/// Parses `arguments`, runs the command and reports every diagnostic, grouped by file
-/// (MG-REQ-1323). An invalid command line reports its diagnostic without `run_started`
-/// (MG-REQ-0297). `schema` prints its document alone (MG-REQ-1348).
-fn drive(ports: &Ports<'_>, arguments: &[String], output: &mut Output<'_>) -> Result<u8, CliError> {
+/// Parses `arguments`, runs the command, or reports `failure` in its place, and reports every
+/// diagnostic, grouped by file (MG-REQ-1323). An invalid command line reports its diagnostic
+/// without `run_started` (MG-REQ-0297). `schema` prints its document alone (MG-REQ-1348). A
+/// cancelled run ends with exit code 7 (MG-REQ-0710.2).
+fn drive(
+    ports: &Ports<'_>,
+    arguments: &[String],
+    failure: Option<CliError>,
+    output: &mut Output<'_>,
+) -> Result<u8, CliError> {
+    let mut code = exit::SUCCESS;
     let diagnostics = match args::parse(arguments) {
         Err(error) => vec![Diagnostic::of_cli(&error)],
         Ok(invocation) if invocation.command == Command::Schema => {
@@ -108,11 +165,24 @@ fn drive(ports: &Ports<'_>, arguments: &[String], output: &mut Output<'_>) -> Re
         Ok(invocation) => {
             output.set_verbosity(invocation.verbosity);
             output.started(invocation.command.name(), arguments)?;
-            execute(ports, &invocation, output)
-                .unwrap_or_else(|error| vec![Diagnostic::of_cli(&error)])
+            match failure {
+                Some(error) => vec![Diagnostic::of_cli(&error)],
+                None => match invocation.command {
+                    Command::Run | Command::Backfill => {
+                        match execution::run(ports, &invocation, output) {
+                            Ok((ended, diagnostics)) => {
+                                code = ended;
+                                diagnostics
+                            }
+                            Err(error) => vec![Diagnostic::of_cli(&error)],
+                        }
+                    }
+                    _ => execute(ports, &invocation, output)
+                        .unwrap_or_else(|error| vec![Diagnostic::of_cli(&error)]),
+                },
+            }
         }
     };
-    let mut code = exit::SUCCESS;
     for diagnostic in &group(diagnostics) {
         code = code.max(output.diagnostic(diagnostic)?);
     }
@@ -149,10 +219,11 @@ fn execute(
         Command::Init => init(ports, invocation, output)?,
         Command::NewModel => new_model(ports, invocation)?,
         Command::AddSource => add_source(ports, invocation)?,
-        Command::Schema => {
-            return Err(CliError::Internal(
-                "`schema` prints its document alone".to_owned(),
-            ));
+        Command::Schema | Command::Run | Command::Backfill => {
+            return Err(CliError::Internal(format!(
+                "`{}` is not run here",
+                invocation.command.name()
+            )));
         }
     };
     if invocation.flag(DRY_RUN) {

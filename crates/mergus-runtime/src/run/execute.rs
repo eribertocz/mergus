@@ -13,7 +13,8 @@ use mergus_contracts::generated::mergus_plan_v1::{Step, StepAction};
 use mergus_plan::Plan;
 
 use super::candidate::Candidates;
-use super::copy::copy_result;
+use super::copy::{Copied, copy_result};
+use super::events::{StepEnd, StepEvents};
 use super::limits::Meter;
 use super::{CancelToken, ModelWork, RunError, StepContext, Work};
 
@@ -40,8 +41,8 @@ impl Executed {
     }
 }
 
-/// What one step's thread sends back.
-type Done = (String, Result<Option<u64>, RunError>);
+/// What one step's thread sends back: `None` when the token was set.
+type Done = (String, Result<Option<Copied>, RunError>);
 
 /// Everything a step needs, shared by the threads of stage 5.
 pub(crate) struct Stage<'a> {
@@ -67,8 +68,14 @@ struct Progress<'p> {
 }
 
 impl Stage<'_> {
-    /// Runs the extractions of `work`, then the steps of `plan`.
-    pub(crate) fn execute(&self, plan: &Plan, work: &mut Work<'_>) -> Result<Executed, RunError> {
+    /// Runs the extractions of `work`, then the steps of `plan`, reporting each computed step
+    /// to `events`.
+    pub(crate) fn execute(
+        &self,
+        plan: &Plan,
+        work: &mut Work<'_>,
+        events: &mut dyn StepEvents,
+    ) -> Result<Executed, RunError> {
         self.meter
             .check_bytes(work.bytes_scanned)
             .map_err(RunError::Limit)?;
@@ -90,7 +97,7 @@ impl Stage<'_> {
         let limit = usize::try_from(plan.document().max_parallel)
             .unwrap_or(1)
             .max(1);
-        self.schedule(steps, &work.models, limit)
+        self.schedule(steps, &work.models, limit, events)
     }
 
     /// Runs the computed steps in dependency order, at most `limit` at once.
@@ -99,6 +106,7 @@ impl Stage<'_> {
         steps: &[Step],
         models: &BTreeMap<String, Box<dyn ModelWork + '_>>,
         limit: usize,
+        events: &mut dyn StepEvents,
     ) -> Result<Executed, RunError> {
         let mut progress = self.progress(steps)?;
         let planned: BTreeSet<&str> = steps.iter().map(|step| step.model.as_str()).collect();
@@ -115,18 +123,13 @@ impl Stage<'_> {
                     };
                     let inputs = progress.inputs_of(step);
                     let sender = sender.clone();
-                    let work = models.get(&step.model);
+                    let work = models.get(&step.model).map(AsRef::as_ref);
                     progress.running += 1;
+                    events.started(step);
                     scope.spawn(move || {
-                        let run = || {
-                            work.ok_or_else(|| RunError::NoWork(step.model.clone()))
-                                .and_then(|work| self.run_step(step, work.as_ref(), &inputs))
-                        };
-                        // A panicking step still reports, so the run never waits for it.
-                        let done = panic::catch_unwind(AssertUnwindSafe(run))
-                            .unwrap_or_else(|_| Err(RunError::Panicked(step.model.clone())));
                         // The receiver lives until every thread is done.
-                        let _ = sender.send((step.model.clone(), done));
+                        let _ =
+                            sender.send((step.model.clone(), self.guarded(step, work, &inputs)));
                     });
                 }
                 if progress.running == 0 {
@@ -135,10 +138,29 @@ impl Stage<'_> {
                 let Ok((model, done)) = receiver.recv() else {
                     break;
                 };
+                if let Some(step) = steps.iter().find(|step| step.model == model) {
+                    events.finished(step, &ended(&done));
+                }
                 progress.record(self.candidates, steps, model, done);
             }
         });
         progress.end()
+    }
+
+    /// Runs `step` with `work`, its panic turned into [`RunError::Panicked`] so that the
+    /// run never waits for it.
+    fn guarded(
+        &self,
+        step: &Step,
+        work: Option<&dyn ModelWork>,
+        inputs: &BTreeMap<String, PathBuf>,
+    ) -> Result<Option<Copied>, RunError> {
+        let run = || {
+            work.ok_or_else(|| RunError::NoWork(step.model.clone()))
+                .and_then(|work| self.run_step(step, work, inputs))
+        };
+        panic::catch_unwind(AssertUnwindSafe(run))
+            .unwrap_or_else(|_| Err(RunError::Panicked(step.model.clone())))
     }
 
     /// The progress before any computed step runs: `skip` steps are finished, with the
@@ -176,7 +198,7 @@ impl Stage<'_> {
         step: &Step,
         work: &dyn ModelWork,
         inputs: &BTreeMap<String, PathBuf>,
-    ) -> Result<Option<u64>, RunError> {
+    ) -> Result<Option<Copied>, RunError> {
         if self.cancel.is_cancelled() {
             return Ok(None);
         }
@@ -205,12 +227,12 @@ impl Stage<'_> {
             self.meter,
             failed,
         )?;
-        let Some(rows) = copied else {
+        let Some(copied) = copied else {
             return Ok(None);
         };
         self.candidates
-            .complete(&step.fingerprint, self.run_id, rows)?;
-        Ok(Some(rows))
+            .complete(&step.fingerprint, self.run_id, copied.rows)?;
+        Ok(Some(copied))
     }
 }
 
@@ -244,11 +266,11 @@ impl<'p> Progress<'p> {
         candidates: &Candidates<'_>,
         steps: &[Step],
         model: String,
-        done: Result<Option<u64>, RunError>,
+        done: Result<Option<Copied>, RunError>,
     ) {
         self.running -= 1;
         match done {
-            Ok(Some(rows)) => {
+            Ok(Some(Copied { rows, .. })) => {
                 if let Some(step) = steps.iter().find(|step| step.model == model) {
                     self.results
                         .insert(model.clone(), candidates.result(&step.fingerprint));
@@ -277,5 +299,21 @@ impl<'p> Progress<'p> {
             return Err(RunError::Unordered(step.model.clone()));
         }
         Ok(Executed::Finished { rows: self.rows })
+    }
+}
+
+/// How the step that sent `done` ended, for its event.
+fn ended(done: &Result<Option<Copied>, RunError>) -> StepEnd {
+    match done {
+        Ok(Some(copied)) => StepEnd {
+            succeeded: true,
+            rows: copied.rows,
+            bytes: copied.bytes,
+        },
+        Ok(None) | Err(_) => StepEnd {
+            succeeded: false,
+            rows: 0,
+            bytes: 0,
+        },
     }
 }

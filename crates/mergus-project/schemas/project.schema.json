@@ -28,6 +28,28 @@
       "description": "The storage of the ops zone.",
       "$ref": "#/$defs/zone"
     },
+    "limits": {
+      "description": "The limits of a run; with a flag of the same limit, the smaller value applies (MG-REQ-0718.1).",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "wall_time": {
+          "description": "The longest a run may take: a positive integer of at most 15 digits and s, m or h, such as 30m.",
+          "type": "string",
+          "pattern": "^0*[1-9][0-9]{0,14}[smh]$"
+        },
+        "rows_written": {
+          "description": "The most rows a run may write.",
+          "type": "integer",
+          "minimum": 1
+        },
+        "bytes_scanned": {
+          "description": "The most bytes of DuckLake files the plan may read.",
+          "type": "integer",
+          "minimum": 1
+        }
+      }
+    },
     "seeds": {
       "description": "The seeds: each seeds/<name>.csv by its name, a lowercase identifier, loaded as raw.seed__<name> (MG-REQ-0645).",
       "type": "object",

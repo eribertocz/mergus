@@ -87,7 +87,7 @@ pub(crate) fn plan(
 
 /// One coded diagnostic per refresh error, in their order, located at the file of its model
 /// (MG-REQ-0654.1, MG-REQ-0657.2, MG-REQ-0661.1).
-fn refresh_diagnostics(project: &Project, errors: &[RefreshError]) -> Vec<Diagnostic> {
+pub(crate) fn refresh_diagnostics(project: &Project, errors: &[RefreshError]) -> Vec<Diagnostic> {
     errors
         .iter()
         .map(|error| {
@@ -203,7 +203,7 @@ fn write(files: &dyn FileSystem, root: &Path, plan: &Plan) -> Result<String, Cli
 }
 
 /// The steps of `plan` as the `plan_ready` event carries them.
-fn steps(plan: &Plan) -> Vec<EventStep> {
+pub(crate) fn steps(plan: &Plan) -> Vec<EventStep> {
     plan.document()
         .steps
         .iter()

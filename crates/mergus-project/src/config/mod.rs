@@ -5,10 +5,12 @@
 
 mod convert;
 mod folder;
+mod limits;
 mod options;
 mod schema;
 mod secret;
 
+pub use limits::{ProjectLimits, parse_positive, parse_wall_time};
 pub use options::{Effective, ModelOptions, Origin, Setting, read_model_options};
 
 pub(crate) use convert::key_order;

@@ -102,12 +102,23 @@ impl DuckLakeAdapter {
         Ok(found.unwrap_or(0) > 0)
     }
 
-    /// Returns the newest snapshot of the catalog.
-    fn latest(&self) -> Result<VersionRef, AdapterError> {
+    /// Returns the latest version of the catalog: its newest snapshot, or `None` when the
+    /// catalog has no commit of Mergus yet, only the snapshot 0 DuckLake makes when it
+    /// creates it.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`AdapterError::Storage`] when the snapshots cannot be read.
+    pub fn latest(&self) -> Result<Option<VersionRef>, AdapterError> {
+        let newest = self.newest()?;
+        Ok((newest > 0).then(|| VersionRef::new(newest.to_string())))
+    }
+
+    /// Returns the id of the newest snapshot of the catalog.
+    fn newest(&self) -> Result<i64, AdapterError> {
         let rows = self.query(sql::LATEST, &[self.alias()])?;
-        let latest = snapshots::single_int(&rows, sql::LATEST)?
-            .ok_or_else(|| DuckLakeError::UnexpectedRows(sql::LATEST.to_owned()))?;
-        Ok(VersionRef::new(latest.to_string()))
+        Ok(snapshots::single_int(&rows, sql::LATEST)?
+            .ok_or_else(|| DuckLakeError::UnexpectedRows(sql::LATEST.to_owned()))?)
     }
 
     /// Creates the staging table `stage` with `schema` and appends `data` to it.
@@ -189,7 +200,7 @@ impl StorageAdapter for DuckLakeAdapter {
             return Err(error);
         }
         self.drop_stages()?;
-        self.latest()
+        Ok(VersionRef::new(self.newest()?.to_string()))
     }
 
     fn pin_recipe(&self, table: &str, version: &VersionRef) -> Result<PinRecipe, AdapterError> {

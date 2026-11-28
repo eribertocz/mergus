@@ -9,6 +9,7 @@ use mergus_plan::{Cleared, Plan};
 use mergus_ports::{Clock, FileSystem};
 
 use super::candidate::Candidates;
+use super::events::{NoEvents, StepEvents};
 use super::execute::Stage;
 use super::limits::Meter;
 use super::work_zone::{open_scratch, remove_scratch};
@@ -152,8 +153,24 @@ impl<'a> Run<'a> {
     pub fn execute(
         &self,
         adopted: &Adopted<'_>,
+        cleared: &Cleared,
+        work: &mut Work<'_>,
+    ) -> Result<Executed, RunError> {
+        self.execute_with_events(adopted, cleared, work, &mut NoEvents)
+    }
+
+    /// [`Run::execute`], reporting the start and the end of each computed step to `events`
+    /// (MG-REQ-0710.2).
+    ///
+    /// # Errors
+    ///
+    /// As [`Run::execute`].
+    pub fn execute_with_events(
+        &self,
+        adopted: &Adopted<'_>,
         _cleared: &Cleared,
         work: &mut Work<'_>,
+        events: &mut dyn StepEvents,
     ) -> Result<Executed, RunError> {
         let plan = adopted.plan;
         let candidates = Candidates::new(self.files, self.root);
@@ -166,7 +183,7 @@ impl<'a> Run<'a> {
             cancel: &self.cancel,
             meter: &self.meter,
         };
-        stage.execute(plan, work)
+        stage.execute(plan, work, events)
     }
 
     /// The finalizer: ends the run, whether it succeeded, failed, was cancelled or stopped

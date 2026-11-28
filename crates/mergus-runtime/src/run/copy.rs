@@ -1,6 +1,7 @@
 //! Copies a step's rows into its candidate one batch at a time, checking the cancel token
 //! (MG-REQ-0708.1), the wall time and the rows written (MG-REQ-0718.2) before each batch.
 
+use std::io::{Seek, SeekFrom};
 use std::path::Path;
 
 use arrow::ipc::reader::FileReader;
@@ -10,7 +11,17 @@ use mergus_ports::{FileSystem, PortError};
 use super::limits::Meter;
 use super::{CancelToken, RunError};
 
-/// Copies the Arrow IPC file `from` to `to`, batch by batch, and returns its rows; `None`
+/// What [`copy_result`] wrote.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct Copied {
+    /// The rows.
+    pub(crate) rows: u64,
+    /// The size of the file written.
+    pub(crate) bytes: u64,
+}
+
+/// Copies the Arrow IPC file `from` to `to`, batch by batch, and returns its rows and the
+/// size of `to`; `None`
 /// when `cancel` was set between two batches, leaving `to` incomplete. A limit stops it
 /// before the batch that would exceed it, also leaving `to` incomplete; `failed` turns a
 /// port error into the run's.
@@ -21,7 +32,7 @@ pub(crate) fn copy_result(
     cancel: &CancelToken,
     meter: &Meter<'_>,
     failed: impl Fn(PortError) -> RunError,
-) -> Result<Option<u64>, RunError> {
+) -> Result<Option<Copied>, RunError> {
     let arrow = |error: arrow::error::ArrowError| {
         failed(PortError::Failed(format!("`{}`: {error}", from.display())))
     };
@@ -41,5 +52,13 @@ pub(crate) fn copy_result(
         rows = rows.saturating_add(batch_rows);
     }
     writer.finish().map_err(arrow)?;
-    Ok(Some(rows))
+    drop(writer);
+    let size = files
+        .open(to)
+        .and_then(|mut file| {
+            file.seek(SeekFrom::End(0))
+                .map_err(|error| PortError::Failed(format!("`{}`: {error}", to.display())))
+        })
+        .map_err(&failed)?;
+    Ok(Some(Copied { rows, bytes: size }))
 }

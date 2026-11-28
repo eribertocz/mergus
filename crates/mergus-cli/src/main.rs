@@ -18,12 +18,16 @@
 //! `ls` and `plan` read the project ([`models`]) and select models ([`selection`]); `plan`
 //! resolves its settings ([`settings`]) and writes the plan of `mergus-plan` ([`planning`]).
 //! `explain` prints an error code's catalog file or a model's options ([`explain`]).
+//! `run` and `backfill` drive the run cycle of `mergus-runtime` into candidates in work
+//! ([`execution`], [`work`]). A command that changes state, given `--idempotency-key`, runs
+//! once per key and arguments ([`idempotency`]).
 //! `doctor` shows which link of the resolution chain answers for each secret reference of the
 //! sources, never its value ([`doctor`]).
 
 #![forbid(unsafe_code)]
 
 mod args;
+mod arrow_types;
 mod care;
 mod catalog;
 mod cli_schema;
@@ -31,11 +35,14 @@ mod commands;
 mod diagnostic;
 mod doctor;
 mod error;
+mod execution;
 mod exit;
 mod explain;
 mod files;
+mod idempotency;
 mod init;
 mod layout;
+mod limits;
 mod mode;
 mod models;
 mod name;
@@ -47,8 +54,10 @@ mod scaffold;
 mod secret;
 mod selection;
 mod settings;
+mod step_events;
 mod time;
 mod validate;
+mod work;
 
 use std::cell::RefCell;
 use std::io::{IsTerminal, Read, StdinLock};
@@ -59,6 +68,7 @@ use mergus_ports::real::{
     RealSqlParser,
 };
 use mergus_ports::{Database, Environment};
+use mergus_runtime::CancelToken;
 
 /// Standard input, read through the lock `main` holds (MG-REQ-1007).
 struct Stdin<'a>(&'a RefCell<StdinLock<'static>>);
@@ -82,6 +92,11 @@ impl run::SecretInput for Stdin<'_> {
 
 fn main() -> ExitCode {
     let random = RealRandom::new();
+    // MG-REQ-0710.4: Ctrl-C sets the cancel token; a second Ctrl-C sets it again, so the run
+    // still ends through its finalizer. Without a handler, Ctrl-C keeps its default.
+    let cancel = CancelToken::new();
+    let token = cancel.clone();
+    ctrlc::set_handler(move || token.cancel()).ok();
     let stdin = RefCell::new(std::io::stdin().lock());
     let database = RealEnvironment
         .cache_dir()
@@ -99,6 +114,7 @@ fn main() -> ExitCode {
         secret_input: &Stdin(&stdin),
         keychain: &RealKeychain,
         database: database.as_ref().map(|database| database as &dyn Database),
+        cancel,
     };
     let code = run::run(&ports, &mut std::io::stdout(), &mut std::io::stderr());
     ExitCode::from(code)
