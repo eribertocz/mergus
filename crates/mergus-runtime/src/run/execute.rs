@@ -123,19 +123,13 @@ impl Stage<'_> {
                     };
                     let inputs = progress.inputs_of(step);
                     let sender = sender.clone();
-                    let work = models.get(&step.model);
+                    let work = models.get(&step.model).map(AsRef::as_ref);
                     progress.running += 1;
                     events.started(step);
                     scope.spawn(move || {
-                        let run = || {
-                            work.ok_or_else(|| RunError::NoWork(step.model.clone()))
-                                .and_then(|work| self.run_step(step, work.as_ref(), &inputs))
-                        };
-                        // A panicking step still reports, so the run never waits for it.
-                        let done = panic::catch_unwind(AssertUnwindSafe(run))
-                            .unwrap_or_else(|_| Err(RunError::Panicked(step.model.clone())));
                         // The receiver lives until every thread is done.
-                        let _ = sender.send((step.model.clone(), done));
+                        let _ =
+                            sender.send((step.model.clone(), self.guarded(step, work, &inputs)));
                     });
                 }
                 if progress.running == 0 {
@@ -151,6 +145,22 @@ impl Stage<'_> {
             }
         });
         progress.end()
+    }
+
+    /// Runs `step` with `work`, its panic turned into [`RunError::Panicked`] so that the
+    /// run never waits for it.
+    fn guarded(
+        &self,
+        step: &Step,
+        work: Option<&dyn ModelWork>,
+        inputs: &BTreeMap<String, PathBuf>,
+    ) -> Result<Option<Copied>, RunError> {
+        let run = || {
+            work.ok_or_else(|| RunError::NoWork(step.model.clone()))
+                .and_then(|work| self.run_step(step, work, inputs))
+        };
+        panic::catch_unwind(AssertUnwindSafe(run))
+            .unwrap_or_else(|_| Err(RunError::Panicked(step.model.clone())))
     }
 
     /// The progress before any computed step runs: `skip` steps are finished, with the
