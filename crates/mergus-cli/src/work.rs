@@ -7,8 +7,10 @@ use std::collections::{BTreeMap, BTreeSet};
 use mergus_contracts::generated::mergus_plan_v1::StepAction;
 use mergus_plan::Plan;
 use mergus_ports::{Database, ResultColumn};
+use mergus_project::Seed;
 use mergus_project::{KnownTables, LayoutError, Macros, RunParameters, read_sql_step, sql_schema};
 use mergus_runtime::{ModelWork, ReadModel, ReadProject, SqlInput, SqlWork, Work};
+use mergus_source::copied_tables;
 
 use crate::arrow_types::schema;
 use crate::diagnostic::Diagnostic;
@@ -31,8 +33,9 @@ pub(crate) struct Context<'a> {
 ///
 /// # Errors
 ///
-/// Fails with [`CliError::Internal`] for a model the run cannot execute yet: a `.py` model or
-/// one that reads `raw.<table>` (asked on #266), and when a port fails.
+/// Fails with [`CliError::Internal`], naming what is missing, for a plan the run cannot
+/// execute yet: a model that reads `raw.<table>` (#316), a Polars step (#317) or an
+/// extraction (#318); and when a port fails.
 pub(crate) fn work<'a>(
     context: &Context<'a>,
     project: &ReadProject,
@@ -61,12 +64,28 @@ pub(crate) fn work<'a>(
         }
         columns.insert(step.model.clone(), sql.columns);
     }
+    if let Some(load) = extraction(project) {
+        return Err(CliError::Internal(format!(
+            "the run needs the extraction of {load}, which a run does not do yet (#318)"
+        )));
+    }
     Ok(Ok(Work {
         extractions: Vec::new(),
         models,
         // #307 measures the DuckLake files the plan reads; until then nothing is counted.
         bytes_scanned: 0,
     }))
+}
+
+/// The first load stage 5 would extract before any segment: a copied table of a source, as
+/// `raw.<source>__<table>`, or a seed, as `raw.seed__<name>` (MG-REQ-0704).
+fn extraction(project: &ReadProject) -> Option<String> {
+    let table = project.configuration.sources.iter().find_map(|source| {
+        copied_tables(source)
+            .first()
+            .map(|table| table.raw(&source.name).current)
+    });
+    table.or_else(|| project.seeds.seeds.first().map(Seed::table))
 }
 
 /// A `.sql` model read as a step, with the columns of its result.
@@ -87,14 +106,14 @@ fn described(
     let path = &model.options.path;
     if !path.ends_with(".sql") {
         return Err(CliError::Internal(format!(
-            "`{path}`: a run does not execute `.py` models yet"
+            "`{path}` is a Polars step, which a run does not execute yet (#317)"
         )));
     }
     let mut inputs = BTreeMap::new();
     for input in &model.inputs {
         let found = columns.get(input).ok_or_else(|| {
             CliError::Internal(format!(
-                "`{path}` reads `{input}`, which a run cannot give it yet"
+                "`{path}` reads the raw input `{input}`, which a SQL segment does not read yet (#316)"
             ))
         })?;
         inputs.insert(input.clone(), found.clone());

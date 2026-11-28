@@ -148,6 +148,44 @@ fn mg_req_0710_failing_step_exits_with_its_code() {
     assert_eq!(complete(&files), 1);
 }
 
+/// A source of `erp` with one copied table.
+const ERP: &str =
+    "kind = \"database\"\nengine = \"postgresql\"\nconnection = \"secret:erp\"\n[tables.orders]\n";
+
+#[test]
+fn mg_req_0710_run_names_what_it_cannot_execute_yet() {
+    let polars = "import polars as pl\n\n\ndef orders() -> pl.DataFrame:\n    \
+                  return pl.DataFrame({\"id\": [1]})\n";
+    let cases: [(&[(&str, &str)], &str); 3] = [
+        (
+            &[
+                ("sources/erp.toml", ERP),
+                ("models/stg_orders.sql", "SELECT * FROM raw.erp__orders"),
+            ],
+            "raw.erp__orders",
+        ),
+        (&[("models/orders.py", polars)], "Polars"),
+        (
+            &[("sources/erp.toml", ERP), ("models/stg_orders.sql", STG)],
+            "extraction",
+        ),
+    ];
+    for (extra, missing) in cases {
+        let mut all = vec![("project.toml", PROJECT)];
+        all.extend_from_slice(extra);
+        let files = project(&all);
+        let outcome = run_on_duckdb(&files, &["run", "--json"]);
+        assert_ne!(outcome.exit, 0, "{missing}: {outcome:?}");
+        let diagnostics = outcome.of("diagnostic");
+        assert_eq!(diagnostics.len(), 1, "{missing}: {outcome:?}");
+        assert_eq!(diagnostics[0]["code"], "MG-1304", "{missing}: {outcome:?}");
+        let message = diagnostics[0]["message"].as_str().unwrap();
+        assert!(message.contains(missing), "{missing}: {message}");
+        assert!(outcome.of("step_started").is_empty(), "{outcome:?}");
+        assert_eq!(complete(&files), 0);
+    }
+}
+
 #[test]
 fn mg_req_0710_backfill_needs_partition_by() {
     let files = orders();
