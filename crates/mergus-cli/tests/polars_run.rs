@@ -52,7 +52,13 @@ fn write(path: &Path, contents: &str) {
 /// Whether the Python the run will find for the project at `root` imports `polars`. `false`
 /// skips the test, unless `CI` is set: then it fails.
 fn has_polars(root: &Path) -> bool {
-    let env = mergus_security::python_command("python3", &[], &root.display().to_string(), &RealEnvironment).env;
+    let env = mergus_security::python_command(
+        "python3",
+        &[],
+        &root.display().to_string(),
+        &RealEnvironment,
+    )
+    .env;
     let ci = RealEnvironment.var("CI").is_some();
     let python = match RealPython::locate(None, root, env) {
         Ok(python) => python,
@@ -101,7 +107,10 @@ fn mg_req_0704_polars_step_executes_in_run() {
     assert_eq!(code, Some(0), "{events:?}\n{stderr}");
 
     let of = |kind: &str| -> Vec<&Value> {
-        events.iter().filter(|event| event["type"] == kind).collect()
+        events
+            .iter()
+            .filter(|event| event["type"] == kind)
+            .collect()
     };
     let started = of("step_started");
     let polars: Vec<&&Value> = started

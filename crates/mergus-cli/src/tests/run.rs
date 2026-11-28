@@ -164,7 +164,10 @@ fn mg_req_0710_run_names_what_it_cannot_execute_yet() {
             ],
             "`raw.erp__orders`, whose extraction",
         ),
-        (&[("models/orders.py", polars)], "no Python interpreter was found"),
+        (
+            &[("models/orders.py", polars)],
+            "no Python interpreter was found",
+        ),
     ];
     for (extra, missing) in cases {
         let mut all = vec![("project.toml", PROJECT)];

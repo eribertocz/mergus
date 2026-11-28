@@ -66,8 +66,8 @@ use std::path::Path;
 use std::process::ExitCode;
 
 use mergus_ports::real::{
-    RealClock, RealDatabase, RealEnvironment, RealFileSystem, RealKeychain, RealPython,
-    RealRandom, RealSqlParser,
+    RealClock, RealDatabase, RealEnvironment, RealFileSystem, RealKeychain, RealPython, RealRandom,
+    RealSqlParser,
 };
 use mergus_ports::{Database, Environment, PortError, Python};
 use mergus_runtime::CancelToken;
@@ -96,7 +96,11 @@ impl run::SecretInput for Stdin<'_> {
 struct ProjectPython;
 
 impl run::Interpreters for ProjectPython {
-    fn locate(&self, root: &Path, env: Vec<(String, String)>) -> Result<Box<dyn Python>, PortError> {
+    fn locate(
+        &self,
+        root: &Path,
+        env: Vec<(String, String)>,
+    ) -> Result<Box<dyn Python>, PortError> {
         let python = RealPython::locate(None, root, env)?;
         Ok(Box::new(python))
     }

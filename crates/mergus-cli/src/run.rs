@@ -66,7 +66,8 @@ pub(crate) trait Interpreters {
     /// # Errors
     ///
     /// Fails with [`PortError::PythonNotFound`] when there is none.
-    fn locate(&self, root: &Path, env: Vec<(String, String)>) -> Result<Box<dyn Python>, PortError>;
+    fn locate(&self, root: &Path, env: Vec<(String, String)>)
+    -> Result<Box<dyn Python>, PortError>;
 }
 
 /// The ports a run uses, created by `main` or by a test.

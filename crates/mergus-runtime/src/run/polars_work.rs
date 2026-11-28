@@ -140,7 +140,8 @@ impl PolarsWork<'_> {
             .files
             .open(path)
             .map_err(|error| failed(error.to_string()))?;
-        let reader = FileReader::try_new(stream, None).map_err(|error| failed(error.to_string()))?;
+        let reader =
+            FileReader::try_new(stream, None).map_err(|error| failed(error.to_string()))?;
         let schema = reader.schema();
         let batches = reader
             .collect::<Result<Vec<_>, _>>()

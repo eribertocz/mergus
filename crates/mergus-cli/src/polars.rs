@@ -39,7 +39,9 @@ pub(crate) fn polars_work<'a>(
 ) -> Result<Result<(PolarsWork<'a>, SchemaRef), Vec<Diagnostic>>, CliError> {
     let path = &model.options.path;
     let python = context.python.ok_or_else(|| {
-        CliError::Internal(format!("`{path}` is a Polars step, but no Python was located"))
+        CliError::Internal(format!(
+            "`{path}` is a Polars step, but no Python was located"
+        ))
     })?;
     let read = match python_model(context, project, python, model) {
         Ok(read) => read,

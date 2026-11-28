@@ -15,8 +15,8 @@ use mergus_plan::{
 use mergus_ports::{Database, Python};
 use mergus_project::RunParameters;
 use mergus_runtime::{
-    Executed, RUNS, ReadError, ReadPorts, ReadProject, Run, RunError, RunReport,
-    child_environment, plan_models, plan_project, read_project,
+    Executed, RUNS, ReadError, ReadPorts, ReadProject, Run, RunError, RunReport, child_environment,
+    plan_models, plan_project, read_project,
 };
 
 use crate::args::Invocation;
@@ -266,7 +266,11 @@ fn interpreter(
     project: &Project,
     run_id: &str,
 ) -> Result<Option<Box<dyn Python>>, CliError> {
-    if !project.models.iter().any(|model| model.path().ends_with(".py")) {
+    if !project
+        .models
+        .iter()
+        .any(|model| model.path().ends_with(".py"))
+    {
         return Ok(None);
     }
     let scratch = RUNS
