@@ -119,7 +119,15 @@ useful for resuming, delete other temporary files, and exit with code 7:
 ### MG-REQ-0709 · Finalizer always runs
 
 Whether a run succeeds or fails, Mergus MUST clean work files not useful for resuming, write
-the run report and send notifications.
+the run report and send notifications:
+
+1. MG-REQ-0709.1: the finalizer runs once at the end of every run: succeeded, failed, cancelled
+   or stopped by a limit. It deletes the run's scratch directory and incomplete candidates
+   (MG-REQ-0503.1, MG-REQ-0705.1). It never deletes a complete candidate.
+2. MG-REQ-0709.2: the run report is the `run_finished` event, with the exit code and, when the
+   run failed, its error code. A failure of the finalizer itself never hides the run's own
+   error. It is reported as a warning after it.
+3. MG-REQ-0709.3: notifications are a no-op until a phase adds them.
 
 - Kind: behavior
 - Verify: test `mg_req_0709_finalizer_runs_on_failure`
@@ -128,7 +136,18 @@ the run report and send notifications.
 
 A run MUST accept limits on wall time, rows written and bytes scanned, from `project.toml` or
 the command line, the stricter one winning. Before a limit is exceeded the run MUST stop the
-step, publish nothing, and end with a typed error naming the limit.
+step, publish nothing, and end with a typed error naming the limit:
+
+1. MG-REQ-0718.1: the limits are `[limits] wall_time` (a duration such as `"30m"`),
+   `rows_written` and `bytes_scanned` (integers) in `project.toml`, and the flags
+   `--max-wall-time`, `--max-rows-written` and `--max-bytes-scanned`. When both a file value and
+   a flag value are set, the smaller one applies.
+2. MG-REQ-0718.2: bytes scanned are the sum of the sizes of the DuckLake files the plan reads.
+   They are checked before stage 5 starts. Rows written are counted per batch, and the run
+   stops before it writes the batch that would cross the limit. Wall time is measured from the
+   run's start, and checked before each segment and between batches.
+3. MG-REQ-0718.3: a limit stop takes the next free `MG-07xx` code and exit code 1. It names the
+   limit, its value and the amount reached, and it goes through the finalizer like any failure.
 
 - Kind: behavior
 - Verify: test `mg_req_0718_run_stops_at_limit_without_publishing`

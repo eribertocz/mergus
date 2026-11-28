@@ -137,7 +137,8 @@ that does not exist. The document MUST contain no data values and no secrets.
 
 Every command that changes state MUST accept `--idempotency-key <key>`. A second call with the
 same key and the same arguments MUST return the first call's result without new effects; the
-same key with other arguments MUST fail with a typed error.
+same key with other arguments MUST fail with a typed error. A key lives 24 hours in
+`.mergus/idempotency/<sha256(key)>.json` with the argument hash, exit code and output.
 
 - Kind: behavior
 - Verify: test `mg_req_1313_same_key_has_no_second_effect`
