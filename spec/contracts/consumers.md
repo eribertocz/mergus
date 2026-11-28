@@ -26,10 +26,11 @@ they rely on, so that Mergus keeps providing it. Mergus's obligations are the ru
 
 | Storage | Pinned read used by the executor |
 |---|---|
-| DuckLake | `ATTACH` at the snapshot, read-only |
+| DuckLake | `ATTACH` read-only at the catalog's `snapshot_id` in `catalogs[]` (MG-REQ-0258) |
 | Iceberg | Per-table views `AT (VERSION => id)` |
 | Delta | Version per table when attaching |
 | Parquet | Views over file lists |
+| ClickHouse (1.5) | The physical table of the pin (MG-REQ-0244) |
 
 Mergus guarantees consumers three things, and only these; what a consumer must do is
 specified by the consumer:
