@@ -91,7 +91,15 @@ impl<'a> Run<'a> {
         meter: Meter<'a>,
     ) -> Result<Self, RunError> {
         let scratch = open_scratch(files, root, run_id)?;
-        let available = Candidates::new(files, root).prune_incomplete()?;
+        let available = match Candidates::new(files, root).prune_incomplete() {
+            Ok(available) => available,
+            Err(error) => {
+                // No run exists to finalize: remove the scratch directory here. The start's
+                // own error is the one reported.
+                drop(remove_scratch(files, root, &scratch));
+                return Err(error);
+            }
+        };
         Ok(Self {
             files,
             root,

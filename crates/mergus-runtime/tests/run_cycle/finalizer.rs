@@ -186,3 +186,15 @@ impl FileSystem for Stubborn<'_> {
         self.inner.exists(path)
     }
 }
+
+#[test]
+fn mg_req_0709_a_failed_start_leaves_no_scratch() {
+    let files = orders(COUNT);
+    // The candidates folder is a file: it cannot be listed, so the start fails after the
+    // scratch directory was created.
+    files.create_dir_all(&at(".mergus/work")).unwrap();
+    files.write(&at(CANDIDATES), b"a file").unwrap();
+    let failed = Run::begin(&files, root(), "run1", CancelToken::new());
+    assert_eq!(failed.err().and_then(|error| error.code()), Some("MG-0704"));
+    assert!(!files.exists(&at(".mergus/work/runs/run1")).unwrap());
+}
