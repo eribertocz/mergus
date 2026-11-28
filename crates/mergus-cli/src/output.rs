@@ -96,6 +96,11 @@ impl<'a> Output<'a> {
         write(self.stdout, &format!("{}\n", document.value()))
     }
 
+    /// The `run_id` of the events of this run (MG-REQ-0296.1).
+    pub(crate) fn run_id(&self) -> &str {
+        &self.run_id
+    }
+
     /// Reports that `command` starts with the arguments `args`.
     pub(crate) fn started(&mut self, command: &str, args: &[String]) -> Result<(), CliError> {
         if !self.json {
@@ -152,7 +157,9 @@ impl<'a> Output<'a> {
         if !self.json {
             return Ok(());
         }
+        // A run cancelled by Ctrl-C resumes from its candidates when run again (MG-REQ-0707).
         let retryable = exit::retryable(code)
+            .or((code == exit::CANCELLED).then_some(true))
             .ok_or_else(|| CliError::Internal(format!("exit code {code} is not in the table")))?;
         let elapsed = self
             .clock

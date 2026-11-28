@@ -14,6 +14,10 @@ name = "mergus"
 path = "src/main.rs"
 
 [dependencies]
+# The declared schemas of DuckDB segments are Arrow schemas; the version of `mergus-runtime`.
+arrow = { version = "60.2.0", default-features = false }
+# MG-REQ-0710.4: Ctrl-C sets the run's cancel token instead of ending the process.
+ctrlc = "3.5.3"
 mergus-contracts = { path = "../mergus-contracts" }
 mergus-plan = { path = "../mergus-plan" }
 mergus-ports = { path = "../mergus-ports", features = ["real"] }
@@ -23,6 +27,8 @@ mergus-security = { path = "../mergus-security" }
 mergus-source = { path = "../mergus-source" }
 # MG-REQ-1007: `secret set` reads the value typed on a terminal with echo turned off.
 rpassword = "7.5.5"
+# MG-REQ-1313: the record of an idempotency key is a JSON document.
+serde_json = { version = "1.0.154", features = ["float_roundtrip"] }
 thiserror = "2.0.21"
 
 [lints]
@@ -30,4 +36,3 @@ workspace = true
 
 [dev-dependencies]
 mergus-sim = { path = "../mergus-sim" }
-serde_json = { version = "1.0.154", features = ["float_roundtrip"] }

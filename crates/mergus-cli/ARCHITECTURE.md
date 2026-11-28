@@ -21,6 +21,10 @@
 | `selection::select` | The models a selection selects, each with its reasons (MG-REQ-1305) |
 | `settings::max_parallel` | `max_parallel` from the flag, the variable, the user file or the default |
 | `planning::plan` | `mergus plan`: the plan of `mergus-plan`, written under `.mergus/plans/` |
+| `execution::run` | `mergus run` and `mergus backfill`: stages 1 to 5 through the run cycle of `mergus-runtime` |
+| `work::work` | One `SqlWork` per `.sql` model the plan computes, its schema described by DuckDB |
+| `arrow_types::schema` | The Arrow schema of the columns DuckDB describes |
+| `idempotency` | The records of `--idempotency-key` under `.mergus/idempotency/`, for 24 hours |
 | `doctor::doctor` | `mergus doctor`: the origin of each secret reference, from `mergus-security` |
 | `explain::explain` | `mergus explain`: a code's catalog file, or a model and its options |
 | `validate::validate` | Stage 1: layout, configuration and folder options of `mergus-project`, source checks of `mergus-source` |
@@ -66,7 +70,16 @@
    and asks `mergus_security::origin` for each. `origin` drops the value inside
    `mergus-security`; the binary only ever holds the `SecretOrigin`. A reference that does not
    resolve prints `missing` and becomes an `MG-1003` diagnostic with `secret set` as `next`.
-9. Every event goes through `mergus_contracts::validate_event` before it is printed. An event
+9. `run` and `backfill` read the project as `plan` does, then through
+   `mergus_runtime::read_project`, open the run cycle (`Run::begin`), plan with its complete
+   candidates, check stage 4, map each computed `.sql` model onto a `SqlWork`, adopt the
+   plan, emit `plan_ready`, execute, and always `finish`. Results stay as candidates in work.
+   `main` sets the cancel token on Ctrl-C; a cancelled run ends with exit code 7.
+10. A command given `--idempotency-key` runs into buffers, keeps its output and exit code in
+   `.mergus/idempotency/<sha256(key)>.json` with the hash of its sorted arguments, then
+   prints them. Within 24 hours, the same key and arguments print the record again and do
+   nothing; other arguments give `MG-1314`.
+11. Every event goes through `mergus_contracts::validate_event` before it is printed. An event
    that fails is an internal error, `MG-1304`, printed on standard error, exit code 10.
 
 The `[[bin]] name` in `Cargo.toml` is the only other place that spells the product name:
@@ -84,3 +97,7 @@ Cargo cannot read a Rust constant. A unit test checks that it equals `name::PROD
 - `rpassword`: reads the line typed on a terminal without echo, in `main` only.
 - `mergus-plan`: the fingerprints and the `mergus_plan` document of `mergus plan`.
 - `thiserror`: derives `CliError`.
+- `mergus-runtime`: the run cycle, `SqlWork` and the cancel token of `run` and `backfill`.
+- `arrow`: the declared schemas of the DuckDB segments.
+- `ctrlc`: Ctrl-C sets the cancel token instead of ending the process (MG-REQ-0710.4).
+- `serde_json`: the records of idempotency keys.

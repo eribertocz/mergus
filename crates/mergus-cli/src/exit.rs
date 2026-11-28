@@ -4,6 +4,9 @@
 /// Success.
 pub(crate) const SUCCESS: u8 = 0;
 
+/// A run cancelled by its cancel token (MG-REQ-0708.2).
+pub(crate) const CANCELLED: u8 = mergus_runtime::CANCELLED_EXIT_CODE;
+
 /// An internal error of Mergus (MG-1304).
 pub(crate) const INTERNAL: u8 = 10;
 

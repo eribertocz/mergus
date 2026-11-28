@@ -1,4 +1,5 @@
-//! The errors of the binary itself, each with its `MG-13xx` code (MG-REQ-0008).
+//! The errors of the binary itself, each with its `MG-13xx` code, or the `MG-07xx` code of
+//! `run` and `backfill` (MG-REQ-0008).
 
 /// A failure of the binary, outside the checks of the crates it calls.
 #[derive(Clone, Debug, PartialEq, Eq, thiserror::Error)]
@@ -159,6 +160,33 @@ pub(crate) enum CliError {
         /// What is wrong.
         message: String,
     },
+    /// An idempotency key is given again, within its 24 hours, with other arguments
+    /// (MG-REQ-1313).
+    #[error("idempotency key `{key}` was used with other arguments")]
+    IdempotencyConflict {
+        /// The key given.
+        key: String,
+    },
+    /// `--from` or `--to` of `backfill` is not a date (MG-REQ-0710, MG-REQ-0657).
+    #[error("`{option}` is `{given}`, which is not a date `YYYY-MM-DD`")]
+    InvalidDate {
+        /// The option.
+        option: &'static str,
+        /// The value given.
+        given: String,
+    },
+    /// The range of `backfill` ends before it starts (MG-REQ-0657.1).
+    #[error("the backfill ends at `{to}`, before it starts at `{from}`")]
+    InvertedBackfill {
+        /// `--from`.
+        from: String,
+        /// `--to`.
+        to: String,
+    },
+    /// `run` and `backfill` need DuckDB, which needs a user cache directory for its
+    /// extensions (MG-REQ-0710).
+    #[error("no DuckDB is available: there is no user cache directory for its extensions")]
+    NoDatabase,
     /// A file or directory of the project cannot be read.
     #[error("the project cannot be read: {0}")]
     Unreadable(String),
@@ -193,6 +221,9 @@ impl CliError {
             Self::UnknownCode { .. } => "MG-1311",
             Self::InvalidSetting { .. } => "MG-1312",
             Self::InvalidUserConfig { .. } => "MG-1313",
+            Self::IdempotencyConflict { .. } => "MG-1314",
+            Self::InvalidDate { .. } | Self::InvertedBackfill { .. } => "MG-0705",
+            Self::NoDatabase => "MG-0706",
         }
     }
 
@@ -236,7 +267,11 @@ impl CliError {
             | Self::UnknownName { closest: None, .. }
             | Self::UnknownCode { closest: None, .. }
             | Self::InvalidSetting { .. }
-            | Self::InvalidUserConfig { .. } => None,
+            | Self::InvalidUserConfig { .. }
+            | Self::IdempotencyConflict { .. }
+            | Self::InvalidDate { .. }
+            | Self::InvertedBackfill { .. }
+            | Self::NoDatabase => None,
         }
     }
 
