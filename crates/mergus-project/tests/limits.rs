@@ -1,9 +1,10 @@
 //! MG-REQ-0718.1: `[limits]` in `project.toml`.
 
 use std::path::Path;
+use std::time::Duration;
 
 use mergus_ports::FileSystem;
-use mergus_project::{LayoutError, read_configuration};
+use mergus_project::{LayoutError, ProjectLimits, read_configuration};
 use mergus_sim::SimFileSystem;
 
 const ROOT: &str = "/project";
@@ -24,6 +25,19 @@ fn mg_req_0718_limits_in_project_toml() {
     assert_eq!(limits["wall_time"], "30m");
     assert_eq!(limits["rows_written"], 1000);
     assert_eq!(limits["bytes_scanned"], 5_000_000);
+    assert_eq!(
+        configuration.limits(),
+        ProjectLimits {
+            wall_time: Some(Duration::from_secs(1800)),
+            rows_written: Some(1000),
+            bytes_scanned: Some(5_000_000),
+        }
+    );
+    let hours = read("name = \"sales\"\n[limits]\nwall_time = \"2h\"\n").unwrap();
+    assert_eq!(hours.limits().wall_time, Some(Duration::from_secs(7200)));
+    assert_eq!(hours.limits().rows_written, None);
+    let none = read("name = \"sales\"\n").unwrap();
+    assert_eq!(none.limits(), ProjectLimits::default());
 
     for invalid in [
         "wall_time = \"30d\"",

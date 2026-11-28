@@ -2,36 +2,12 @@
 //! (MG-REQ-0718.1): a wall time is a positive integer and `s`, `m` or `h`; rows and bytes are
 //! positive integers.
 
-use std::time::Duration;
-
-use mergus_project::Configuration;
+use mergus_project::{Configuration, parse_positive as positive, parse_wall_time as wall_time};
 use mergus_runtime::Limits;
 
 use crate::args::Invocation;
 use crate::commands::LIMITS;
 use crate::error::CliError;
-
-/// A wall time: a positive integer and a unit, `s`, `m` or `h` (`"90s"`, `"30m"`, `"2h"`).
-pub(crate) fn wall_time(text: &str) -> Option<Duration> {
-    let split = text.len().checked_sub(1)?;
-    let (number, unit) = (text.get(..split)?, text.get(split..)?);
-    let seconds_per_unit = match unit {
-        "s" => 1,
-        "m" => 60,
-        "h" => 3600,
-        _ => return None,
-    };
-    let count = positive(number)?;
-    count.checked_mul(seconds_per_unit).map(Duration::from_secs)
-}
-
-/// A positive integer, written in decimal digits only.
-pub(crate) fn positive(text: &str) -> Option<u64> {
-    if text.is_empty() || !text.bytes().all(|byte| byte.is_ascii_digit()) {
-        return None;
-    }
-    text.parse::<u64>().ok().filter(|value| *value > 0)
-}
 
 /// Fails when `value`, given to the limit option `name`, is not in its format.
 ///
@@ -77,14 +53,11 @@ pub(crate) fn of(invocation: &Invocation, file: Limits) -> Limits {
 
 /// The `[limits]` of `project.toml`, which its schema has checked (MG-REQ-0718.1).
 pub(crate) fn of_project(configuration: &Configuration) -> Limits {
-    let table = configuration.project.value.get("limits");
-    let value = |key: &str| table.and_then(|table| table.get(key));
+    let limits = configuration.limits();
     Limits {
-        wall_time: value("wall_time")
-            .and_then(|text| text.as_str())
-            .and_then(wall_time),
-        rows_written: value("rows_written").and_then(serde_json::Value::as_u64),
-        bytes_scanned: value("bytes_scanned").and_then(serde_json::Value::as_u64),
+        wall_time: limits.wall_time,
+        rows_written: limits.rows_written,
+        bytes_scanned: limits.bytes_scanned,
     }
 }
 
@@ -99,7 +72,7 @@ fn smaller<T: Ord>(flag: Option<T>, file: Option<T>) -> Option<T> {
 mod tests {
     use std::time::Duration;
 
-    use super::{positive, wall_time};
+    use mergus_project::{parse_positive as positive, parse_wall_time as wall_time};
 
     #[test]
     fn mg_req_0718_limit_formats() {

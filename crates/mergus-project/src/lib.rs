@@ -56,8 +56,9 @@ mod reuse;
 mod sql;
 
 pub use config::{
-    ConfigFile, ConfigKind, Configuration, Effective, ModelOptions, Origin, Setting, Source,
-    key_line, read_configuration, read_model_options, toml_to_json,
+    ConfigFile, ConfigKind, Configuration, Effective, ModelOptions, Origin, ProjectLimits, Setting,
+    Source, key_line, parse_positive, parse_wall_time, read_configuration, read_model_options,
+    toml_to_json,
 };
 pub use error::{LayoutError, NameKind, ProjectError, ProjectWarning, PythonModelError};
 pub use ids::{IdKind, Identifier, Identifiers, Renames, derive_identifier, read_renames};
