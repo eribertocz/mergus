@@ -82,6 +82,24 @@ pub trait FileSystem: Send + Sync {
         )))
     }
 
+    /// Moves the file at `from` to `to` in one step, replacing the file at `to` if there is
+    /// one, so a reader sees either the old entry or the new one, never a part of it. Both
+    /// paths must be on the same file system.
+    ///
+    /// The default fails: a file system that does not implement it cannot rename files.
+    ///
+    /// # Errors
+    ///
+    /// Fails with [`PortError::NotFound`] when `from` or the parent of `to` does not exist,
+    /// and with [`PortError::Failed`] when the file cannot be moved.
+    fn rename(&self, from: &Path, to: &Path) -> Result<(), PortError> {
+        Err(PortError::Failed(format!(
+            "this file system cannot rename `{}` to `{}`",
+            from.display(),
+            to.display()
+        )))
+    }
+
     /// Creates the directory at `path` and every missing parent.
     ///
     /// # Errors

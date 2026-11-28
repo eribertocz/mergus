@@ -22,6 +22,16 @@ enum Node {
 #[derive(Debug, Default)]
 pub struct SimFileSystem {
     nodes: Arc<Mutex<BTreeMap<PathBuf, Node>>>,
+    crash: Mutex<Option<RenameCrash>>,
+}
+
+/// Where the next [`FileSystem::rename`] of a [`SimFileSystem`] crashes.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum RenameCrash {
+    /// The rename fails and nothing moves, as if the process died just before it.
+    Before,
+    /// The entry moves, then the rename fails, as if the process died just after it.
+    After,
 }
 
 /// A stream of [`SimFileSystem::create`]: it keeps the bytes written and stores them as the
@@ -61,6 +71,18 @@ impl SimFileSystem {
     #[must_use]
     pub fn new() -> Self {
         Self::default()
+    }
+
+    /// Makes the next [`FileSystem::rename`] fail with nothing moved, as if the process died
+    /// just before it. It applies once.
+    pub fn crash_before_next_rename(&self) {
+        *lock(&self.crash) = Some(RenameCrash::Before);
+    }
+
+    /// Makes the next [`FileSystem::rename`] move its entry and then fail, as if the process
+    /// died just after it. It applies once.
+    pub fn crash_after_next_rename(&self) {
+        *lock(&self.crash) = Some(RenameCrash::After);
     }
 }
 
@@ -143,6 +165,37 @@ impl FileSystem for SimFileSystem {
             Some(Node::File(_)) => Err(PortError::Failed(format!("`{}` is a file", shown(path)))),
             None => Err(PortError::NotFound(shown(path))),
         }
+    }
+
+    fn rename(&self, from: &Path, to: &Path) -> Result<(), PortError> {
+        let crash = lock(&self.crash).take();
+        let crashed = || PortError::Failed(format!("crash while renaming `{}`", shown(from)));
+        if crash == Some(RenameCrash::Before) {
+            return Err(crashed());
+        }
+        let mut nodes = lock(&self.nodes);
+        let contents = match nodes.get(from) {
+            Some(Node::File(contents)) => contents.clone(),
+            Some(Node::Directory) => {
+                return Err(PortError::Failed(format!(
+                    "`{}` is a directory",
+                    shown(from)
+                )));
+            }
+            None => return Err(PortError::NotFound(shown(from))),
+        };
+        if !is_directory(&nodes, to.parent()) {
+            return Err(PortError::NotFound(shown(to)));
+        }
+        if matches!(nodes.get(to), Some(Node::Directory)) {
+            return Err(PortError::Failed(format!("`{}` is a directory", shown(to))));
+        }
+        nodes.remove(from);
+        nodes.insert(to.to_path_buf(), Node::File(contents));
+        if crash == Some(RenameCrash::After) {
+            return Err(crashed());
+        }
+        Ok(())
     }
 
     fn create_dir_all(&self, path: &Path) -> Result<(), PortError> {

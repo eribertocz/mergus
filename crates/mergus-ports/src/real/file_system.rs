@@ -44,6 +44,10 @@ impl FileSystem for RealFileSystem {
         fs::remove_dir_all(path).map_err(|error| port_error(&shown(path), &error))
     }
 
+    fn rename(&self, from: &Path, to: &Path) -> Result<(), PortError> {
+        fs::rename(from, to).map_err(|error| port_error(&shown(from), &error))
+    }
+
     fn create_dir_all(&self, path: &Path) -> Result<(), PortError> {
         fs::create_dir_all(path).map_err(|error| port_error(&shown(path), &error))
     }
@@ -133,6 +137,22 @@ mod tests {
         ));
         assert!(matches!(
             fs.create(&dir.join("no").join("parent")),
+            Err(PortError::NotFound(_))
+        ));
+    }
+
+    #[test]
+    fn real_file_system_renames_in_one_step() {
+        let dir = scratch("rename");
+        let fs = RealFileSystem;
+        fs.write(&dir.join("complete.json.tmp"), b"new").unwrap();
+        fs.write(&dir.join("complete.json"), b"old").unwrap();
+        fs.rename(&dir.join("complete.json.tmp"), &dir.join("complete.json"))
+            .unwrap();
+        assert_eq!(fs.read(&dir.join("complete.json")).unwrap(), b"new");
+        assert!(!fs.exists(&dir.join("complete.json.tmp")).unwrap());
+        assert!(matches!(
+            fs.rename(&dir.join("missing"), &dir.join("other")),
             Err(PortError::NotFound(_))
         ));
     }
