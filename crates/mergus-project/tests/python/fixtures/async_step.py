@@ -8,3 +8,7 @@ async def _private():
 
 def async_step():
     return "SELECT 3"
+
+
+def uses(fetched):
+    return "SELECT 4"

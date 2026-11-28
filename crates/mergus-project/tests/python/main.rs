@@ -1,4 +1,4 @@
-//! Tests of `.py` models (MG-REQ-0612 to MG-REQ-0616, MG-REQ-0618). The trees of `fixtures/`
+//! Tests of `.py` models (MG-REQ-0611.1, MG-REQ-0612 to MG-REQ-0616, MG-REQ-0618). The trees of `fixtures/`
 //! were recorded from the real `Python` port: `python_tree.py` of `mergus-ports` run on each
 //! `.py` file with Python 3.
 
@@ -6,6 +6,7 @@ mod eager;
 mod lib_modules;
 mod returns;
 mod steps;
+mod syntax;
 mod wiring;
 
 use mergus_project::{
@@ -29,7 +30,9 @@ pub(crate) use fixture;
 
 /// Every model fixture: its name, its text and the tree the real port gives for it.
 const MODELS: &[(&str, &str, &str)] = &[
+    fixture!("async_result"),
     fixture!("async_step"),
+    fixture!("broken"),
     fixture!("eager"),
     fixture!("miswired"),
     fixture!("nameless"),

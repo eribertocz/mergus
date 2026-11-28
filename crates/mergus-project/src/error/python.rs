@@ -69,6 +69,24 @@ pub enum PythonModelError {
         /// The column of the parameter.
         column: usize,
     },
+    /// A parameter is positional-only, before `/`: inputs are passed by keyword
+    /// (MG-REQ-0614.2).
+    #[error(
+        "`{path}` line {line} column {column}: parameter `{parameter}` of step `{step}` is \
+         positional-only; Mergus passes every input by keyword, so move it after the `/`"
+    )]
+    PositionalOnlyParameter {
+        /// The path of the model.
+        path: String,
+        /// The name of the step.
+        step: String,
+        /// The name of the parameter.
+        parameter: String,
+        /// The line of the parameter.
+        line: usize,
+        /// The column of the parameter.
+        column: usize,
+    },
     /// The steps of one file read each other in a cycle (MG-REQ-0614.2).
     #[error("`{path}` line {line}: steps {} form a cycle", cycle_names(steps))]
     StepCycle {
@@ -86,6 +104,18 @@ pub enum PythonModelError {
         path: String,
         /// The file stem, the name the function must have.
         stem: String,
+    },
+    /// A model or `lib` file is not valid Python (MG-REQ-0611.1).
+    #[error("`{path}`{}: not valid Python: {message}", location(*line, *column))]
+    PythonSyntax {
+        /// The path of the file.
+        path: String,
+        /// The line of the error, when Python gives one.
+        line: Option<usize>,
+        /// The column of the error, when Python gives one.
+        column: Option<usize>,
+        /// Python's message.
+        message: String,
     },
     /// A model file makes data eager (MG-REQ-0616).
     #[error(
@@ -116,6 +146,8 @@ impl PythonModelError {
             Self::StepCycle { .. } => "MG-0622",
             Self::MissingResult { .. } => "MG-0623",
             Self::EagerCall { .. } => "MG-0624",
+            Self::PositionalOnlyParameter { .. } => "MG-0625",
+            Self::PythonSyntax { .. } => "MG-0626",
         }
     }
 
@@ -129,6 +161,8 @@ impl PythonModelError {
             | Self::VariadicParameter { path, .. }
             | Self::StepCycle { path, .. }
             | Self::MissingResult { path, .. }
+            | Self::PositionalOnlyParameter { path, .. }
+            | Self::PythonSyntax { path, .. }
             | Self::EagerCall { path, .. } => path,
         }
     }
@@ -142,7 +176,9 @@ impl PythonModelError {
             | Self::UnresolvedParameter { line, .. }
             | Self::VariadicParameter { line, .. }
             | Self::StepCycle { line, .. }
+            | Self::PositionalOnlyParameter { line, .. }
             | Self::EagerCall { line, .. } => Some(*line),
+            Self::PythonSyntax { line, .. } => *line,
             Self::MissingResult { .. } => None,
         }
     }
@@ -153,8 +189,19 @@ impl PythonModelError {
         match self {
             Self::UnresolvedParameter { column, .. }
             | Self::VariadicParameter { column, .. }
+            | Self::PositionalOnlyParameter { column, .. }
             | Self::EagerCall { column, .. } => Some(*column),
+            Self::PythonSyntax { column, .. } => *column,
             _ => None,
         }
+    }
+}
+
+/// Formats the line and column of a syntax error, as far as Python gives them.
+fn location(line: Option<usize>, column: Option<usize>) -> String {
+    match (line, column) {
+        (Some(line), Some(column)) => format!(" line {line} column {column}"),
+        (Some(line), None) => format!(" line {line}"),
+        _ => String::new(),
     }
 }

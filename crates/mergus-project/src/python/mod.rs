@@ -4,9 +4,9 @@
 //! result (MG-REQ-0615), steps never make data eager (MG-REQ-0616), and the `lib` modules a
 //! model imports are fingerprint inputs (MG-REQ-0618).
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
-use mergus_ports::{Python, PythonFunction, PythonTree};
+use mergus_ports::{PortError, Python, PythonFunction, PythonTree};
 
 use crate::{KnownTables, LayoutError, ProjectError, PythonModelError};
 
@@ -91,10 +91,11 @@ pub enum InputSource {
 ///
 /// # Errors
 ///
-/// Fails with [`LayoutError::Invalid`] carrying every [`PythonModelError`] of the file: async
-/// steps, invalid returns, parameters, cycles, the missing result, then eager calls, each
-/// group in the order of the file. Fails with [`LayoutError::Port`] when `python` fails,
-/// including when the file is not valid Python.
+/// Fails with [`LayoutError::Invalid`] carrying the syntax error of a file that is not valid
+/// Python, or else every [`PythonModelError`] of the file: async steps, invalid returns,
+/// parameters, cycles, the missing result, then eager calls, each group in the order of the
+/// file. An async step is reported once: neither its readers nor a missing result repeat it.
+/// Fails with [`LayoutError::Port`] when `python` fails otherwise.
 pub fn read_python_model(
     path: &str,
     bytes: &[u8],
@@ -102,11 +103,11 @@ pub fn read_python_model(
     lib: &PythonLib,
     python: &dyn Python,
 ) -> Result<PythonModel, LayoutError> {
-    let source = String::from_utf8_lossy(bytes);
-    let tree = python.parse(&source)?;
+    let tree = parse(path, bytes, python)?;
     let name = stem(path);
     let mut problems = Vec::new();
     let functions = steps_of(path, &tree, &mut problems);
+    let rejected = rejected(&tree);
     let mut steps = Vec::new();
     for function in &functions {
         let engine = returns::engine(path, function, &tree, &mut problems);
@@ -117,8 +118,13 @@ pub fn read_python_model(
             inputs: Vec::new(),
         });
     }
-    wiring::wire(path, name, &functions, &mut steps, known, &mut problems);
-    if !steps.iter().any(|step| step.name == name) {
+    let names = wiring::Names {
+        model: name,
+        rejected: &rejected,
+        known,
+    };
+    wiring::wire(path, &names, &functions, &mut steps, &mut problems);
+    if !steps.iter().any(|step| step.name == name) && !rejected.contains(name) {
         problems.push(PythonModelError::MissingResult {
             path: path.to_owned(),
             stem: name.to_owned(),
@@ -136,6 +142,31 @@ pub fn read_python_model(
         steps,
         lib_inputs: lib.fingerprint_inputs(&tree.imports),
     })
+}
+
+/// The tree of the file at `path` holding `bytes`. A syntax error is a problem of the file
+/// (MG-REQ-0611.1).
+pub(super) fn parse(
+    path: &str,
+    bytes: &[u8],
+    python: &dyn Python,
+) -> Result<PythonTree, LayoutError> {
+    match python.parse(&String::from_utf8_lossy(bytes)) {
+        Ok(tree) => Ok(tree),
+        Err(PortError::PythonSyntax {
+            message,
+            line,
+            column,
+        }) => Err(LayoutError::Invalid(vec![ProjectError::Python(
+            PythonModelError::PythonSyntax {
+                path: path.to_owned(),
+                line: line.map(to_usize),
+                column: column.map(to_usize),
+                message,
+            },
+        )])),
+        Err(error) => Err(error.into()),
+    }
 }
 
 /// The steps of `tree`: its public top-level functions, in order. A public `async def` is a
@@ -158,6 +189,15 @@ fn steps_of<'a>(
         }
     }
     steps
+}
+
+/// The public `async def` functions of `tree`: rejected steps (MG-REQ-0612.1).
+fn rejected(tree: &PythonTree) -> BTreeSet<&str> {
+    tree.functions
+        .iter()
+        .filter(|function| function.is_async && !function.name.starts_with('_'))
+        .map(|function| function.name.as_str())
+        .collect()
 }
 
 /// The stem of the file at `path`: its name without its last extension.

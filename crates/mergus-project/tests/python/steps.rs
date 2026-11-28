@@ -20,7 +20,8 @@ fn mg_req_0612_public_functions_are_steps() {
         [("joined", 4), ("sales_by_segment", 17), ("in_usd", 21)]
     );
 
-    // A public `async def` is no step and is rejected; a private one is a helper.
+    // A public `async def` is no step and is rejected; a private one is a helper. A step
+    // reading it gets no second error.
     let found = problems("async_step");
     assert_eq!(
         summary(&found),
@@ -36,6 +37,11 @@ fn mg_req_0612_public_functions_are_steps() {
     assert_eq!(error.code(), "MG-0618");
     assert_eq!(error.path(), "models/async_step.py");
     assert_eq!(error.line(), Some(1));
+
+    // An async result is reported once: no missing result, and its reader no unresolved name.
+    let found = problems("async_result");
+    let codes: Vec<&str> = found.iter().map(PythonModelError::code).collect();
+    assert_eq!(codes, ["MG-0618"]);
 }
 
 #[test]

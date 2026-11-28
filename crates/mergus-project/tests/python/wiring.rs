@@ -27,7 +27,8 @@ fn mg_req_0614_parameters_resolve_inputs() {
         )]
     );
     // A step of the file comes before the model of the same name; raw tables and seeds are
-    // named without their schema; every kind of parameter but `*` and `**` is an input.
+    // named without their schema; keyword-only parameters and those with a default value are
+    // inputs.
     assert_eq!(
         step("wiring"),
         [
@@ -38,9 +39,21 @@ fn mg_req_0614_parameters_resolve_inputs() {
                 InputSource::Raw("seed__countries".to_owned())
             ),
             input("fact_sales", InputSource::Model("fact_sales".to_owned())),
+            input("abc", InputSource::Model("abc".to_owned())),
         ]
     );
     assert_miswired();
+}
+
+/// The problem of the variadic `parameter` of step `miswired` at `column` of line 1.
+fn variadic(parameter: &str, column: usize) -> PythonModelError {
+    PythonModelError::VariadicParameter {
+        path: "models/miswired.py".to_owned(),
+        step: "miswired".to_owned(),
+        parameter: parameter.to_owned(),
+        line: 1,
+        column,
+    }
 }
 
 /// Checks the problems of the fixture `miswired` (MG-REQ-0614.1, MG-REQ-0614.2).
@@ -56,12 +69,10 @@ fn assert_miswired() {
             suggestion: hint.map(str::to_owned),
         }
     };
-    let variadic = |parameter: &str, column: usize| PythonModelError::VariadicParameter {
+    let cycle = |steps: &[&str], line: usize| PythonModelError::StepCycle {
         path: "models/miswired.py".to_owned(),
-        step: "miswired".to_owned(),
-        parameter: parameter.to_owned(),
-        line: 1,
-        column,
+        steps: steps.iter().map(|step| (*step).to_owned()).collect(),
+        line,
     };
     assert_eq!(
         found,
@@ -75,11 +86,17 @@ fn assert_miswired() {
             variadic("**options", 51),
             // The step itself and the model of this file are not candidates.
             unresolved("miswired_too", "miswired_too", (5, 18), None),
-            PythonModelError::StepCycle {
+            // Mergus passes inputs by keyword.
+            PythonModelError::PositionalOnlyParameter {
                 path: "models/miswired.py".to_owned(),
-                steps: vec!["ping".to_owned(), "pong".to_owned()],
-                line: 9,
+                step: "only".to_owned(),
+                parameter: "stg_orders".to_owned(),
+                line: 29,
+                column: 10,
             },
+            cycle(&["ping", "pong"], 9),
+            // Each step reads the next: `tri_a` reads `tri_c`.
+            cycle(&["tri_a", "tri_c", "tri_b"], 17),
         ]
     );
     assert_miswired_messages(&found);
@@ -91,7 +108,8 @@ fn assert_miswired_messages(found: &[PythonModelError]) {
     assert_eq!(
         codes,
         [
-            "MG-0620", "MG-0620", "MG-0620", "MG-0621", "MG-0621", "MG-0620", "MG-0622"
+            "MG-0620", "MG-0620", "MG-0620", "MG-0621", "MG-0621", "MG-0620", "MG-0625", "MG-0622",
+            "MG-0622"
         ]
     );
     let messages = summary(found);
@@ -107,6 +125,12 @@ fn assert_miswired_messages(found: &[PythonModelError]) {
     );
     assert_eq!(
         messages[6].2,
-        "`models/miswired.py` line 9: steps `ping` -> `pong` -> `ping` form a cycle"
+        "`models/miswired.py` line 29 column 10: parameter `stg_orders` of step `only` is \
+         positional-only; Mergus passes every input by keyword, so move it after the `/`"
+    );
+    assert_eq!(
+        messages[8].2,
+        "`models/miswired.py` line 17: steps `tri_a` -> `tri_c` -> `tri_b` -> `tri_a` form a \
+         cycle"
     );
 }

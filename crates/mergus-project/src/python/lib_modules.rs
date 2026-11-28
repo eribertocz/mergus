@@ -7,6 +7,7 @@ use std::path::Path;
 use mergus_contracts::hash::sha256_hex;
 use mergus_ports::{FileSystem, Python, PythonImport};
 
+use super::parse;
 use crate::LayoutError;
 
 /// The folder of the shared modules.
@@ -74,8 +75,9 @@ impl PythonLib {
 ///
 /// # Errors
 ///
-/// Fails with [`LayoutError::Port`] when a file cannot be read or `python` fails, including
-/// when a module is not valid Python.
+/// Fails with [`LayoutError::Invalid`] carrying the syntax error of every module that is not
+/// valid Python (MG-REQ-0611.1), in the port's order, and with [`LayoutError::Port`] when a
+/// file cannot be read or `python` fails otherwise.
 pub fn read_python_lib(
     files: &dyn FileSystem,
     root: &Path,
@@ -86,22 +88,30 @@ pub fn read_python_lib(
         return Ok(PythonLib::default());
     }
     let mut trees = Vec::new();
+    let mut problems = Vec::new();
     for entry in files.list_dir(&folder)? {
-        let is_py = entry.extension().is_some_and(|found| found == "py");
-        if !is_py || files.list_dir(&entry).is_ok() {
-            continue;
-        }
-        let Some(name) = entry.file_stem().and_then(|stem| stem.to_str()) else {
+        let Some(name) = module_name(files, &entry) else {
             continue;
         };
         let bytes = files.read(&entry)?;
-        let tree = python.parse(&String::from_utf8_lossy(&bytes))?;
+        let path = format!("{LIB}/{name}.py");
+        let tree = match parse(&path, &bytes, python) {
+            Ok(tree) => tree,
+            Err(LayoutError::Invalid(found)) => {
+                problems.extend(found);
+                continue;
+            }
+            Err(error) => return Err(error),
+        };
         let module = PythonLibModule {
-            path: format!("{LIB}/{name}.py"),
+            path,
             hash: format!("sha256:{}", sha256_hex(&bytes)),
             imports: BTreeSet::new(),
         };
         trees.push((name.to_owned(), module, tree.imports));
+    }
+    if !problems.is_empty() {
+        return Err(LayoutError::Invalid(problems));
     }
     let mut lib = PythonLib {
         modules: trees
@@ -116,4 +126,13 @@ pub fn read_python_lib(
         }
     }
     Ok(lib)
+}
+
+/// The module name of `entry` of `lib/`: the stem of a `.py` file; `None` for anything else.
+fn module_name<'a>(files: &dyn FileSystem, entry: &'a Path) -> Option<&'a str> {
+    let is_py = entry.extension().is_some_and(|found| found == "py");
+    if !is_py || files.list_dir(entry).is_ok() {
+        return None;
+    }
+    entry.file_stem().and_then(|stem| stem.to_str())
 }

@@ -46,5 +46,9 @@ def mixed(literal):
     return literal.head(1)
 
 
+def summed(literal):
+    return literal + literal
+
+
 def returns(frame):
     return "SELECT * FROM frame"

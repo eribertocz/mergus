@@ -68,6 +68,8 @@ fn assert_invalid_returns() {
                  expression; every return of a step has one kind"
                     .to_owned(),
             ),
+            // Any binary operation, not only one on strings.
+            invalid(50, "summed", "a binary operation"),
         ]
     );
 }

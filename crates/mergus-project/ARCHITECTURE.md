@@ -24,7 +24,7 @@
 | `ProjectWarning` | A warning with its `MG-####` code and path, which never fails a read |
 | `PythonModel`, `PythonStep` | A `.py` model: its steps in file order, its result, its `lib` fingerprint inputs |
 | `StepEngine`, `StepInput`, `InputSource` | The engine of a step, and what each parameter reads: a step, a model or a raw table |
-| `PythonModelError` | A problem of a `.py` model, `MG-0618` to `MG-0624`, inside `ProjectError::Python` |
+| `PythonModelError` | A problem of a `.py` model, `MG-0618` to `MG-0626`, inside `ProjectError::Python` |
 | `PythonLib`, `PythonLibModule` | The modules of `lib/`: path, hash and the `lib` modules each imports |
 | `Identifiers` | Gives each object its identifier and collects the ones given twice |
 
@@ -90,6 +90,8 @@ Functions: `read_layout`, `read_configuration`, `read_model_options`, `is_valid_
    schema and reported as `MG-0615`.
 
 ## Python models flow
+
+A file that does not parse stops at its syntax error, `MG-0626`, with its path.
 
 1. `read_python_lib` lists `lib/*.py` in the port's order and parses each through the
    `Python` port; each module keeps its hash and the `lib` modules it imports: absolute

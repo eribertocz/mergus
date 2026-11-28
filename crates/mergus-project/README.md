@@ -48,9 +48,11 @@ Read and validate the project: files, `project.toml`, folder `mergus.toml`.
   expression Polars; an f-string, any binary operation, a bare variable, `.format(...)` of a
   literal, `None`, no `return` or both kinds is `MG-0619` (MG-REQ-0613). Each parameter reads
   a step of the file, a model, then a raw table or seed: an unresolved one is `MG-0620` with
-  the closest name within 3 edits, `*args` or `**kwargs` `MG-0621`, a cycle of steps `MG-0622`
-  (MG-REQ-0614). The step named like the file is the result, else `MG-0623` (MG-REQ-0615).
-  An eager call anywhere in the file is `MG-0624` (MG-REQ-0616).
+  the closest name within 3 edits, `*args` or `**kwargs` `MG-0621`, a positional-only one
+  `MG-0625`, a cycle of steps `MG-0622` (MG-REQ-0614). The step named like the file is the
+  result, else `MG-0623` (MG-REQ-0615). An eager call anywhere in the file is `MG-0624`
+  (MG-REQ-0616). A model or `lib` file that is not valid Python is `MG-0626` (MG-REQ-0611.1).
+  A public `async def` is reported once: its readers and a missing result do not repeat it.
 - Reads each `lib/*.py` the same way and gives each `.py` model the `lib` modules it imports,
   directly or through each other, as fingerprint inputs `lib:<module>` = `sha256:<hex>`
   (MG-REQ-0618).
