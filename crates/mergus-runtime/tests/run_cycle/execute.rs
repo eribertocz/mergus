@@ -14,7 +14,7 @@ use mergus_sim::SimFileSystem;
 use serde_json::Value;
 
 use crate::fixture::{
-    COUNT, Log, at, cleared, database, fingerprint, models, orders, plan, read, root, tree,
+    COUNT, Log, at, cleared, database, end, fingerprint, models, orders, plan, read, root, tree,
 };
 
 #[test]
@@ -34,7 +34,7 @@ fn mg_req_0704_execution_matches_plan() {
             Ok(())
         }));
     let executed = run.execute(&adopted, &cleared(), &mut work).unwrap();
-    run.finish().unwrap();
+    end(run);
 
     let Executed::Finished { rows } = executed else {
         panic!("not finished");
@@ -92,7 +92,7 @@ fn one_at_a_time(
     let executed = run
         .execute(&run.adopt(&planned).unwrap(), &cleared(), &mut work)
         .unwrap();
-    run.finish().unwrap();
+    end(run);
     assert_eq!(executed.exit_code(), 0);
     assert_eq!(
         log.events(),
@@ -120,7 +120,7 @@ fn mg_req_0705_candidates_invisible() {
     files.crash_before_next_rename();
     let failed = run.execute(&run.adopt(&planned).unwrap(), &cleared(), &mut work);
     assert_eq!(failed.unwrap_err().code(), Some("MG-0704"));
-    run.finish().unwrap();
+    end(run);
     let stg = at(".mergus/work/candidates").join(fingerprint(&planned, "stg_orders"));
     assert!(
         !files.exists(&stg).unwrap(),
@@ -132,7 +132,7 @@ fn mg_req_0705_candidates_invisible() {
     let mut work = models(&files, &database, &project, &log, None);
     run.execute(&run.adopt(&planned).unwrap(), &cleared(), &mut work)
         .unwrap();
-    run.finish().unwrap();
+    end(run);
 
     let after: BTreeSet<String> = tree(&files, root()).into_iter().collect();
     for added in after.difference(&before) {
@@ -198,7 +198,7 @@ fn mg_req_0704_a_panicking_step_fails_the_run() {
     let adopted = run.adopt(&planned).unwrap();
     let failed = run.execute(&adopted, &cleared(), &mut work);
     assert_eq!(failed, Err(RunError::Panicked("orders_big".to_owned())));
-    run.finish().unwrap();
+    end(run);
 }
 
 #[test]
@@ -217,6 +217,6 @@ fn mg_req_0704_first_failure_in_plan_order() {
         let adopted = run.adopt(&planned).unwrap();
         let failed = run.execute(&adopted, &cleared(), &mut work).unwrap_err();
         assert_eq!(failed.code(), Some("MG-0101"), "attempt {attempt}");
-        run.finish().unwrap();
+        end(run);
     }
 }

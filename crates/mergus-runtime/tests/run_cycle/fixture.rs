@@ -11,8 +11,8 @@ use mergus_plan::{Cleared, Gate, GateCheck, GateInput, Plan, PlanRequest, evalua
 use mergus_ports::real::{RealDatabase, RealSqlParser};
 use mergus_ports::{FileSystem, PortError, SeekRead};
 use mergus_runtime::{
-    ModelWork, ReadPorts, ReadProject, SqlInput, SqlWork, StepContext, StepFailure, Work,
-    plan_project, read_project,
+    Executed, ModelWork, ReadPorts, ReadProject, Run, SqlInput, SqlWork, StepContext, StepFailure,
+    Work, plan_project, read_project,
 };
 use mergus_sim::SimFileSystem;
 
@@ -193,7 +193,16 @@ pub fn models<'a>(
     Work {
         extractions: Vec::new(),
         models,
+        bytes_scanned: 0,
     }
+}
+
+/// Finalizes `run`, whose outcome is not under test, and checks that the finalizer itself
+/// did not fail.
+#[cfg(test)]
+pub fn end(run: Run<'_>) {
+    let report = run.finish(Ok(Executed::Cancelled));
+    assert!(report.warnings.is_empty(), "{:?}", report.warnings);
 }
 
 /// A real database for in-memory sessions; its extension cache is never used.
