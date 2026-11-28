@@ -8,7 +8,7 @@ use mergus_plan::Plan;
 use mergus_ports::{FileSystem, PortError};
 
 use super::RunError;
-use super::work_zone::remove_entry;
+use super::work_zone::{remove_entry, under};
 
 /// The folder of the candidates, relative to the project root (MG-REQ-0705.1).
 pub const CANDIDATES: &str = ".mergus/work/candidates";
@@ -35,7 +35,7 @@ impl<'a> Candidates<'a> {
         Self {
             files,
             root,
-            dir: root.join(CANDIDATES),
+            dir: under(root, CANDIDATES),
         }
     }
 

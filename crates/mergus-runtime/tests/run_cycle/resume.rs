@@ -10,7 +10,7 @@ use mergus_runtime::{
 use mergus_sim::SimFileSystem;
 
 use crate::fixture::{
-    COUNT, Log, cleared, database, fingerprint, models, orders, plan, read, root, tree,
+    COUNT, Log, at, cleared, database, fingerprint, models, orders, plan, read, root, tree,
 };
 
 const CANDIDATES: &str = ".mergus/work/candidates";
@@ -36,18 +36,16 @@ fn mg_req_0503_work_zone_cleaned() {
     let database = database();
     let project = read(&files);
     files
-        .create_dir_all(&root().join(".mergus/work/runs/crashed/steps"))
+        .create_dir_all(&at(".mergus/work/runs/crashed/steps"))
         .unwrap();
     files
-        .write(&root().join(".mergus/work/runs/crashed/steps/spill"), b"x")
+        .write(&at(".mergus/work/runs/crashed/steps/spill"), b"x")
         .unwrap();
-    files
-        .write(&root().join(".mergus/work/runs/stray"), b"x")
-        .unwrap();
+    files.write(&at(".mergus/work/runs/stray"), b"x").unwrap();
 
     let run = Run::begin(&files, root(), "run1", CancelToken::new()).unwrap();
     assert_eq!(
-        tree(&files, &root().join(".mergus/work/runs")),
+        tree(&files, &at(".mergus/work/runs")),
         [".mergus/work/runs/run1"]
     );
     let planned = plan(&project, run.available(), 4);
@@ -56,8 +54,8 @@ fn mg_req_0503_work_zone_cleaned() {
         .unwrap();
     assert!(!tree(&files, run.scratch()).is_empty());
     run.finish().unwrap();
-    assert!(tree(&files, &root().join(".mergus/work/runs")).is_empty());
-    assert_eq!(tree(&files, &root().join(CANDIDATES)).len(), 9);
+    assert!(tree(&files, &at(".mergus/work/runs")).is_empty());
+    assert_eq!(tree(&files, &at(CANDIDATES)).len(), 9);
 
     // A failed run deletes its scratch directory too.
     let files = orders(COUNT);
@@ -70,7 +68,7 @@ fn mg_req_0503_work_zone_cleaned() {
         .unwrap_err();
     assert_eq!(failed.code(), Some("MG-0101"));
     run.finish().unwrap();
-    assert!(tree(&files, &root().join(".mergus/work/runs")).is_empty());
+    assert!(tree(&files, &at(".mergus/work/runs")).is_empty());
 }
 
 #[test]
@@ -85,16 +83,14 @@ fn mg_req_0707_retry_reuses_finished_work() {
         .unwrap();
     run.finish().unwrap();
     // An incomplete candidate is deleted at the start of the next run.
+    files.create_dir_all(&at(CANDIDATES).join("half")).unwrap();
     files
-        .create_dir_all(&root().join(CANDIDATES).join("half"))
-        .unwrap();
-    files
-        .write(&root().join(CANDIDATES).join("half/result.arrow"), b"x")
+        .write(&at(CANDIDATES).join("half").join("result.arrow"), b"x")
         .unwrap();
 
     // The retried run reuses every result: nothing runs.
     let run = Run::begin(&files, root(), "run2", CancelToken::new()).unwrap();
-    assert!(!files.exists(&root().join(CANDIDATES).join("half")).unwrap());
+    assert!(!files.exists(&at(CANDIDATES).join("half")).unwrap());
     assert_eq!(run.available().len(), 3);
     let retried = plan(&project, run.available(), 4);
     for step in &retried.document().steps {
@@ -118,8 +114,8 @@ fn mg_req_0707_retry_reuses_finished_work() {
 #[cfg(test)]
 fn changed_model(files: &SimFileSystem, database: &RealDatabase, first: &Plan) {
     let files_changed = orders("SELECT count(*) AS n FROM stg_orders WHERE id > 0");
-    for path in tree(files, &root().join(CANDIDATES)) {
-        let path = root().join(path);
+    for path in tree(files, &at(CANDIDATES)) {
+        let path = at(&path);
         if files.list_dir(&path).is_ok() {
             files_changed.create_dir_all(&path).unwrap();
         } else {
@@ -132,9 +128,7 @@ fn changed_model(files: &SimFileSystem, database: &RealDatabase, first: &Plan) {
     let run = Run::begin(&files_changed, root(), "run3", CancelToken::new()).unwrap();
     let third = plan(&changed, run.available(), 4);
     let adopted = run.adopt(&third).unwrap();
-    let old = root()
-        .join(CANDIDATES)
-        .join(fingerprint(first, "orders_count"));
+    let old = at(CANDIDATES).join(fingerprint(first, "orders_count"));
     assert!(!files_changed.exists(&old).unwrap());
     let log = Log::default();
     let mut work = models(&files_changed, database, &changed, &log, None);
@@ -210,7 +204,7 @@ fn mg_req_0708_cancel_cleans_and_exits_7() {
     let scratch = run.scratch().to_path_buf();
     run.finish().unwrap();
     assert!(!files.exists(&scratch).unwrap());
-    let kept = tree(&files, &root().join(CANDIDATES));
+    let kept = tree(&files, &at(CANDIDATES));
     let stg = format!("{CANDIDATES}/{}", fingerprint(&planned, "stg_orders"));
     assert_eq!(
         kept,

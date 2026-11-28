@@ -23,7 +23,7 @@ pub(crate) fn open_scratch(
     ) {
         return Err(RunError::RunId(run_id.to_owned()));
     }
-    let runs = root.join(RUNS);
+    let runs = under(root, RUNS);
     let failed = |path: &Path, error: PortError| RunError::work(root, path, &error);
     files
         .create_dir_all(&runs)
@@ -41,6 +41,14 @@ pub(crate) fn open_scratch(
         .create_dir_all(&scratch)
         .map_err(|error| failed(&scratch, error))?;
     Ok(scratch)
+}
+
+/// `relative`, a path separated by `/`, under `root`, built one component at a time so that
+/// every path of the work zone has the separators of the host.
+pub(crate) fn under(root: &Path, relative: &str) -> PathBuf {
+    relative
+        .split('/')
+        .fold(root.to_path_buf(), |path, part| path.join(part))
 }
 
 /// Deletes the scratch directory `scratch`, if it is still there.
@@ -72,7 +80,7 @@ mod tests {
 
     use mergus_sim::SimFileSystem;
 
-    use super::{RUNS, open_scratch};
+    use super::open_scratch;
     use crate::RunError;
 
     #[test]
@@ -87,6 +95,7 @@ mod tests {
             );
         }
         let scratch = open_scratch(&files, root, "0193a").unwrap();
-        assert_eq!(scratch, root.join(RUNS).join("0193a"));
+        let expected = root.join(".mergus").join("work").join("runs").join("0193a");
+        assert_eq!(scratch, expected);
     }
 }

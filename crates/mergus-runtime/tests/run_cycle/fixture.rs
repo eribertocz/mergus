@@ -26,13 +26,21 @@ pub fn root() -> &'static Path {
     Path::new(ROOT)
 }
 
+/// `relative`, separated by `/`, under the root, one component at a time.
+#[cfg(test)]
+pub fn at(relative: &str) -> PathBuf {
+    relative
+        .split('/')
+        .fold(root().to_path_buf(), |path, part| path.join(part))
+}
+
 /// A file system holding `files`, each relative to the root.
 #[cfg(test)]
 pub fn project(files: &[(&str, &str)]) -> SimFileSystem {
     let system = SimFileSystem::new();
     system.create_dir_all(root()).unwrap();
     for (path, text) in files {
-        let path = root().join(path);
+        let path = at(path);
         system.create_dir_all(path.parent().unwrap()).unwrap();
         system.write(&path, text.as_bytes()).unwrap();
     }
@@ -204,7 +212,12 @@ pub fn tree(files: &dyn FileSystem, dir: &Path) -> Vec<String> {
             continue;
         };
         for entry in entries {
-            let shown = entry.strip_prefix(root()).unwrap().display().to_string();
+            let relative = entry.strip_prefix(root()).unwrap();
+            let parts: Vec<String> = relative
+                .components()
+                .map(|part| part.as_os_str().to_string_lossy().into_owned())
+                .collect();
+            let shown = parts.join("/");
             found.push(shown);
             pending.push(entry);
         }

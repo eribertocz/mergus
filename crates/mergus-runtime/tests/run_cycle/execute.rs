@@ -14,7 +14,7 @@ use mergus_sim::SimFileSystem;
 use serde_json::Value;
 
 use crate::fixture::{
-    COUNT, Log, cleared, database, fingerprint, models, orders, plan, read, root, tree,
+    COUNT, Log, at, cleared, database, fingerprint, models, orders, plan, read, root, tree,
 };
 
 #[test]
@@ -76,18 +76,10 @@ fn one_at_a_time(
     available.remove(&fingerprint(planned, "orders_big"));
     available.remove(&fingerprint(planned, "orders_count"));
     files
-        .remove_dir_all(
-            &root()
-                .join(".mergus/work/candidates")
-                .join(fingerprint(planned, "orders_big")),
-        )
+        .remove_dir_all(&at(".mergus/work/candidates").join(fingerprint(planned, "orders_big")))
         .unwrap();
     files
-        .remove_dir_all(
-            &root()
-                .join(".mergus/work/candidates")
-                .join(fingerprint(planned, "orders_count")),
-        )
+        .remove_dir_all(&at(".mergus/work/candidates").join(fingerprint(planned, "orders_count")))
         .unwrap();
     let planned = plan(project, &available, 1);
     let stg = &planned.document().steps[0];
@@ -129,9 +121,7 @@ fn mg_req_0705_candidates_invisible() {
     let failed = run.execute(&run.adopt(&planned).unwrap(), &cleared(), &mut work);
     assert_eq!(failed.unwrap_err().code(), Some("MG-0704"));
     run.finish().unwrap();
-    let stg = root()
-        .join(".mergus/work/candidates")
-        .join(fingerprint(&planned, "stg_orders"));
+    let stg = at(".mergus/work/candidates").join(fingerprint(&planned, "stg_orders"));
     assert!(
         !files.exists(&stg).unwrap(),
         "an incomplete candidate is kept"
@@ -161,9 +151,7 @@ fn mg_req_0705_candidates_invisible() {
 #[cfg(test)]
 fn assert_complete(files: &SimFileSystem, planned: &Plan) {
     for step in &planned.document().steps {
-        let dir = root()
-            .join(".mergus/work/candidates")
-            .join(&step.fingerprint);
+        let dir = at(".mergus/work/candidates").join(&step.fingerprint);
         let entries: Vec<String> = files
             .list_dir(&dir)
             .unwrap()

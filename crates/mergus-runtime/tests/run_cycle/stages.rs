@@ -11,7 +11,7 @@ use mergus_project::ProjectError;
 use mergus_runtime::{ReadError, ReadPorts, read_project};
 use mergus_sim::SimPython;
 
-use crate::fixture::{COUNT, cleared, orders, plan, project, read, root};
+use crate::fixture::{COUNT, at, cleared, orders, plan, project, read, root};
 
 /// A file system that records every path it is asked about.
 #[cfg(test)]
@@ -88,17 +88,14 @@ impl FileSystem for Watched<'_> {
 fn mg_req_0701_stages_one_to_four_touch_no_data() {
     let files = orders(COUNT);
     files
-        .create_dir_all(&root().join(".mergus/work/candidates/f0"))
+        .create_dir_all(&at(".mergus/work/candidates/f0"))
         .unwrap();
     files
-        .write(
-            &root().join(".mergus/work/candidates/f0/result.arrow"),
-            b"rows",
-        )
+        .write(&at(".mergus/work/candidates/f0/result.arrow"), b"rows")
         .unwrap();
-    files.create_dir_all(&root().join("lake/data")).unwrap();
+    files.create_dir_all(&at("lake/data")).unwrap();
     files
-        .write(&root().join("lake/data/orders.parquet"), b"rows")
+        .write(&at("lake/data/orders.parquet"), b"rows")
         .unwrap();
     let watched = Watched {
         inner: &files,
