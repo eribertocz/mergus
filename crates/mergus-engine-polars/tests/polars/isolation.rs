@@ -71,7 +71,12 @@ fn no_secret_in_files(dir: &Path) {
 #[cfg(test)]
 fn no_secret_reaches_python(first: &serde_json::Value, run: &Path, dir: &Path) {
     for (name, value) in first["env"].as_object().unwrap() {
-        let allowed = ALLOWED.contains(&name.as_str()) || SET_BY_THE_CHILD.contains(&name.as_str());
+        let mut allowed =
+            ALLOWED.contains(&name.as_str()) || SET_BY_THE_CHILD.contains(&name.as_str());
+        // On macOS, the child's own CoreFoundation runtime adds this variable at startup.
+        if cfg!(target_os = "macos") {
+            allowed |= name == "__CF_USER_TEXT_ENCODING";
+        }
         assert!(allowed, "{name} reached Python");
         assert!(
             !value.as_str().unwrap().contains(SECRET),

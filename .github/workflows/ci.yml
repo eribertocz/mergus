@@ -54,6 +54,10 @@ jobs:
             python=python3; bin="$RUNNER_TEMP/mergus-py/bin"
           fi
           "$python" -m venv "$RUNNER_TEMP/mergus-py"
+          if [ "$RUNNER_OS" = Windows ]; then
+            # `RealPython` looks for `python3` first: the venv's interpreter answers to it too.
+            cp "$bin/python.exe" "$bin/python3.exe"
+          fi
           "$bin/python" -m pip install --require-hashes -r .github/python-requirements.txt
           echo "$bin" >> "$GITHUB_PATH"
       - name: Run every blocking check
@@ -94,6 +98,25 @@ jobs:
       - name: Cache the build
         if: steps.rules.outputs.rules != ''
         uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+      - name: Install polars for the Python tests
+        # The Polars engine tests run a real Python child with `polars` and do not skip in CI.
+        # `polars` goes into a virtual environment whose interpreter comes first on `PATH`, so
+        # `RealPython` finds it there; the child runs with `-I`, which hides the user site.
+        if: steps.rules.outputs.rules != ''
+        shell: bash
+        run: |
+          if [ "$RUNNER_OS" = Windows ]; then
+            python=python; bin="$RUNNER_TEMP/mergus-py/Scripts"
+          else
+            python=python3; bin="$RUNNER_TEMP/mergus-py/bin"
+          fi
+          "$python" -m venv "$RUNNER_TEMP/mergus-py"
+          if [ "$RUNNER_OS" = Windows ]; then
+            # `RealPython` looks for `python3` first: the venv's interpreter answers to it too.
+            cp "$bin/python.exe" "$bin/python3.exe"
+          fi
+          "$bin/python" -m pip install --require-hashes -r .github/python-requirements.txt
+          echo "$bin" >> "$GITHUB_PATH"
       - name: Check the rules of the issue
         if: steps.rules.outputs.rules != ''
         run: cargo xtask traceability --issue-rules "$RULES"
