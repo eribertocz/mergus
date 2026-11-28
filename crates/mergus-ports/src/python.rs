@@ -18,15 +18,22 @@
 //! A file that does not parse gives `{"version": 1, "error": {"message": …, "line": …,
 //! "column": …}}`, where line and column may be `null`. [`PythonTree`] and the types it holds
 //! document each field.
+//!
+//! [`Python::run`] runs a Python program in a child process, with arguments and a working
+//! directory, and returns its [`ProcessOutput`], the
+//! output type of the `Process` port.
+
+use std::path::Path;
 
 use serde::{Deserialize, Serialize};
 
-use crate::PortError;
+use crate::{PortError, ProcessOutput};
 
 /// The version of the tree document this crate reads.
 pub const PYTHON_TREE_VERSION: u32 = 1;
 
-/// Reads Python files without importing or executing them.
+/// Reads Python files without importing or executing them, and runs Python programs in a
+/// child process.
 pub trait Python: Send + Sync {
     /// Returns the tree of the Python file whose text is `source`. The file is parsed only:
     /// it is never imported or executed, so nothing it imports runs.
@@ -38,6 +45,24 @@ pub trait Python: Send + Sync {
     /// [`PortError::Failed`] when it cannot run, cannot read a valid file that is too deep or
     /// too large, or answers with something that is not a tree.
     fn parse(&self, source: &str) -> Result<PythonTree, PortError>;
+
+    /// Runs the Python program `script` with the arguments `args`, in the directory
+    /// `current_dir`, and returns what it printed and how it exited. The child gets the
+    /// environment the interpreter was built with and nothing else. Its standard input is
+    /// empty. There is no time limit.
+    ///
+    /// # Errors
+    ///
+    /// Fails with [`PortError::NotFound`] when the interpreter or `current_dir` does not exist,
+    /// and with [`PortError::Failed`] when the child cannot be started or its output cannot
+    /// be read. A child that exits with a failure is not an error: its [`ProcessOutput`]
+    /// says so.
+    fn run(
+        &self,
+        script: &str,
+        args: &[String],
+        current_dir: &Path,
+    ) -> Result<ProcessOutput, PortError>;
 }
 
 /// The tree of a Python file.

@@ -1,7 +1,10 @@
 //! MG-REQ-0611: the simulated `Python` port replays the trees recorded from the real one in
 //! `crates/mergus-ports/tests/fixtures/python/`, and runs nothing.
+//! MG-REQ-0617: it replays the recorded output of each program it is asked to run.
 
-use mergus_ports::{PortError, Python, PythonTree};
+use std::path::{Path, PathBuf};
+
+use mergus_ports::{PortError, ProcessOutput, Python, PythonTree};
 use mergus_sim::SimPython;
 
 const MODEL: &str = include_str!("../../mergus-ports/tests/fixtures/python/model.py");
@@ -46,5 +49,37 @@ fn mg_req_0611_sim_replays_recorded_syntax_errors() {
             line: Some(1),
             column: Some(7),
         })
+    );
+}
+
+#[test]
+fn mg_req_0617_sim_replays_recorded_runs() {
+    let python = SimPython::new();
+    let args = vec!["plan".to_owned()];
+    let output = ProcessOutput {
+        code: Some(0),
+        stdout: b"{\"status\": \"ok\"}".to_vec(),
+        stderr: Vec::new(),
+    };
+    python.record_run("print(1)\n", &args, "/work/step", output.clone());
+    assert_eq!(
+        python.run("print(1)\n", &args, Path::new("/work/step")),
+        Ok(output)
+    );
+    // Another directory is another run, which has no recorded output.
+    assert!(matches!(
+        python.run("print(1)\n", &args, Path::new("/work/other")),
+        Err(PortError::NotFound(_))
+    ));
+    assert_eq!(
+        python.runs(),
+        [
+            (
+                "print(1)\n".to_owned(),
+                args.clone(),
+                PathBuf::from("/work/step")
+            ),
+            ("print(1)\n".to_owned(), args, PathBuf::from("/work/other")),
+        ]
     );
 }

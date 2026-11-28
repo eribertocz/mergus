@@ -14,7 +14,7 @@
 | `Environment` | Command-line arguments, current directory, environment variables and the user configuration and cache directories |
 | `PortError` | `NotFound`, `Failed`, `ExtensionUnavailable` (extension, host, cache directory), `PythonNotFound` (what was tried), `PythonSyntax` (message, line, column) or `TimedOut` (program, limit), among others, returned by every fallible call |
 | `SqlParser` | Returns the tree DuckDB's `json_serialize_sql` gives for a SQL text, without executing it |
-| `Python`, `PythonTree` | Returns the tree of a Python file without importing it: `PythonFunction`s with `PythonParameter`s and `PythonReturn`s, `PythonImport`s and `PythonCall`s with their receiver `PythonSegment`s; `PythonTree::from_json` reads the document the interpreter prints |
+| `Python`, `PythonTree` | Returns the tree of a Python file without importing it: `PythonFunction`s with `PythonParameter`s and `PythonReturn`s, `PythonImport`s and `PythonCall`s with their receiver `PythonSegment`s; `PythonTree::from_json` reads the document the interpreter prints. `run` runs a Python program with arguments in a working directory and returns a `ProcessOutput` |
 | `Database`, `DatabaseConnection` | Connects to a `DatabaseLocation`; runs SQL with bound `SqlValue`s, returns, streams (`query_arrow_each`, DuckDB's streaming execution in the real port) and appends Arrow `RecordBatch`es, attaches a `DuckLakeCatalog`, a DuckDB file or a `PostgresSource` read-only, detaches them, loads an `Extension` and lists each `LoadedExtension` with its version |
 | `Keychain` | Get, set and delete operating system keychain entries by service and account |
 | `real::*` | `RealClock`, `RealDatabase`, `RealEnvironment`, `RealFileSystem`, `RealKeychain`, `RealProcess`, `RealPython`, `RealRandom`, `RealSqlParser` (feature `real`) |
@@ -34,7 +34,10 @@ Every trait is `Send + Sync` and takes `&self`, so one value can be shared behin
    its standard input, clears the inherited environment and sets only the one given. A
    call that runs longer than `PYTHON_TIMEOUT` (60 s) kills the child and fails with
    `TimedOut`. The script walks the tree without recursion, parses with `ast` and prints the
-   JSON tree, which `PythonTree::from_json` reads.
+   JSON tree, which `PythonTree::from_json` reads. `run` starts the same interpreter with
+   `-I -S -c <script> <args>`, the given working directory, the same environment and an
+   empty standard input, reads both outputs on their own threads and waits for the child
+   with no time limit.
 
 ## Dependencies
 

@@ -1,0 +1,6 @@
+polars==2.2.0 \
+    --hash=sha256:892770de126ceb0233e7dee9084c69bd49dd3c8939f90c4a53eb7b5dc735d60f
+polars-runtime-32==2.2.0 \
+    --hash=sha256:4e5aea725db862ebbaf7f54511d0b2a89b40c8e8fcf6b4ba8cd61331579c9ba9 \
+    --hash=sha256:d4a718a61f58fe852c7770c7a706966d1830518dcb57aac9527eb7fa33924684 \
+    --hash=sha256:3f2d5e0a7d9e03aef11d382b36dc94246ab481b183ec3607a5d92c587f58dacf

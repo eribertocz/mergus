@@ -1,0 +1,115 @@
+//! The failures of a Polars step.
+
+use mergus_ports::PortError;
+
+/// Why a Polars step did not plan or run to its end.
+#[derive(Debug, thiserror::Error)]
+#[non_exhaustive]
+pub enum PolarsError {
+    /// The step raised an exception, returned something that is not a LazyFrame, or raised
+    /// an exception while its result was collected (MG-REQ-0617.4, MG-REQ-0617.5).
+    #[error("model `{model}`, step `{step}`: {failure}")]
+    StepFailed {
+        /// The model.
+        model: String,
+        /// The step: the function of the model's file.
+        step: String,
+        /// What went wrong.
+        failure: StepFailure,
+    },
+    /// The model file did not load: importing it raised an exception, or it has no function
+    /// named after the step (MG-REQ-0617.5).
+    #[error("model `{model}`, file `{file}` did not load: {kind}: {message}; fix the file")]
+    LoadFailed {
+        /// The model.
+        model: String,
+        /// The model file.
+        file: String,
+        /// The exception's type.
+        kind: String,
+        /// The exception's message.
+        message: String,
+    },
+    /// The Python child cannot import `polars` (MG-REQ-0617.4).
+    #[error(
+        "model `{model}`, step `{step}`: the project's Python cannot import `polars` \
+         ({kind}: {message}); install polars in the project's Python"
+    )]
+    PolarsMissing {
+        /// The model.
+        model: String,
+        /// The step.
+        step: String,
+        /// The type of the exception the import raised, usually `ImportError`.
+        kind: String,
+        /// Its message.
+        message: String,
+    },
+    /// A model or step name is not one plain path component, so the step's directory would
+    /// not be inside the run's work directory. The plan never gives such a name.
+    #[error("`{name}` cannot name a directory inside the run's work directory")]
+    InvalidName {
+        /// The model or step name.
+        name: String,
+    },
+    /// The Python child stopped without saying how its step went, for example because the
+    /// interpreter crashed.
+    #[error("model `{model}`, step `{step}`: the Python child failed: {reason}")]
+    Child {
+        /// The model.
+        model: String,
+        /// The step.
+        step: String,
+        /// Its exit code and what it wrote to standard error.
+        reason: String,
+    },
+    /// A file of the step's working directory cannot be encoded or decoded as Arrow IPC.
+    #[error("`{path}` is not a readable Arrow IPC file: {reason}")]
+    Boundary {
+        /// The file, in the step's working directory.
+        path: String,
+        /// What went wrong.
+        reason: String,
+    },
+    /// The interpreter or the file system failed.
+    #[error(transparent)]
+    Port(#[from] PortError),
+}
+
+/// How a step failed (MG-REQ-0617.4).
+#[derive(Clone, Debug, PartialEq, Eq, thiserror::Error)]
+pub enum StepFailure {
+    /// It raised an exception in the call or while its result was collected, of the type `kind` with the message `message`.
+    #[error("{kind}: {message}")]
+    Exception {
+        /// The exception's type.
+        kind: String,
+        /// The exception's message.
+        message: String,
+    },
+    /// It returned a value of the type `returned`, not a LazyFrame.
+    #[error("it returned a `{returned}`, not a LazyFrame")]
+    NotLazyFrame {
+        /// The type of the returned value.
+        returned: String,
+    },
+}
+
+impl PolarsError {
+    /// Returns the `MG-####` code of the error (MG-REQ-0008); `None` for a port failure,
+    /// which the caller reports with the code of its port error, for a child that stopped
+    /// without a report, for a name the plan never gives, and for a file the run itself wrote
+    /// or read.
+    #[must_use]
+    pub fn code(&self) -> Option<&'static str> {
+        match self {
+            Self::StepFailed { .. } => Some("MG-0627"),
+            Self::LoadFailed { .. } => Some("MG-0628"),
+            Self::PolarsMissing { .. } => Some("MG-0629"),
+            Self::Child { .. }
+            | Self::InvalidName { .. }
+            | Self::Boundary { .. }
+            | Self::Port(_) => None,
+        }
+    }
+}
