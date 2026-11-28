@@ -89,6 +89,11 @@ pub(crate) fn find(ports: &Ports<'_>, invocation: &Invocation) -> Result<Found, 
             key: key.to_owned(),
         }));
     }
+    Ok(Found::Replay(outcome(&record)))
+}
+
+/// The result a record keeps.
+fn outcome(record: &Value) -> Outcome {
     let text = |name: &str| {
         record[name]
             .as_str()
@@ -100,11 +105,11 @@ pub(crate) fn find(ports: &Ports<'_>, invocation: &Invocation) -> Result<Found, 
         .as_u64()
         .and_then(|code| u8::try_from(code).ok())
         .unwrap_or_default();
-    Ok(Found::Replay(Outcome {
+    Outcome {
         stdout: text("stdout"),
         stderr: text("stderr"),
         exit_code,
-    }))
+    }
 }
 
 /// Whether the result of a call that ended with `exit_code` is kept: a retryable one, 3, 4 or
