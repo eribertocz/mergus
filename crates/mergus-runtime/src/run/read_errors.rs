@@ -14,26 +14,28 @@ pub struct FileErrors {
     pub errors: Vec<ProjectError>,
 }
 
-/// The rank of a top folder in the walking order of the layout: `models/`, `sources/`,
-/// `seeds/`, then every other file.
+/// The rank of a file's top entry in the layout of a project: `project.toml`, `ids.toml`,
+/// `models/`, `sources/`, `seeds/`, then every other file (#298).
 fn top_rank(path: &str) -> u8 {
     match path.split('/').next() {
-        Some("models") => 0,
-        Some("sources") => 1,
-        Some("seeds") => 2,
-        _ => 3,
+        Some("project.toml") => 0,
+        Some("ids.toml") => 1,
+        Some("models") => 2,
+        Some("sources") => 3,
+        Some("seeds") => 4,
+        _ => 5,
     }
 }
 
-/// Compares two paths in the walking order of the layout: by top folder, then entry by
-/// entry, each folder's entries sorted by name.
-fn walking_order(left: &str, right: &str) -> Ordering {
+/// Compares two paths in the layout order: by top entry, then entry by entry, each folder's
+/// entries sorted by name.
+fn layout_order(left: &str, right: &str) -> Ordering {
     top_rank(left)
         .cmp(&top_rank(right))
         .then_with(|| left.split('/').cmp(right.split('/')))
 }
 
-/// Groups `errors` by file, in walking order, keeping in each file the order it states them.
+/// Groups `errors` by file, in layout order, keeping in each file the order it states them.
 pub(crate) fn group(errors: Vec<ProjectError>) -> Vec<FileErrors> {
     let mut groups: Vec<FileErrors> = Vec::new();
     for error in errors {
@@ -46,7 +48,7 @@ pub(crate) fn group(errors: Vec<ProjectError>) -> Vec<FileErrors> {
             }),
         }
     }
-    groups.sort_by(|left, right| walking_order(&left.path, &right.path));
+    groups.sort_by(|left, right| layout_order(&left.path, &right.path));
     for group in &mut groups {
         group
             .errors
@@ -59,21 +61,23 @@ pub(crate) fn group(errors: Vec<ProjectError>) -> Vec<FileErrors> {
 mod tests {
     use std::cmp::Ordering;
 
-    use super::walking_order;
+    use super::layout_order;
 
     #[test]
-    fn paths_follow_the_walk_of_the_layout() {
+    fn paths_follow_the_layout() {
         assert_eq!(
-            walking_order("models/b.sql", "sources/a.toml"),
+            layout_order("models/b.sql", "sources/a.toml"),
             Ordering::Less
         );
         assert_eq!(
-            walking_order("sources/a.toml", "seeds/a.csv"),
+            layout_order("sources/a.toml", "seeds/a.csv"),
             Ordering::Less
         );
-        assert_eq!(walking_order("seeds/a.csv", "project.toml"), Ordering::Less);
+        assert_eq!(layout_order("project.toml", "ids.toml"), Ordering::Less);
+        assert_eq!(layout_order("ids.toml", "models/a.sql"), Ordering::Less);
+        assert_eq!(layout_order("seeds/a.csv", "macros/a.sql"), Ordering::Less);
         assert_eq!(
-            walking_order("models/a/z.sql", "models/b.sql"),
+            layout_order("models/a/z.sql", "models/b.sql"),
             Ordering::Less
         );
     }

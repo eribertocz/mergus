@@ -12,6 +12,20 @@ use super::execute::Stage;
 use super::work_zone::{open_scratch, remove_scratch};
 use super::{CancelToken, Executed, RunError, Work};
 
+/// A plan whose unnamed candidates [`Run::adopt`] deleted: the only way to stage 5.
+#[derive(Debug)]
+pub struct Adopted<'p> {
+    plan: &'p Plan,
+}
+
+impl Adopted<'_> {
+    /// The plan.
+    #[must_use]
+    pub fn plan(&self) -> &Plan {
+        self.plan
+    }
+}
+
 /// A run in progress: it owns its scratch directory, `.mergus/work/runs/<run_id>/`.
 pub struct Run<'a> {
     files: &'a dyn FileSystem,
@@ -68,26 +82,30 @@ impl<'a> Run<'a> {
     }
 
     /// Takes `plan` as the run's plan: deletes every complete candidate no step of it names
-    /// (MG-REQ-0707.2).
+    /// (MG-REQ-0707.2), and returns the plan adopted, which stage 5 needs.
     ///
     /// # Errors
     ///
     /// Fails with [`RunError::Work`] when a candidate cannot be deleted.
-    pub fn adopt(&self, plan: &Plan) -> Result<(), RunError> {
-        Candidates::new(self.files, self.root).prune_unnamed(plan)
+    pub fn adopt<'p>(&self, plan: &'p Plan) -> Result<Adopted<'p>, RunError> {
+        Candidates::new(self.files, self.root).prune_unnamed(plan)?;
+        Ok(Adopted { plan })
     }
 
-    /// Stage 5: executes `plan`, which stage 4 cleared, with `work` (MG-REQ-0704).
+    /// Stage 5: executes the adopted plan, which stage 4 cleared, with `work`
+    /// (MG-REQ-0704).
     ///
     /// # Errors
     ///
-    /// Fails with the first [`RunError`] of an extraction or a step.
+    /// Fails with the [`RunError`] of the first failed step in plan order, or of an
+    /// extraction.
     pub fn execute(
         &self,
-        plan: &Plan,
+        adopted: &Adopted<'_>,
         _cleared: &Cleared,
         work: &mut Work<'_>,
     ) -> Result<Executed, RunError> {
+        let plan = adopted.plan;
         let candidates = Candidates::new(self.files, self.root);
         let stage = Stage {
             candidates: &candidates,

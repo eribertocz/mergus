@@ -38,6 +38,12 @@ pub enum RunError {
     /// The plan computes a model the caller gave no work for.
     #[error("internal error: the plan computes `{0}`, but no work was given for it")]
     NoWork(String),
+    /// The work of a step panicked.
+    #[error("internal error: the step of `{0}` panicked")]
+    Panicked(String),
+    /// The run id is not one plain path component.
+    #[error("internal error: the run id `{0}` is not one plain path component")]
+    RunId(String),
     /// A computed step reads a step of the plan that never finished, though none failed.
     #[error("internal error: the step of `{0}` reads a step that never finished")]
     Unordered(String),
@@ -51,7 +57,7 @@ impl RunError {
         match self {
             Self::Work { .. } => Some("MG-0704"),
             Self::Extraction(failure) | Self::Step(failure) => failure.code,
-            Self::NoWork(_) | Self::Unordered(_) => None,
+            Self::NoWork(_) | Self::Unordered(_) | Self::Panicked(_) | Self::RunId(_) => None,
         }
     }
 

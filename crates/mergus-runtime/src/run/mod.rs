@@ -9,6 +9,7 @@ mod error;
 mod execute;
 mod plan;
 mod read;
+mod read_cycles;
 mod read_errors;
 mod read_python;
 mod sql_work;
@@ -17,7 +18,7 @@ mod work_zone;
 
 pub use cancel::{CANCELLED_EXIT_CODE, CancelToken};
 pub use candidate::{CANDIDATES, COMPLETE, RESULT};
-pub use cycle::Run;
+pub use cycle::{Adopted, Run};
 pub use error::{RunError, StepFailure};
 pub use execute::Executed;
 pub use plan::{plan_models, plan_project};

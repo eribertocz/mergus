@@ -15,6 +15,21 @@ use crate::fixture::{
 
 const CANDIDATES: &str = ".mergus/work/candidates";
 
+/// A work that fails with `MG-0101`.
+#[cfg(test)]
+struct Failing;
+
+#[cfg(test)]
+impl ModelWork for Failing {
+    fn run(&self, _context: &StepContext<'_>) -> Result<(), StepFailure> {
+        Err(StepFailure {
+            name: "orders_big".to_owned(),
+            code: Some("MG-0101"),
+            message: "no".to_owned(),
+        })
+    }
+}
+
 #[test]
 fn mg_req_0503_work_zone_cleaned() {
     let files = orders(COUNT);
@@ -37,29 +52,22 @@ fn mg_req_0503_work_zone_cleaned() {
     );
     let planned = plan(&project, run.available(), 4);
     let mut work = models(&files, &database, &project, &Log::default(), None);
-    run.execute(&planned, &cleared(), &mut work).unwrap();
+    run.execute(&run.adopt(&planned).unwrap(), &cleared(), &mut work)
+        .unwrap();
     assert!(!tree(&files, run.scratch()).is_empty());
     run.finish().unwrap();
     assert!(tree(&files, &root().join(".mergus/work/runs")).is_empty());
     assert_eq!(tree(&files, &root().join(CANDIDATES)).len(), 9);
 
     // A failed run deletes its scratch directory too.
-    struct Failing;
-    impl ModelWork for Failing {
-        fn run(&self, _context: &StepContext<'_>) -> Result<(), StepFailure> {
-            Err(StepFailure {
-                name: "orders_big".to_owned(),
-                code: Some("MG-0101"),
-                message: "no".to_owned(),
-            })
-        }
-    }
     let files = orders(COUNT);
     let run = Run::begin(&files, root(), "run2", CancelToken::new()).unwrap();
     let mut work = models(&files, &database, &project, &Log::default(), None);
     work.models
         .insert("orders_big".to_owned(), Box::new(Failing));
-    let failed = run.execute(&planned, &cleared(), &mut work).unwrap_err();
+    let failed = run
+        .execute(&run.adopt(&planned).unwrap(), &cleared(), &mut work)
+        .unwrap_err();
     assert_eq!(failed.code(), Some("MG-0101"));
     run.finish().unwrap();
     assert!(tree(&files, &root().join(".mergus/work/runs")).is_empty());
@@ -73,7 +81,8 @@ fn mg_req_0707_retry_reuses_finished_work() {
     let run = Run::begin(&files, root(), "run1", CancelToken::new()).unwrap();
     let first = plan(&project, run.available(), 4);
     let mut work = models(&files, &database, &project, &Log::default(), None);
-    run.execute(&first, &cleared(), &mut work).unwrap();
+    run.execute(&run.adopt(&first).unwrap(), &cleared(), &mut work)
+        .unwrap();
     run.finish().unwrap();
     // An incomplete candidate is deleted at the start of the next run.
     files
@@ -96,7 +105,8 @@ fn mg_req_0707_retry_reuses_finished_work() {
     }
     let log = Log::default();
     let mut work = models(&files, &database, &project, &log, None);
-    run.execute(&retried, &cleared(), &mut work).unwrap();
+    run.execute(&run.adopt(&retried).unwrap(), &cleared(), &mut work)
+        .unwrap();
     run.finish().unwrap();
     assert!(log.events().is_empty());
 
@@ -121,20 +131,52 @@ fn changed_model(files: &SimFileSystem, database: &RealDatabase, first: &Plan) {
     let changed = read(&files_changed);
     let run = Run::begin(&files_changed, root(), "run3", CancelToken::new()).unwrap();
     let third = plan(&changed, run.available(), 4);
-    run.adopt(&third).unwrap();
+    let adopted = run.adopt(&third).unwrap();
     let old = root()
         .join(CANDIDATES)
         .join(fingerprint(first, "orders_count"));
     assert!(!files_changed.exists(&old).unwrap());
     let log = Log::default();
     let mut work = models(&files_changed, database, &changed, &log, None);
-    let executed = run.execute(&third, &cleared(), &mut work).unwrap();
+    let executed = run.execute(&adopted, &cleared(), &mut work).unwrap();
     run.finish().unwrap();
     assert_eq!(log.events(), ["start orders_count", "end orders_count"]);
     let Executed::Finished { rows } = executed else {
         panic!("not finished");
     };
     assert_eq!(rows.get("orders_count"), Some(&1));
+}
+
+#[test]
+fn mg_req_0707_candidate_renamed_before_a_crash_is_reused() {
+    let files = orders(COUNT);
+    let database = database();
+    let project = read(&files);
+    let run = Run::begin(&files, root(), "run1", CancelToken::new()).unwrap();
+    let planned = plan(&project, run.available(), 1);
+    let adopted = run.adopt(&planned).unwrap();
+    let mut work = models(&files, &database, &project, &Log::default(), None);
+    // The completion of `stg_orders`, the first step, renames `complete.json`, then crashes.
+    files.crash_after_next_rename();
+    let crashed = run.execute(&adopted, &cleared(), &mut work);
+    assert_eq!(crashed.unwrap_err().code(), Some("MG-0704"));
+    run.finish().unwrap();
+
+    let run = Run::begin(&files, root(), "run2", CancelToken::new()).unwrap();
+    let stg = fingerprint(&planned, "stg_orders");
+    assert_eq!(run.available().iter().collect::<Vec<_>>(), [&stg]);
+    let retried = plan(&project, run.available(), 1);
+    let adopted = run.adopt(&retried).unwrap();
+    let log = Log::default();
+    let mut work = models(&files, &database, &project, &log, None);
+    run.execute(&adopted, &cleared(), &mut work).unwrap();
+    run.finish().unwrap();
+    let started: Vec<String> = log
+        .events()
+        .into_iter()
+        .filter(|e| e.starts_with("start"))
+        .collect();
+    assert_eq!(started, ["start orders_big", "start orders_count"]);
 }
 
 #[test]
@@ -149,11 +191,13 @@ fn mg_req_0708_cancel_cleans_and_exits_7() {
     // `orders_big` sets the token while it runs: its rows are not copied, `orders_count`
     // never starts.
     let mut work = models(&files, &database, &project, &log, Some("orders_big"));
-    let executed = run.execute(&planned, &cleared(), &mut work).unwrap();
+    let executed = run
+        .execute(&run.adopt(&planned).unwrap(), &cleared(), &mut work)
+        .unwrap();
     assert!(cancel.is_cancelled());
     assert_eq!(executed, Executed::Cancelled);
     assert_eq!(executed.exit_code(), CANCELLED_EXIT_CODE);
-    assert_eq!(executed.exit_code(), 7);
+    assert_eq!(CANCELLED_EXIT_CODE, 7);
     assert_eq!(
         log.events(),
         [
@@ -176,14 +220,22 @@ fn mg_req_0708_cancel_cleans_and_exits_7() {
             format!("{stg}/result.arrow")
         ]
     );
+}
 
-    // A token set before stage 5 starts no segment.
+#[test]
+fn mg_req_0708_token_set_before_stage_5_starts_nothing() {
+    let files = orders(COUNT);
+    let database = database();
+    let project = read(&files);
     let cancel = CancelToken::new();
     cancel.cancel();
     let run = Run::begin(&files, root(), "run2", cancel).unwrap();
+    let planned = plan(&project, run.available(), 1);
     let log = Log::default();
     let mut work = models(&files, &database, &project, &log, None);
-    let executed = run.execute(&planned, &cleared(), &mut work).unwrap();
+    let executed = run
+        .execute(&run.adopt(&planned).unwrap(), &cleared(), &mut work)
+        .unwrap();
     run.finish().unwrap();
     assert_eq!(executed, Executed::Cancelled);
     assert!(log.events().is_empty());

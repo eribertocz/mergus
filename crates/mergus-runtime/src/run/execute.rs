@@ -3,6 +3,7 @@
 //! the plan's `max_parallel` running at once. A `skip` step runs nothing.
 
 use std::collections::{BTreeMap, BTreeSet};
+use std::panic::{self, AssertUnwindSafe};
 use std::path::{Path, PathBuf};
 use std::sync::mpsc;
 use std::thread;
@@ -57,7 +58,8 @@ struct Progress<'p> {
     results: BTreeMap<String, PathBuf>,
     rows: BTreeMap<String, u64>,
     running: usize,
-    failure: Option<RunError>,
+    /// Each failure by the position of its step in the plan.
+    failures: BTreeMap<usize, RunError>,
     cancelled: bool,
 }
 
@@ -97,7 +99,7 @@ impl Stage<'_> {
         thread::scope(|scope| {
             let (sender, receiver) = mpsc::channel::<Done>();
             loop {
-                while progress.running < limit && progress.failure.is_none() {
+                while progress.running < limit && progress.failures.is_empty() {
                     if self.cancel.is_cancelled() {
                         progress.cancelled = true;
                         break;
@@ -110,9 +112,13 @@ impl Stage<'_> {
                     let work = models.get(&step.model);
                     progress.running += 1;
                     scope.spawn(move || {
-                        let done = work
-                            .ok_or_else(|| RunError::NoWork(step.model.clone()))
-                            .and_then(|work| self.run_step(step, work.as_ref(), &inputs));
+                        let run = || {
+                            work.ok_or_else(|| RunError::NoWork(step.model.clone()))
+                                .and_then(|work| self.run_step(step, work.as_ref(), &inputs))
+                        };
+                        // A panicking step still reports, so the run never waits for it.
+                        let done = panic::catch_unwind(AssertUnwindSafe(run))
+                            .unwrap_or_else(|_| Err(RunError::Panicked(step.model.clone())));
                         // The receiver lives until every thread is done.
                         let _ = sender.send((step.model.clone(), done));
                     });
@@ -138,7 +144,7 @@ impl Stage<'_> {
             results: BTreeMap::new(),
             rows: BTreeMap::new(),
             running: 0,
-            failure: None,
+            failures: BTreeMap::new(),
             cancelled: false,
         };
         for step in steps {
@@ -242,16 +248,16 @@ impl<'p> Progress<'p> {
             }
             Ok(None) => self.cancelled = true,
             Err(error) => {
-                if self.failure.is_none() {
-                    self.failure = Some(error);
-                }
+                let position = steps.iter().position(|step| step.model == model);
+                self.failures.insert(position.unwrap_or(usize::MAX), error);
             }
         }
     }
 
-    /// How stage 5 ended: the first failure, else cancelled, else finished.
-    fn end(self) -> Result<Executed, RunError> {
-        if let Some(failure) = self.failure {
+    /// How stage 5 ended: the failure of the first step in plan order, so the same failures
+    /// always give the same error (MG-REQ-0005), else cancelled, else finished.
+    fn end(mut self) -> Result<Executed, RunError> {
+        if let Some((_, failure)) = self.failures.pop_first() {
             return Err(failure);
         }
         if self.cancelled {

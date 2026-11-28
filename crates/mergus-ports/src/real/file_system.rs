@@ -44,8 +44,22 @@ impl FileSystem for RealFileSystem {
         fs::remove_dir_all(path).map_err(|error| port_error(&shown(path), &error))
     }
 
+    /// Flushes the file at `from` to the disk first, so that after a power loss `to` holds
+    /// either the old entry or every byte of the new one; on Unix it then flushes the
+    /// directory of `to`, so the rename itself is on the disk.
     fn rename(&self, from: &Path, to: &Path) -> Result<(), PortError> {
-        fs::rename(from, to).map_err(|error| port_error(&shown(from), &error))
+        let failed = |error: std::io::Error| port_error(&shown(from), &error);
+        // Windows flushes only a file opened for writing; nothing is written or truncated.
+        let source = fs::OpenOptions::new().read(true).write(true).open(from);
+        source.and_then(|file| file.sync_all()).map_err(failed)?;
+        fs::rename(from, to).map_err(failed)?;
+        #[cfg(unix)]
+        if let Some(parent) = to.parent().filter(|parent| !parent.as_os_str().is_empty()) {
+            File::open(parent)
+                .and_then(|directory| directory.sync_all())
+                .map_err(|error| port_error(&shown(parent), &error))?;
+        }
+        Ok(())
     }
 
     fn create_dir_all(&self, path: &Path) -> Result<(), PortError> {

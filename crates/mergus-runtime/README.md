@@ -59,16 +59,18 @@ Run cycle and scheduling; wires ports to crates.
   `finished_changes` gives the rows of `__changes` readers see.
 
 - Runs the cycle of a run (MG-REQ-0701): stage 1, `read_project`, reads the project and
-  returns every error at once, grouped by file in the walking order of the layout (`models/`,
-  `sources/`, `seeds/`, then the other files), each file's errors by line (MG-REQ-0702); a
-  cycle between models is one error listing them in reference order (MG-REQ-0703). Stages 2
+  returns every error at once, grouped by file in the order of the layout (`project.toml`,
+  `ids.toml`, `models/`, `sources/`, `seeds/`, then the other files), each file's errors by
+  line (MG-REQ-0702); a cycle between models, `.sql` or `.py`, is one error listing them in
+  reference order (MG-REQ-0703). Stages 2
   and 3, `plan_project`, plan it with `mergus-plan`; stage 4 is `mergus_plan::evaluate`.
   None of them reads or writes table data.
 - `Run` keeps the work zone of a run. `Run::begin` deletes every scratch directory left in
   `.mergus/work/runs/`, creates `.mergus/work/runs/<run_id>/` and deletes incomplete
   candidates; the complete ones are the plan's available results, so their steps are `skip`
   with `result_available` (MG-REQ-0503.1, MG-REQ-0707.1). `Run::adopt` deletes the complete
-  candidates the plan does not name (MG-REQ-0707.2).
+  candidates the plan does not name (MG-REQ-0707.2) and returns the `Adopted` plan stage 5
+  needs.
 - `Run::execute`, stage 5, runs the extractions in order, then each computed step once every
   step it reads has finished, at most the plan's `max_parallel` at once; a `skip` step runs
   nothing and its input is its candidate (MG-REQ-0704). Each step runs its `ModelWork`, such

@@ -1,6 +1,6 @@
 //! The work zone of a run: its scratch directory, deleted when the run ends (MG-REQ-0503).
 
-use std::path::{Path, PathBuf};
+use std::path::{Component, Path, PathBuf};
 
 use mergus_ports::{FileSystem, PortError};
 
@@ -16,6 +16,13 @@ pub(crate) fn open_scratch(
     root: &Path,
     run_id: &str,
 ) -> Result<PathBuf, RunError> {
+    let mut components = Path::new(run_id).components();
+    if !matches!(
+        (components.next(), components.next()),
+        (Some(Component::Normal(_)), None)
+    ) {
+        return Err(RunError::RunId(run_id.to_owned()));
+    }
     let runs = root.join(RUNS);
     let failed = |path: &Path, error: PortError| RunError::work(root, path, &error);
     files
@@ -25,7 +32,9 @@ pub(crate) fn open_scratch(
         .list_dir(&runs)
         .map_err(|error| failed(&runs, error))?
     {
-        remove_entry(files, &entry).map_err(|error| failed(&entry, error))?;
+        if entry.starts_with(&runs) && entry != runs {
+            remove_entry(files, &entry).map_err(|error| failed(&entry, error))?;
+        }
     }
     let scratch = runs.join(run_id);
     files
@@ -54,5 +63,30 @@ pub(crate) fn remove_entry(files: &dyn FileSystem, entry: &Path) -> Result<(), P
         files.remove_dir_all(entry)
     } else {
         files.remove_file(entry)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::path::Path;
+
+    use mergus_sim::SimFileSystem;
+
+    use super::{RUNS, open_scratch};
+    use crate::RunError;
+
+    #[test]
+    fn a_run_id_is_one_plain_component() {
+        let files = SimFileSystem::new();
+        let root = Path::new("/p");
+        for bad in ["", ".", "..", "../x", "a/b", "/abs"] {
+            assert_eq!(
+                open_scratch(&files, root, bad),
+                Err(RunError::RunId(bad.to_owned())),
+                "{bad}"
+            );
+        }
+        let scratch = open_scratch(&files, root, "0193a").unwrap();
+        assert_eq!(scratch, root.join(RUNS).join("0193a"));
     }
 }

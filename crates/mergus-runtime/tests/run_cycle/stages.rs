@@ -9,6 +9,7 @@ use mergus_ports::real::RealSqlParser;
 use mergus_ports::{FileSystem, PortError, SeekRead};
 use mergus_project::ProjectError;
 use mergus_runtime::{ReadError, ReadPorts, read_project};
+use mergus_sim::SimPython;
 
 use crate::fixture::{COUNT, cleared, orders, plan, project, read, root};
 
@@ -145,13 +146,13 @@ fn mg_req_0702_all_errors_reported_together() {
         ("project.toml", "name = \"sales\"\nfirst = 1\nsecond = 2\n"),
         ("models/b_orders.sql", "SELECT * FROM missing_one"),
         ("models/a_orders.sql", "SELECT 1 AS id"),
-        ("models/mergus.toml", "unknown = 1\n"),
+        ("models/Bad-Name.sql", "SELECT 1 AS id"),
     ]);
-    // `project.toml` is read before the folder options, but `models/` walks first.
+    // The layout is read before `project.toml`, but `project.toml` comes first in it.
     let groups = errors_of(&files);
     let paths: Vec<&str> = groups.iter().map(|(path, _)| path.as_str()).collect();
-    assert_eq!(paths, ["models/mergus.toml", "project.toml"]);
-    let lines: Vec<Option<usize>> = groups[1].1.iter().map(ProjectError::line).collect();
+    assert_eq!(paths, ["project.toml", "models/Bad-Name.sql"]);
+    let lines: Vec<Option<usize>> = groups[0].1.iter().map(ProjectError::line).collect();
     assert_eq!(lines, [Some(2), Some(3)]);
 
     let files = project(&[
@@ -168,6 +169,26 @@ fn mg_req_0702_all_errors_reported_together() {
     assert_eq!(paths, ["models/b_orders.sql", "models/c_orders.sql"]);
     let lines: Vec<Option<usize>> = groups[1].1.iter().map(ProjectError::line).collect();
     assert_eq!(lines, [Some(2), Some(3)]);
+}
+
+#[test]
+fn mg_req_0702_identifier_errors_join_the_others() {
+    // `ids.toml` gives both models one identifier, and one model reads a missing table. Two
+    // models can only collide by name (MG-0312), which the layout already refuses (MG-0301),
+    // so the collision shows as the entry of `ids.toml` (MG-0311).
+    let ids = "[model]\na_orders = \"mdl_sw4a23b2ujmhopsw\"\nb_orders = \"mdl_sw4a23b2ujmhopsw\"\n";
+    let files = project(&[
+        ("project.toml", "name = \"sales\"\n"),
+        ("ids.toml", ids),
+        ("models/a_orders.sql", "SELECT 1 AS id"),
+        ("models/b_orders.sql", "SELECT * FROM missing_one"),
+    ]);
+    let codes: Vec<&str> = errors_of(&files)
+        .iter()
+        .flat_map(|(_, errors)| errors.iter().map(ProjectError::code))
+        .collect();
+    assert!(codes.contains(&"MG-0311"), "{codes:?}");
+    assert!(codes.contains(&"MG-0313"), "{codes:?}");
 }
 
 #[test]
@@ -191,4 +212,38 @@ fn mg_req_0703_cycle_reported_in_order() {
         cycles,
         [&vec!["a".to_owned(), "c".to_owned(), "b".to_owned()]]
     );
+}
+
+/// The text and the tree the real `Python` port gives of `models/b.py`, which reads `a`.
+const B_PY: &str = "def b(a):\n    return \"SELECT * FROM a\"\n";
+const B_TREE: &str = r#"{"calls":[],"functions":[{"async":false,"column":1,"line":1,"name":"b","parameters":[{"column":7,"kind":"positional","line":1,"name":"a"}],"returns":[{"column":5,"kind":"string","line":2,"value":"SELECT * FROM a"}]}],"imports":[],"version":1}"#;
+
+#[test]
+fn mg_req_0703_cycle_through_python_reported_in_order() {
+    let files = project(&[
+        ("project.toml", "name = \"sales\"\n"),
+        ("models/a.sql", "SELECT *\nFROM b"),
+        ("models/b.py", B_PY),
+    ]);
+    let python = SimPython::new();
+    python.record(B_PY, B_TREE);
+    let parser = RealSqlParser::new();
+    let ports = ReadPorts {
+        files: &files,
+        parser: &parser,
+        python: Some(&python),
+        database: None,
+    };
+    let Err(ReadError::Invalid(groups)) = read_project(&ports, root()) else {
+        panic!("the cycle is not reported");
+    };
+    let errors: Vec<&ProjectError> = groups.iter().flat_map(|group| &group.errors).collect();
+    let expected = ProjectError::ModelCycle {
+        models: vec!["a".to_owned(), "b".to_owned()],
+        references: vec![
+            ("models/a.sql".to_owned(), 2),
+            ("models/b.py".to_owned(), 1),
+        ],
+    };
+    assert_eq!(errors, [&expected]);
 }
