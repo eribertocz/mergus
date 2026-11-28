@@ -10,6 +10,7 @@
 mod clock;
 mod column;
 mod database;
+mod ducklake;
 mod environment;
 mod error;
 mod file_system;
@@ -35,9 +36,10 @@ pub mod real;
 pub use clock::{Clock, MonotonicTime, Timestamp};
 pub use column::{ResultColumn, is_column_type};
 pub use database::{
-    Database, DatabaseConnection, DatabaseLocation, DuckLakeCatalog, Extension, LoadedExtension,
-    PostgresSource, SqlValue,
+    Database, DatabaseConnection, DatabaseLocation, Extension, LoadedExtension, PostgresSource,
+    SqlValue,
 };
+pub use ducklake::DuckLakeCatalog;
 pub use environment::Environment;
 pub use error::PortError;
 pub use file_system::{FileSystem, SeekRead};

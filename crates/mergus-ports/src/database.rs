@@ -10,6 +10,7 @@ use arrow::record_batch::RecordBatch;
 
 use crate::PortError;
 use crate::column::{ResultColumn, is_column_type};
+use crate::ducklake::DuckLakeCatalog;
 use crate::macros::MacroRun;
 use crate::session::protected_connection;
 
@@ -34,17 +35,6 @@ pub enum SqlValue {
     /// reads with `CAST(<parameter> AS TIMESTAMPTZ)`. Without the `icu` extension, which
     /// MG-REQ-0194 does not load, DuckDB casts it as UTC: the instant is kept.
     TimestampTz(i64),
-}
-
-/// A DuckLake catalog to attach to a connection.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct DuckLakeCatalog {
-    /// The name the catalog is attached as.
-    pub alias: String,
-    /// The metadata database of the catalog, such as a DuckDB file.
-    pub metadata: String,
-    /// The directory or object-store prefix of the catalog's data files.
-    pub data_path: String,
 }
 
 /// A DuckDB extension the port may install and load (MG-REQ-0194).
