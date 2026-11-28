@@ -45,7 +45,13 @@ publication step writes gold (INV-02).
 ### MG-REQ-0503 · Work is ephemeral
 
 The work zone of a run MUST be deleted when the run ends, successfully or not, and at the
-start of the next run if a crash left it behind.
+start of the next run if a crash left it behind:
+
+1. MG-REQ-0503.1: the work zone of a run is its scratch directory, `.mergus/work/runs/<run_id>/`.
+   It is deleted when the run ends, whether it succeeds, fails or is cancelled. At the start of a
+   run, every other directory under `.mergus/work/runs/` is deleted.
+2. MG-REQ-0503.2: candidates (`.mergus/work/candidates/`, MG-REQ-0705.1) are not scratch. They
+   are kept for resuming, as MG-REQ-0707 says.
 
 - Kind: behavior
 - Verify: test `mg_req_0503_work_zone_cleaned`

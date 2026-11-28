@@ -33,7 +33,10 @@ Stages 1 to 4 MUST NOT read or write table data; stage 2 MAY read metadata only.
 
 ### MG-REQ-0702 · Read finds every error at once
 
-Stage 1 MUST report every error it finds in one pass, grouped by file, not stop at the first.
+Stage 1 MUST report every error it finds in one pass, grouped by file, not stop at the first:
+
+1. MG-REQ-0702.1: the groups follow the layout order of the files, and the errors of one file
+   keep the order in which the file states them.
 
 - Kind: behavior
 - Verify: test `mg_req_0702_all_errors_reported_together`
@@ -48,7 +51,11 @@ A cycle between models MUST be an error listing the models of the cycle in order
 ### MG-REQ-0704 · Execute follows the plan
 
 Stage 5 MUST execute the approved plan exactly, taking no new decisions. Extraction runs
-first, then segments in topological order with independent branches in parallel.
+first, then segments in topological order with independent branches in parallel:
+
+1. MG-REQ-0704.1: a segment starts only when every segment it reads has finished, and at most
+   the plan's `max_parallel` segments run at once. A step whose action is `skip` runs nothing.
+   Its result is the candidate or the stored result the plan names.
 
 - Kind: behavior
 - Verify: test `mg_req_0704_execution_matches_plan`
@@ -56,7 +63,14 @@ first, then segments in topological order with independent branches in parallel.
 ### MG-REQ-0705 · Candidates are invisible
 
 Results of stage 5 MUST be stored in work as candidates identified by fingerprint, invisible
-outside the run.
+outside the run:
+
+1. MG-REQ-0705.1: a candidate lives in `.mergus/work/candidates/<fingerprint>/`. It is complete
+   only when its last file, `complete.json`, exists. That file is written to a temporary name
+   and renamed, and it holds the fingerprint, the run id and the row count. A candidate
+   without it is incomplete.
+2. MG-REQ-0705.2: "invisible" means that no catalog attaches a candidate and no command lists
+   it. Only stages 5 and 6 read candidates.
 
 - Kind: behavior
 - Verify: test `mg_req_0705_candidates_invisible`
@@ -76,7 +90,13 @@ is atomic.
 ### MG-REQ-0707 · Resume by fingerprint
 
 A retried run MUST compute a new plan and reuse every candidate in work and every committed
-raw load whose fingerprint or `load_id` matches, so that finished work is not repeated.
+raw load whose fingerprint or `load_id` matches, so that finished work is not repeated:
+
+1. MG-REQ-0707.1: at the start of a run, incomplete candidates are deleted. The fingerprints of
+   the complete ones are given to the plan as available results, so a matching step is
+   `skip` with reason `result_available`.
+2. MG-REQ-0707.2: after the plan is built, a complete candidate that no step of the plan names
+   is deleted.
 
 - Kind: behavior
 - Verify: test `mg_req_0707_retry_reuses_finished_work`
@@ -85,7 +105,13 @@ raw load whose fingerprint or `load_id` matches, so that finished work is not re
 ### MG-REQ-0708 · Cancellation
 
 On cancellation, Mergus MUST stop segments, close readers and connections, keep candidates
-useful for resuming, delete other temporary files, and exit with code 7.
+useful for resuming, delete other temporary files, and exit with code 7:
+
+1. MG-REQ-0708.1: cancellation is a token that the CLI sets on Ctrl-C (SIGINT, or the console's
+   Ctrl-C event on Windows). Stage 5 checks it before each segment and between batches, and it
+   kills any child process that is running.
+2. MG-REQ-0708.2: complete candidates are kept. Incomplete candidates and the run's scratch
+   directory are deleted. The run ends with a `run_finished` event and exit code 7.
 
 - Kind: behavior
 - Verify: test `mg_req_0708_cancel_cleans_and_exits_7`
