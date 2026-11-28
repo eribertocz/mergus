@@ -1,0 +1,1 @@
+{"calls":[],"functions":[{"async":false,"column":1,"line":1,"name":"plain","parameters":[{"column":11,"kind":"positional","line":1,"name":"stg_orders"}],"returns":[{"column":5,"kind":"string","line":2,"value":"SELECT * FROM stg_orders"}]}],"imports":[],"version":1}
