@@ -8,7 +8,7 @@ use std::path::PathBuf;
 
 use arrow::datatypes::SchemaRef;
 
-use mergus_contracts::generated::mergus_plan_v1::StepAction;
+use mergus_contracts::generated::mergus_plan_v1::{Step as PlanStep, StepAction};
 use mergus_plan::Plan;
 use mergus_ports::{Database, Python, ResultColumn};
 use mergus_project::Seed;
@@ -58,17 +58,7 @@ pub(crate) fn work<'a>(
     let mut models: BTreeMap<String, Box<dyn ModelWork + 'a>> = BTreeMap::new();
     let extracted = extracted(project);
     for step in &plan.document().steps {
-        let model = project
-            .models
-            .iter()
-            .find(|model| model.options.name == step.model)
-            .ok_or_else(|| CliError::Internal(format!("no model `{}`", step.model)))?;
-        if let Some(load) = step.inputs.iter().find(|input| extracted.contains(*input)) {
-            return Err(CliError::Internal(format!(
-                "`{}` reads `{load}`, whose extraction a run does not do yet (#318)",
-                model.options.path
-            )));
-        }
+        let model = model_of(project, step, &extracted)?;
         if model.options.path.ends_with(".py") {
             let (work, schema) = match polars_work(context, project, model, &columns, &schemas)? {
                 Ok(planned) => planned,
@@ -99,6 +89,26 @@ pub(crate) fn work<'a>(
         // #307 measures the DuckLake files the plan reads; until then nothing is counted.
         bytes_scanned: 0,
     }))
+}
+
+/// The model of `step`, which must read no table an extraction loads (#318).
+fn model_of<'p>(
+    project: &'p ReadProject,
+    step: &PlanStep,
+    extracted: &BTreeSet<String>,
+) -> Result<&'p ReadModel, CliError> {
+    let model = project
+        .models
+        .iter()
+        .find(|model| model.options.name == step.model)
+        .ok_or_else(|| CliError::Internal(format!("no model `{}`", step.model)))?;
+    if let Some(load) = step.inputs.iter().find(|input| extracted.contains(*input)) {
+        return Err(CliError::Internal(format!(
+            "`{}` reads `{load}`, whose extraction a run does not do yet (#318)",
+            model.options.path
+        )));
+    }
+    Ok(model)
 }
 
 /// The tables an extraction loads before any segment reads them: each copied table of a
