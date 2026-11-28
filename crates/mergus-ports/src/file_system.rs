@@ -64,9 +64,10 @@ pub trait FileSystem: Send + Sync {
     /// must exist. Returns `false`, and changes nothing, when something already exists at
     /// `path`.
     ///
-    /// The default checks [`FileSystem::exists`], then writes: it is exclusive only for a
-    /// file system that no other caller changes at the same time. The real file system
-    /// creates the file exclusively.
+    /// The default checks [`FileSystem::exists`], then writes: it is not exclusive, and is
+    /// meant only for a file system that no other caller changes at the same time, such as
+    /// the simulator. The real file system creates the file exclusively, and whole: a reader
+    /// sees no file or all of `contents`.
     ///
     /// # Errors
     ///

@@ -11,7 +11,7 @@ use serde_json::{Value, json};
 
 use super::run::{orders, run_on_duckdb};
 use super::{PROJECT, ROOT, START, Setup, exists, mergus, project, text};
-use crate::idempotency::Tee;
+use crate::idempotency::{Tee, reclaim};
 
 #[test]
 fn mg_req_1313_same_key_has_no_second_effect() {
@@ -191,4 +191,27 @@ fn mg_req_1313_key_expires_after_24_hours() {
     // An expired key is a new key: the command runs again.
     assert_eq!(mergus(&files, &args).exit, 0);
     assert!(exists(&files, "models/orders.sql"));
+}
+
+#[test]
+fn mg_req_1313_reclaim_never_removes_a_record_it_did_not_read() {
+    let files = project(&[("project.toml", PROJECT)]);
+    let random = SimRandom::new(7);
+    let folder = Path::new(ROOT).join(".mergus/idempotency");
+    files.create_dir_all(&folder).unwrap();
+    let path = folder.join("key.json");
+
+    // Another call claimed the key after this one read the expired record: its claim is put
+    // back, and the key is not free.
+    files.write(&path, b"fresh claim").unwrap();
+    assert!(!reclaim(&files, &random, &path, b"expired record").unwrap());
+    assert_eq!(files.read(&path).unwrap(), b"fresh claim");
+    assert_eq!(files.list_dir(&folder).unwrap(), [path.clone()]);
+
+    // The record is still the one read: it is moved aside and removed, and the key is free.
+    assert!(reclaim(&files, &random, &path, b"fresh claim").unwrap());
+    assert!(files.list_dir(&folder).unwrap().is_empty());
+
+    // Nothing is there any more: the key is free.
+    assert!(reclaim(&files, &random, &path, b"fresh claim").unwrap());
 }

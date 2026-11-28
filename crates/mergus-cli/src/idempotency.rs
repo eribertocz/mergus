@@ -9,6 +9,7 @@ use std::path::{Path, PathBuf};
 
 use mergus_contracts::canonical_json;
 use mergus_contracts::hash::sha256_hex;
+use mergus_ports::{FileSystem, Random};
 use serde_json::{Value, json};
 
 use crate::args::Invocation;
@@ -62,14 +63,19 @@ pub(crate) fn find(ports: &Ports<'_>, invocation: &Invocation) -> Result<Found, 
             key: key.to_owned(),
         })
     };
-    let Some(record) = live(ports, &path)? else {
-        // An expired record, one that is not ours, or a claim just released, is replaced. A
+    let seen = match ports.files.read(&path) {
+        Ok(bytes) => Some(bytes),
+        Err(mergus_ports::PortError::NotFound(_)) => None,
+        Err(error) => return Err(CliError::Unreadable(error.to_string())),
+    };
+    let Some(record) = seen.as_deref().and_then(|bytes| live(ports, bytes)) else {
+        // Gone, expired, or not ours: moved aside, never deleted unseen, then claimed. A
         // call that claims it first wins.
-        match ports.files.remove_file(&path) {
-            Ok(()) | Err(mergus_ports::PortError::NotFound(_)) => {}
-            Err(error) => return Err(unwritable(&path, &error)),
-        }
-        return Ok(if claim(ports, invocation, &path)? {
+        let free = match &seen {
+            Some(bytes) => reclaim(ports.files, ports.random, &path, bytes)?,
+            None => true,
+        };
+        return Ok(if free && claim(ports, invocation, &path)? {
             Found::Claimed(path)
         } else {
             claimed()
@@ -142,19 +148,56 @@ fn claim(ports: &Ports<'_>, invocation: &Invocation, path: &Path) -> Result<bool
         .map_err(|error| unwritable(path, &error))
 }
 
-/// The record at `path` when it is ours and younger than 24 hours, a claim or a result.
-fn live(ports: &Ports<'_>, path: &Path) -> Result<Option<Value>, CliError> {
-    let bytes = match ports.files.read(path) {
-        Ok(bytes) => bytes,
-        Err(mergus_ports::PortError::NotFound(_)) => return Ok(None),
-        Err(error) => return Err(CliError::Unreadable(error.to_string())),
-    };
-    let Ok(record) = serde_json::from_slice::<Value>(&bytes) else {
-        return Ok(None);
-    };
+/// The record `bytes` when it is ours and younger than 24 hours, a claim or a result.
+fn live(ports: &Ports<'_>, bytes: &[u8]) -> Option<Value> {
+    let record = serde_json::from_slice::<Value>(bytes).ok()?;
     let created = record["created_unix_seconds"].as_i64().unwrap_or(i64::MIN);
     let expired = now_seconds(ports).saturating_sub(created) > LIFETIME_SECONDS;
-    Ok((!expired).then_some(record))
+    (!expired).then_some(record)
+}
+
+/// Moves the record at `path` aside if it is still `seen`, the record this call read, and
+/// returns whether it did. A record that changed in between is another call's: it is put
+/// back, unless a third call claimed the key meanwhile, and the key is not free.
+///
+/// # Errors
+///
+/// Fails with [`CliError::Unwritable`] when the record cannot be moved or removed, and with
+/// [`CliError::Unreadable`] when it cannot be read.
+pub(crate) fn reclaim(
+    files: &dyn FileSystem,
+    random: &dyn Random,
+    path: &Path,
+    seen: &[u8],
+) -> Result<bool, CliError> {
+    let aside = sibling(path, random, "stale");
+    match files.rename(path, &aside) {
+        Ok(()) => {}
+        Err(mergus_ports::PortError::NotFound(_)) => return Ok(true),
+        Err(error) => return Err(unwritable(path, &error)),
+    }
+    let moved = files
+        .read(&aside)
+        .map_err(|error| CliError::Unreadable(error.to_string()))?;
+    let stale = moved == seen;
+    if !stale {
+        files
+            .create_new(path, &moved)
+            .map_err(|error| unwritable(path, &error))?;
+    }
+    files
+        .remove_file(&aside)
+        .map_err(|error| unwritable(&aside, &error))?;
+    Ok(stale)
+}
+
+/// A path beside `path` that no other call uses: `<hash>.<random>.<suffix>`.
+fn sibling(path: &Path, random: &dyn Random, suffix: &str) -> PathBuf {
+    let stem = path
+        .file_stem()
+        .map(|stem| stem.to_string_lossy().into_owned())
+        .unwrap_or_default();
+    path.with_file_name(format!("{stem}.{:016x}.{suffix}", random.next_u64()))
 }
 
 /// Keeps `outcome` at `path`, the record of the key of `invocation`, in place of its claim.
@@ -178,7 +221,7 @@ pub(crate) fn keep(
     let unwritable = |error: mergus_ports::PortError| unwritable(path, &error);
     // Written beside it, then moved into place, so that a record is whole or absent: a
     // truncated one would read as no record, and the key would run the command again.
-    let temporary = path.with_extension("json.tmp");
+    let temporary = sibling(path, ports.random, "tmp");
     ports
         .files
         .write(&temporary, canonical_json(&record).as_bytes())
