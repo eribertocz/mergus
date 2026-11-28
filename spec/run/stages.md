@@ -135,7 +135,8 @@ MG-REQ-0657:
    `skip` step has no step events. The exit code is 0 when every step succeeded or was
    skipped, the exit code of the failing step's error code when a step failed, and 7 when
    cancelled. A step whose engine rejects the user's SQL at execution fails with the next free
-   `MG-01xx` code and exit code 1, naming the model and the engine's message.
+   `MG-07xx` code, the area of this rule (MG-REQ-1335.3), and exit code 1, naming the model and
+   the engine's message.
 3. MG-REQ-0710.3: until a phase adds publication (stage 6), a run ends with its results as
    candidates in work. The human output says how many steps were computed and skipped, and that
    nothing was published.
