@@ -23,7 +23,9 @@ def rated(stg_sales):
 
 
 def unused(stg_sales):
-    raise RuntimeError("a step the result does not read never runs")
+    if stg_sales is not None:
+        raise RuntimeError("a step the result does not read never runs")
+    return stg_sales.with_columns(pl.lit(0.0).alias("never"))
 
 
 def sales_usd(rated):
