@@ -1,10 +1,13 @@
 //! The work zone across runs: scratch deleted, finished work reused, cancellation cleaned.
 
 use mergus_contracts::generated::mergus_plan_v1::{StepAction, StepReason};
+use mergus_plan::Plan;
 use mergus_ports::FileSystem;
+use mergus_ports::real::RealDatabase;
 use mergus_runtime::{
     CANCELLED_EXIT_CODE, CancelToken, Executed, ModelWork, Run, StepContext, StepFailure,
 };
+use mergus_sim::SimFileSystem;
 
 use crate::fixture::{
     COUNT, Log, cleared, database, fingerprint, models, orders, plan, read, root, tree,
@@ -97,10 +100,15 @@ fn mg_req_0707_retry_reuses_finished_work() {
     run.finish().unwrap();
     assert!(log.events().is_empty());
 
-    // A changed model is computed alone, from the candidate of its input; the candidate of its
-    // old fingerprint, which no step names, is deleted.
+    changed_model(&files, &database, &first);
+}
+
+/// A changed model is computed alone, from the candidate of its input; the candidate of its
+/// old fingerprint, which no step names, is deleted.
+#[cfg(test)]
+fn changed_model(files: &SimFileSystem, database: &RealDatabase, first: &Plan) {
     let files_changed = orders("SELECT count(*) AS n FROM stg_orders WHERE id > 0");
-    for path in tree(&files, &root().join(CANDIDATES)) {
+    for path in tree(files, &root().join(CANDIDATES)) {
         let path = root().join(path);
         if files.list_dir(&path).is_ok() {
             files_changed.create_dir_all(&path).unwrap();
@@ -116,10 +124,10 @@ fn mg_req_0707_retry_reuses_finished_work() {
     run.adopt(&third).unwrap();
     let old = root()
         .join(CANDIDATES)
-        .join(fingerprint(&first, "orders_count"));
+        .join(fingerprint(first, "orders_count"));
     assert!(!files_changed.exists(&old).unwrap());
     let log = Log::default();
-    let mut work = models(&files_changed, &database, &changed, &log, None);
+    let mut work = models(&files_changed, database, &changed, &log, None);
     let executed = run.execute(&third, &cleared(), &mut work).unwrap();
     run.finish().unwrap();
     assert_eq!(log.events(), ["start orders_count", "end orders_count"]);

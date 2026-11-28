@@ -4,8 +4,11 @@ use std::collections::BTreeSet;
 use std::sync::atomic::Ordering;
 
 use mergus_contracts::generated::mergus_plan_v1::{StepAction, StepReason};
+use mergus_plan::Plan;
 use mergus_ports::FileSystem;
-use mergus_runtime::{CancelToken, Executed, Run};
+use mergus_ports::real::RealDatabase;
+use mergus_runtime::{CancelToken, Executed, ReadProject, Run};
+use mergus_sim::SimFileSystem;
 use serde_json::Value;
 
 use crate::fixture::{
@@ -54,34 +57,44 @@ fn mg_req_0704_execution_matches_plan() {
     let most = log.most_at_once.load(Ordering::SeqCst);
     assert!(most <= 2, "{most} segments ran at once");
 
-    // A second plan with `max_parallel = 1` runs one segment at a time, and a step whose
-    // result is available runs nothing.
-    let run = Run::begin(&files, root(), "run2", CancelToken::new()).unwrap();
+    one_at_a_time(&files, &database, &project, &planned);
+}
+
+/// A second plan with `max_parallel = 1` runs one segment at a time, and a step whose result
+/// is available runs nothing.
+#[cfg(test)]
+fn one_at_a_time(
+    files: &SimFileSystem,
+    database: &RealDatabase,
+    project: &ReadProject,
+    planned: &Plan,
+) {
+    let run = Run::begin(files, root(), "run2", CancelToken::new()).unwrap();
     let mut available = run.available().clone();
-    available.remove(&fingerprint(&planned, "orders_big"));
-    available.remove(&fingerprint(&planned, "orders_count"));
+    available.remove(&fingerprint(planned, "orders_big"));
+    available.remove(&fingerprint(planned, "orders_count"));
     files
         .remove_dir_all(
             &root()
                 .join(".mergus/work/candidates")
-                .join(fingerprint(&planned, "orders_big")),
+                .join(fingerprint(planned, "orders_big")),
         )
         .unwrap();
     files
         .remove_dir_all(
             &root()
                 .join(".mergus/work/candidates")
-                .join(fingerprint(&planned, "orders_count")),
+                .join(fingerprint(planned, "orders_count")),
         )
         .unwrap();
-    let planned = plan(&project, &available, 1);
+    let planned = plan(project, &available, 1);
     let stg = &planned.document().steps[0];
     assert_eq!(
         (stg.action, stg.reason),
         (StepAction::Skip, StepReason::ResultAvailable)
     );
     let log = Log::default();
-    let mut work = models(&files, &database, &project, &log, None);
+    let mut work = models(files, database, project, &log, None);
     let executed = run.execute(&planned, &cleared(), &mut work).unwrap();
     run.finish().unwrap();
     assert_eq!(executed.exit_code(), 0);
@@ -136,6 +149,12 @@ fn mg_req_0705_candidates_invisible() {
             "`{added}` is outside the candidates"
         );
     }
+    assert_complete(&files, &planned);
+}
+
+/// Each candidate of `planned` holds its rows and its `complete.json`, written by `run2`.
+#[cfg(test)]
+fn assert_complete(files: &SimFileSystem, planned: &Plan) {
     for step in &planned.document().steps {
         let dir = root()
             .join(".mergus/work/candidates")

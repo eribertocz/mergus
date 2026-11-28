@@ -1,13 +1,15 @@
 //! Stage 1: reads the project and finds every error in one pass, grouped by file
 //! (MG-REQ-0701, MG-REQ-0702), a cycle between models among them (MG-REQ-0703).
 
+use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
 use mergus_ports::{Database, FileSystem, Python, SqlParser};
 use mergus_project::{
     Configuration, Identifier, Identifiers, KnownTables, Layout, LayoutError, Macros,
-    ModelLanguage, ModelOptions, ProjectError, Seeds, read_configuration, read_layout, read_macros,
-    read_model_options, read_python_lib, read_renames, read_seeds, read_sql_references,
+    ModelLanguage, ModelOptions, ProjectError, Renames, Seeds, read_configuration, read_layout,
+    read_macros, read_model_options, read_python_lib, read_renames, read_seeds,
+    read_sql_references,
 };
 
 use super::read_errors::{FileErrors, group};
@@ -96,50 +98,18 @@ impl Passes {
 /// Fails with [`ReadError::Invalid`] carrying every error, grouped by file in layout order
 /// (MG-REQ-0702.1), and with [`ReadError::Unreadable`] when a port fails.
 pub fn read_project(ports: &ReadPorts<'_>, root: &Path) -> Result<ReadProject, ReadError> {
-    let files = ports.files;
     let mut passes = Passes { errors: Vec::new() };
-    let layout = passes.take(read_layout(files, root))?;
-    let configuration = passes.take(read_configuration(files, root))?;
-    let renames = passes.take(read_renames(files, root))?;
-    let options = match &layout {
-        Some(layout) => passes.take(read_model_options(files, root, layout))?,
-        None => None,
-    };
-    let mut references = None;
-    let mut seeds = None;
-    let mut python = Vec::new();
-    if let (Some(layout), Some(configuration)) = (&layout, &configuration) {
-        let found = read_sql_references(files, root, layout, configuration, ports.parser);
-        references = passes.take(found)?;
-        let read = passes.take(read_seeds(files, root, configuration))?;
-        if let Some(read) = read {
-            passes.errors.extend(read.problems.iter().cloned());
-            seeds = Some(read);
-        }
-        python = read_python(ports, root, layout, configuration, &mut passes)?;
-    }
-    let macros = match ports.database {
-        Some(database) => passes.take(read_macros(files, root, database, ports.parser))?,
-        None => Some(Macros::default()),
-    };
-    let ready = (
-        layout,
-        configuration,
-        renames,
-        options,
-        references,
-        seeds,
-        macros,
-    );
-    let (
-        Some(layout),
-        Some(configuration),
-        Some(renames),
-        Some(options),
-        Some(mut references),
-        Some(seeds),
-        Some(macros),
-    ) = ready
+    let found = find(ports, root, &mut passes)?;
+    let Found {
+        layout: Some(layout),
+        configuration: Some(configuration),
+        renames: Some(renames),
+        options: Some(options),
+        references: Some(mut references),
+        seeds: Some(seeds),
+        macros: Some(macros),
+        python,
+    } = found
     else {
         return Err(invalid(passes.errors));
     };
@@ -151,7 +121,7 @@ pub fn read_project(ports: &ReadPorts<'_>, root: &Path) -> Result<ReadProject, R
     let mut models = Vec::with_capacity(options.len());
     for options in options {
         let identifier = identifiers.model(&options.name, &options.path);
-        let code = read_text(files, root, &options.path)?;
+        let code = read_text(ports.files, root, &options.path)?;
         let inputs = references.get(&options.name).cloned().unwrap_or_default();
         models.push(ReadModel {
             options,
@@ -171,6 +141,56 @@ pub fn read_project(ports: &ReadPorts<'_>, root: &Path) -> Result<ReadProject, R
         macros,
         seeds,
     })
+}
+
+/// What the passes of stage 1 found; `None` for a pass that failed or could not run.
+struct Found {
+    layout: Option<Layout>,
+    configuration: Option<Configuration>,
+    renames: Option<Renames>,
+    options: Option<Vec<ModelOptions>>,
+    references: Option<BTreeMap<String, Vec<String>>>,
+    seeds: Option<Seeds>,
+    macros: Option<Macros>,
+    python: Vec<(String, Vec<String>)>,
+}
+
+/// Runs every pass of stage 1 whose inputs are valid, collecting their errors in `passes`.
+fn find(ports: &ReadPorts<'_>, root: &Path, passes: &mut Passes) -> Result<Found, ReadError> {
+    let files = ports.files;
+    let layout = passes.take(read_layout(files, root))?;
+    let configuration = passes.take(read_configuration(files, root))?;
+    let renames = passes.take(read_renames(files, root))?;
+    let options = match &layout {
+        Some(layout) => passes.take(read_model_options(files, root, layout))?,
+        None => None,
+    };
+    let mut found = Found {
+        layout: None,
+        configuration: None,
+        renames,
+        options,
+        references: None,
+        seeds: None,
+        macros: None,
+        python: Vec::new(),
+    };
+    if let (Some(layout), Some(configuration)) = (&layout, &configuration) {
+        let references = read_sql_references(files, root, layout, configuration, ports.parser);
+        found.references = passes.take(references)?;
+        if let Some(seeds) = passes.take(read_seeds(files, root, configuration))? {
+            passes.errors.extend(seeds.problems.iter().cloned());
+            found.seeds = Some(seeds);
+        }
+        found.python = read_python(ports, root, layout, configuration, passes)?;
+    }
+    found.macros = match ports.database {
+        Some(database) => passes.take(read_macros(files, root, database, ports.parser))?,
+        None => Some(Macros::default()),
+    };
+    found.layout = layout;
+    found.configuration = configuration;
+    Ok(found)
 }
 
 /// Reads `lib/` and every `.py` model, when the Python port is given, and returns the
