@@ -9,9 +9,12 @@ description = "Run cycle and scheduling; wires ports to crates."
 
 [dependencies]
 # Raw rows cross the adapter contract as Arrow record batches; the version of `mergus-adapter`.
-arrow = { version = "60.2.0", default-features = false }
+arrow = { version = "60.2.0", default-features = false, features = ["ipc"] }
 mergus-adapter = { path = "../mergus-adapter" }
 mergus-adapter-ducklake = { path = "../mergus-adapter-ducklake" }
+mergus-contracts = { path = "../mergus-contracts" }
+mergus-engine-duckdb = { path = "../mergus-engine-duckdb" }
+mergus-plan = { path = "../mergus-plan" }
 mergus-ports = { path = "../mergus-ports" }
 mergus-project = { path = "../mergus-project" }
 mergus-source = { path = "../mergus-source" }

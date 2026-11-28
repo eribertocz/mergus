@@ -30,6 +30,15 @@
 | `LoadError` | Why `load_table` failed, with its code |
 | `table_loads`, `TableLoads`, `LastLoad` | The last load of a table and the ids of its recorded loads |
 | `finished_changes` | The rows of `__changes` of recorded loads, those readers see |
+| `read_project`, `ReadPorts`, `ReadProject`, `ReadModel` | Stage 1: the read project |
+| `ReadError`, `FileErrors` | Every error of stage 1, grouped by file |
+| `plan_project`, `plan_models` | Stages 2 and 3, with the available candidates |
+| `Run` | One run: its scratch directory, candidates and stage 5 |
+| `Work`, `ModelWork`, `StepContext`, `Extraction` | What stage 5 runs beyond the plan |
+| `SqlWork`, `SqlInput` | The work of one DuckDB segment, by `mergus-engine-duckdb` |
+| `Executed` | How stage 5 ended, and its exit code |
+| `CancelToken`, `CANCELLED_EXIT_CODE` | The cancellation of a run, shared by every clone |
+| `RunError`, `StepFailure` | Why a run failed, with its code |
 
 ## Data flow
 
@@ -114,10 +123,29 @@
 window of `raw_retention`: the longest `retention` of the sources without `raw = false`, or
 30 days. Retentions are read as `<n>m`, `<n>h` or `<n>d`, the form the source schema checks.
 
+## The run cycle
+
+1. `read_project` runs every pass of `mergus-project` whose inputs are valid: layout,
+   configuration, `ids.toml`, folder options, `.sql` references and cycles, seeds, `lib/`
+   and `.py` models when the `Python` port is given, macros when a `Database` is given. The
+   errors are grouped by their path; groups are sorted by top folder (`models/`, `sources/`,
+   `seeds/`, then the rest) and then entry by entry, and each group by line and column, with
+   the errors of the whole file first, keeping the pass order between equals.
+2. `Run::begin` lists `.mergus/work/runs/` and deletes every entry. An entry is a directory
+   when the port can list it. It then deletes each candidate without `complete.json`.
+3. Stage 5 runs on scoped threads. The main thread starts the first pending step, in plan
+   order, whose inputs that are steps of the plan have finished, while fewer than
+   `max_parallel` run and no step has failed; it checks the token before each. A step
+   creates `steps/<model>/` in the scratch directory, runs its work, which leaves an Arrow
+   IPC file there, starts its candidate afresh, copies the file batch by batch and completes
+   the candidate. After the first failure no step starts; those running finish, and the
+   first failure is returned.
+4. `Run::finish` deletes the incomplete candidates, then the scratch directory.
+
 ## Dependencies
 
-- `arrow`: the record batches of raw, their keys and filters; the version of
-  `mergus-adapter`.
+- `arrow`: the record batches of raw, their keys and filters, and the Arrow IPC files of the
+  candidates; the version of `mergus-adapter`.
 - `mergus-adapter`: the `StorageAdapter` contract raw is written through.
 - `mergus-adapter-ducklake`: the DuckLake adapter raw is stored in.
 - `mergus-ports`: the `FileSystem`, `Database` and `Clock` ports, and `PortError`.
@@ -125,7 +153,10 @@ window of `raw_retention`: the longest `retention` of the sources without `raw =
   incremental reads, deletes and very late rows of `load_table`.
 - `mergus-project`: `Configuration`, and `key_line`, so that this crate parses no TOML
   (MG-REQ-0186).
-- `serde_json`: the JSON values of `project.toml`.
+- `serde_json`: the JSON values of `project.toml`, and `complete.json`.
+- `mergus-plan`: the plan, `PlanModel` and the `Cleared` stage 5 needs.
+- `mergus-contracts`: the steps of the plan document.
+- `mergus-engine-duckdb`: `run_segment`, which `SqlWork` calls.
 - `thiserror`: derives `StorageProblem`.
 - `mergus-sim`, as a dev-dependency only: the in-memory file system and the simulated
   `Database` of the tests. `mergus-ports` with `real`, as a dev-dependency only: the real

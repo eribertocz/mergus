@@ -58,6 +58,30 @@ Run cycle and scheduling; wires ports to crates.
   `key` it is ignored and the table read again.
   `finished_changes` gives the rows of `__changes` readers see.
 
+- Runs the cycle of a run (MG-REQ-0701): stage 1, `read_project`, reads the project and
+  returns every error at once, grouped by file in the walking order of the layout (`models/`,
+  `sources/`, `seeds/`, then the other files), each file's errors by line (MG-REQ-0702); a
+  cycle between models is one error listing them in reference order (MG-REQ-0703). Stages 2
+  and 3, `plan_project`, plan it with `mergus-plan`; stage 4 is `mergus_plan::evaluate`.
+  None of them reads or writes table data.
+- `Run` keeps the work zone of a run. `Run::begin` deletes every scratch directory left in
+  `.mergus/work/runs/`, creates `.mergus/work/runs/<run_id>/` and deletes incomplete
+  candidates; the complete ones are the plan's available results, so their steps are `skip`
+  with `result_available` (MG-REQ-0503.1, MG-REQ-0707.1). `Run::adopt` deletes the complete
+  candidates the plan does not name (MG-REQ-0707.2).
+- `Run::execute`, stage 5, runs the extractions in order, then each computed step once every
+  step it reads has finished, at most the plan's `max_parallel` at once; a `skip` step runs
+  nothing and its input is its candidate (MG-REQ-0704). Each step runs its `ModelWork`, such
+  as `SqlWork`, one DuckDB segment, into its scratch directory; the rows are then copied into
+  `.mergus/work/candidates/<fingerprint>/result.arrow`, and the candidate is complete once
+  `complete.json`, with its fingerprint, run id and rows, is written to
+  `complete.json.tmp` and renamed (MG-REQ-0705.1). Nothing else reads the candidates
+  (MG-REQ-0705.2). A failure of the work zone is `MG-0704`.
+- A `CancelToken` is checked before each extraction and each segment, and between the batches
+  copied into a candidate; a cancelled stage 5 ends `Cancelled`, exit code 7. `Run::finish`
+  deletes the incomplete candidates and the scratch directory whether the run succeeded,
+  failed or was cancelled, and keeps the complete candidates (MG-REQ-0503.1, MG-REQ-0708).
+
 ## What it does not
 
 - It does not check the keys of a zone: the schema of `mergus-project` rejects an unknown
@@ -69,3 +93,8 @@ Run cycle and scheduling; wires ports to crates.
 - `write_raw` does not detect deletes: its load carries the keys found deleted. `load_table`
   has `mergus-source` detect them.
 - The current table is rewritten in full at each load.
+- The run cycle does not publish (stage 6), emit events or handle Ctrl-C: the CLI sets the
+  token and emits `run_finished` with the exit code `Executed::exit_code` gives. It does not
+  kill a running Python child or interrupt a DuckDB segment mid-stream. It does not map the
+  read project onto `ModelWork`s: the caller gives the work of each computed model and the
+  extractions.
