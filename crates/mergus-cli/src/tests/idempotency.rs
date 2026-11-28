@@ -1,5 +1,6 @@
 //! MG-REQ-1313: idempotency keys.
 
+use std::io::Write;
 use std::path::Path;
 
 use mergus_contracts::hash::sha256_hex;
@@ -8,6 +9,7 @@ use serde_json::Value;
 
 use super::run::{orders, run_on_duckdb};
 use super::{PROJECT, ROOT, exists, mergus, project, text};
+use crate::idempotency::Tee;
 
 #[test]
 fn mg_req_1313_same_key_has_no_second_effect() {
@@ -41,6 +43,51 @@ fn mg_req_1313_same_key_has_no_second_effect() {
     assert_eq!(other.exit, 1, "{other:?}");
     assert!(other.stderr.contains("MG-1314"), "{other:?}");
     assert!(!exists(&files, "models/customers.sql"));
+}
+
+#[test]
+fn mg_req_1313_record_is_written_whole_or_not_at_all() {
+    let files = project(&[("project.toml", PROJECT)]);
+    let record = format!(".mergus/idempotency/{}.json", sha256_hex(b"k1"));
+    // The process dies just before the record is moved into place: no record, not a
+    // truncated one, is left.
+    files.crash_before_next_rename();
+    let crashed = mergus(
+        &files,
+        &["new", "model", "orders", "--idempotency-key", "k1"],
+    );
+    assert!(exists(&files, "models/orders.sql"), "{crashed:?}");
+    assert!(!exists(&files, &record), "{crashed:?}");
+
+    let kept = mergus(
+        &files,
+        &["new", "model", "customers", "--idempotency-key", "k2"],
+    );
+    assert_eq!(kept.exit, 0, "{kept:?}");
+    let record = format!(".mergus/idempotency/{}.json", sha256_hex(b"k2"));
+    let stored: Value = serde_json::from_str(&text(&files, &record).unwrap()).unwrap();
+    assert_eq!(stored["exit_code"], 0);
+}
+
+#[test]
+fn mg_req_1313_run_streams_its_events_with_a_key() {
+    // Each write reaches the output at once, and is kept for the record.
+    let mut out = Vec::new();
+    let mut tee = Tee::new(&mut out);
+    tee.write_all(b"{\"type\":\"run_started\"}\n").unwrap();
+    tee.write_all(b"{\"type\":\"plan_ready\"}\n").unwrap();
+    let copy = tee.copy;
+    assert_eq!(out, copy);
+    assert_eq!(out.iter().filter(|byte| **byte == b'\n').count(), 2);
+
+    let files = orders();
+    let keyed = run_on_duckdb(&files, &["run", "--json", "--idempotency-key", "s1"]);
+    assert_eq!(keyed.exit, 0, "{keyed:?}");
+    // The events were written as the run went: the output is the stored one, whole.
+    let record = format!(".mergus/idempotency/{}.json", sha256_hex(b"s1"));
+    let stored: Value = serde_json::from_str(&text(&files, &record).unwrap()).unwrap();
+    assert_eq!(stored["stdout"], keyed.stdout);
+    assert_eq!(keyed.of("run_finished").len(), 1);
 }
 
 #[test]

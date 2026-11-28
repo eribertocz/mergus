@@ -118,10 +118,45 @@ pub(crate) fn keep(
     if let Some(parent) = path.parent() {
         ports.files.create_dir_all(parent).map_err(unwritable)?;
     }
+    // Written beside it, then moved into place, so that a record is whole or absent: a
+    // truncated one would read as no record, and the key would run the command again.
+    let temporary = path.with_extension("json.tmp");
     ports
         .files
-        .write(path, canonical_json(&record).as_bytes())
-        .map_err(unwritable)
+        .write(&temporary, canonical_json(&record).as_bytes())
+        .map_err(unwritable)?;
+    ports.files.rename(&temporary, path).map_err(unwritable)
+}
+
+/// A writer that writes to `out` at once and keeps a copy of everything it wrote, so that a
+/// keyed command still streams its output (MG-REQ-0710.2) and its record holds all of it.
+pub(crate) struct Tee<'a> {
+    out: &'a mut dyn Write,
+    /// Everything written so far.
+    pub(crate) copy: Vec<u8>,
+}
+
+impl<'a> Tee<'a> {
+    /// A writer to `out`, with an empty copy.
+    pub(crate) fn new(out: &'a mut dyn Write) -> Self {
+        Self {
+            out,
+            copy: Vec::new(),
+        }
+    }
+}
+
+impl Write for Tee<'_> {
+    fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
+        let written = self.out.write(bytes)?;
+        self.copy
+            .extend_from_slice(bytes.get(..written).unwrap_or_default());
+        Ok(written)
+    }
+
+    fn flush(&mut self) -> std::io::Result<()> {
+        self.out.flush()
+    }
 }
 
 /// Writes `outcome` to the outputs of the call.

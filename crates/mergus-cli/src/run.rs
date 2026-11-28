@@ -15,7 +15,7 @@ use crate::error::CliError;
 use crate::execution;
 use crate::exit;
 use crate::explain::explain;
-use crate::idempotency::{self, Found};
+use crate::idempotency::{self, Found, Tee};
 use crate::init::{init, next_steps};
 use crate::mode::{colors, detect};
 use crate::models;
@@ -103,20 +103,22 @@ pub(crate) fn run(ports: &Ports<'_>, stdout: &mut dyn Write, stderr: &mut dyn Wr
             return once(ports, &arguments, Some(error), stdout, stderr);
         }
     };
-    let mut kept = idempotency::Outcome {
-        stdout: Vec::new(),
-        stderr: Vec::new(),
-        exit_code: exit::SUCCESS,
+    // The output streams as the command runs, and the record keeps a copy of it.
+    let mut out = Tee::new(stdout);
+    let mut err = Tee::new(stderr);
+    let exit_code = once(ports, &arguments, None, &mut out, &mut err);
+    let kept = idempotency::Outcome {
+        stdout: out.copy,
+        stderr: err.copy,
+        exit_code,
     };
-    kept.exit_code = once(ports, &arguments, None, &mut kept.stdout, &mut kept.stderr);
     if let Err(error) = idempotency::keep(ports, &invocation, &path, &kept) {
         let text = format!("error[{}]: {error}\n", error.code());
-        kept.stderr.extend_from_slice(text.as_bytes());
+        if stderr.write_all(text.as_bytes()).is_err() {
+            return exit::INTERNAL;
+        }
     }
-    match idempotency::replay(&kept, stdout, stderr) {
-        Ok(()) => kept.exit_code,
-        Err(_) => exit::INTERNAL,
-    }
+    exit_code
 }
 
 /// Runs the command of `arguments` once, or reports `failure` in its place.
