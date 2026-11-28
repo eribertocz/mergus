@@ -30,6 +30,7 @@ catalog/
 | `previous_manifest_id` | The manifest it replaces; null for the first |
 | `schema_document_id`, `state_document_id` | The catalog documents it publishes |
 | `published_at`, `readable_until` | Publication time and rollback-window end, RFC 3339 UTC (MG-REQ-0255) |
+| `catalogs[]` | One entry per DuckLake catalog the tables are read from (MG-REQ-0258) |
 | `tables[]` | One entry per gold, `connect` and `live` table (MG-REQ-0253) |
 | `model_hash` | Ossie model hash the catalog was validated against |
 | `run_id` | Run that produced it |
@@ -131,11 +132,12 @@ follows contract versioning (MG-REQ-0204). Each `tables[]` entry has exactly:
 
 1. MG-REQ-0253.1: `name` (logical), `physical`, `level` (`A`, `A-ext`, `B`, `C`, `C+`, `F`),
    `engine` and `location` (MG-REQ-0254), `encrypted`, `data_version`, `data_token`
-   (MG-REQ-0251), `row_count` (null for `live`), `live` (boolean).
+   (MG-REQ-0251), `row_count` (null for `live`), `live` (boolean), `freshness`
+   (MG-REQ-0259).
 2. MG-REQ-0253.2: `pin`, the recipe of MG-REQ-0249: an object with `kind` and its fields:
    `ducklake_snapshot` {`snapshot_id`}, `iceberg_snapshot` {`snapshot_id`}, `delta_version`
    {`version`}, `parquet_files` {`files`: paths relative to `location`}, `connect` {`version`
-   or null}, `live` {}.
+   or null}, `clickhouse_table` {`table`} (MG-REQ-0244), `live` {}.
 3. MG-REQ-0253.3: `quality` {`status`: `passed`, `warned` or `failed`; `passed`, `warned`,
    `failed`: counts of tests} and `health` {`status`: `healthy`, `stale` or `degraded`;
    `reason`: text or null}.
@@ -187,3 +189,61 @@ time. Only table data versions expire, after the rollback window.
 - Kind: behavior
 - Verify: test `mg_req_0257_documents_never_deleted`
 - Decision: 0054
+
+### MG-REQ-0258 · One catalog version per DuckLake catalog
+
+A reader pins a DuckLake catalog as a whole when it attaches it, so the manifest MUST give one
+snapshot per DuckLake catalog at which every table entry of that catalog holds:
+
+1. MG-REQ-0258.1: `catalogs[]` has one entry {`engine`: `ducklake`, `location`, `snapshot_id`}
+   per distinct DuckLake `location` among `tables[]`, gold and `connect` alike.
+2. MG-REQ-0258.2: a publication commits all the gold tables it writes in one DuckLake snapshot.
+   The gold entry's `snapshot_id` is that snapshot, or the previous manifest's when the
+   publication wrote no gold table.
+3. MG-REQ-0258.3: for an external DuckLake catalog, stage 2 pins one snapshot per catalog, and
+   every `connect` table of that catalog is checked (MG-REQ-0912) and read at it.
+4. MG-REQ-0258.4: the `pin.snapshot_id` of every table of a catalog equals that catalog's
+   `snapshot_id`. A table's `data_token` is the snapshot at which it last changed, which is a
+   catalog snapshot, never newer than `snapshot_id` (MG-REQ-0251.1).
+
+- Kind: behavior
+- Verify: test `mg_req_0258_one_snapshot_per_ducklake_catalog`
+- Depends: MG-REQ-0251, MG-REQ-0253
+- Decision: 0055
+
+### MG-REQ-0259 · Freshness per table
+
+Each table entry MUST carry `freshness` {`data_as_of`, `fresh`}, so that a reader shows how
+current a table is without querying it:
+
+1. MG-REQ-0259.1: `data_as_of`: the `_extracted_at` of the newest raw load that the table's
+   rows were built from, RFC 3339 UTC. It is null for `connect` and `live` tables, whose loads
+   Mergus does not see.
+2. MG-REQ-0259.2: `fresh`: the model's `fresh` target as declared (such as `6h`), or null.
+3. MG-REQ-0259.3: a reader computes the age as its own clock minus `data_as_of`. At
+   publication, `health.status` is `stale` when that age already exceeds `fresh`
+   (MG-REQ-0732).
+
+- Kind: behavior
+- Verify: test `mg_req_0259_freshness_in_manifest`
+- Depends: MG-REQ-0253
+- Decision: 0055
+
+### MG-REQ-0244 · ClickHouse tables are pinned by name
+
+A ClickHouse gold table (level C) MUST be readable at the version a manifest pins:
+
+1. MG-REQ-0244.1: each publication writes the table's rows to a new physical table
+   `<physical>__<data_token>`, which is never changed afterwards. Then it moves the stable name
+   `<physical>` onto it in one atomic exchange.
+2. MG-REQ-0244.2: the entry's `pin` is `clickhouse_table` {`table`}, the physical table of the
+   manifest's version. A reader reads that table, so no check before and after the read is
+   needed. The stable name always serves the newest publication.
+3. MG-REQ-0244.3: a physical table is dropped only once no manifest inside the rollback window
+   references it (MG-REQ-0255).
+
+- Kind: behavior
+- Verify: test `mg_req_0244_clickhouse_pinned_by_table`
+- Phase: 1.5
+- Depends: MG-REQ-0251
+- Decision: 0055
