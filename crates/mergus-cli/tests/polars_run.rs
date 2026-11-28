@@ -3,10 +3,9 @@
 //! `polars` is found and `CI` is unset; in CI it fails instead.
 
 use std::path::{Path, PathBuf};
-use std::process::Command;
 
-use mergus_ports::real::{RealEnvironment, RealFileSystem, RealPython, RealRandom};
-use mergus_ports::{Environment, FileSystem, Python, Random};
+use mergus_ports::real::{RealEnvironment, RealFileSystem, RealProcess, RealPython, RealRandom};
+use mergus_ports::{Environment, FileSystem, Process, ProcessCommand, Python, Random};
 use serde_json::Value;
 
 const PROJECT: &str = "name = \"sales\"\n";
@@ -33,6 +32,7 @@ def sales_usd(rated):
 "#;
 
 /// A new, empty directory for the test `name`, under the target directory of the tests.
+#[cfg(test)]
 fn scratch(name: &str) -> PathBuf {
     let dir = PathBuf::from(env!("CARGO_TARGET_TMPDIR")).join(format!(
         "mergus-cli-{name}-{:016x}",
@@ -42,6 +42,7 @@ fn scratch(name: &str) -> PathBuf {
     dir
 }
 
+#[cfg(test)]
 fn write(path: &Path, contents: &str) {
     RealFileSystem
         .create_dir_all(path.parent().unwrap())
@@ -51,6 +52,7 @@ fn write(path: &Path, contents: &str) {
 
 /// Whether the Python the run will find for the project at `root` imports `polars`. `false`
 /// skips the test, unless `CI` is set: then it fails.
+#[cfg(test)]
 fn has_polars(root: &Path) -> bool {
     let env = mergus_security::python_command(
         "python3",
@@ -79,19 +81,23 @@ fn has_polars(root: &Path) -> bool {
 }
 
 /// The events `mergus run --json` printed in `root`, and its exit code.
+#[cfg(test)]
 fn run(root: &Path) -> (Vec<Value>, Option<i32>, String) {
-    let output = Command::new(env!("CARGO_BIN_EXE_mergus"))
-        .args(["run", "--json"])
-        .current_dir(root)
-        .output()
-        .unwrap();
+    let command = ProcessCommand {
+        program: env!("CARGO_BIN_EXE_mergus").to_owned(),
+        args: vec!["run".to_owned(), "--json".to_owned()],
+        current_dir: Some(root.to_path_buf()),
+        env: Vec::new(),
+        clear_env: false,
+    };
+    let output = RealProcess.run(&command).unwrap();
     let events = String::from_utf8(output.stdout)
         .unwrap()
         .lines()
         .map(|line| serde_json::from_str(line).unwrap())
         .collect();
     let stderr = String::from_utf8_lossy(&output.stderr).into_owned();
-    (events, output.status.code(), stderr)
+    (events, output.code, stderr)
 }
 
 #[test]
