@@ -21,6 +21,9 @@ pub struct StepContext<'a> {
     pub scratch: &'a Path,
     /// The run's cancel token.
     pub cancel: &'a CancelToken,
+    /// The snapshot of raw that every segment of the run reads, taken once after the
+    /// extractions (MG-REQ-0704); `None` when the run reads no raw or raw has no commit yet.
+    pub raw_snapshot: Option<i64>,
 }
 
 /// The work of one model: runs its segments and leaves its rows at
@@ -38,10 +41,18 @@ pub trait ModelWork: Send + Sync {
 /// table by [`crate::load_table`].
 pub type Extraction<'a> = Box<dyn FnMut(&CancelToken) -> Result<(), StepFailure> + 'a>;
 
+/// Takes the snapshot of raw that the segments read, once, after every extraction ran:
+/// typically [`crate::raw_snapshot`] of the raw adapter, which is closed then, so that the
+/// segments attach raw read-only without it.
+pub type RawSnapshot<'a> = Box<dyn FnOnce() -> Result<Option<i64>, StepFailure> + 'a>;
+
 /// What stage 5 runs, beyond the plan.
 pub struct Work<'a> {
     /// The extractions, run in order before any segment.
     pub extractions: Vec<Extraction<'a>>,
+    /// Takes the snapshot of raw the segments read, after the extractions; `None` when no
+    /// segment reads raw.
+    pub raw_snapshot: Option<RawSnapshot<'a>>,
     /// The work of each model, by name. Every model the plan computes needs one.
     pub models: BTreeMap<String, Box<dyn ModelWork + 'a>>,
     /// The bytes the plan reads: the sum of the sizes of the DuckLake files it reads,

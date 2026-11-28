@@ -2,7 +2,7 @@
 
 use arrow::datatypes::SchemaRef;
 use mergus_engine_duckdb::{Boundary, Segment, Table, Transport, run_segment};
-use mergus_ports::{Database, FileSystem, SqlValue};
+use mergus_ports::{Database, DuckLakeCatalog, FileSystem, SqlValue};
 
 use super::{ModelWork, StepContext, StepFailure};
 
@@ -33,6 +33,10 @@ pub struct SqlWork<'a> {
     pub macros: Vec<String>,
     /// Its inputs.
     pub inputs: Vec<SqlInput>,
+    /// The DuckLake catalogs its SQL reads directly: raw's, from [`crate::raw_catalog`],
+    /// when it reads `raw.<table>`. Each is attached encrypted and read-only, at the run's
+    /// [`StepContext::raw_snapshot`].
+    pub catalogs: Vec<DuckLakeCatalog>,
     /// Its declared output columns and their types.
     pub output: SchemaRef,
 }
@@ -68,6 +72,8 @@ impl ModelWork for SqlWork<'_> {
             sql: self.sql.clone(),
             params: self.params.clone(),
             macros: self.macros.clone(),
+            catalogs: self.catalogs.clone(),
+            snapshot: context.raw_snapshot,
             inputs,
             output: Table {
                 name: context.model.to_owned(),

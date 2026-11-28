@@ -39,7 +39,7 @@ pub use database::{
     Database, DatabaseConnection, DatabaseLocation, Extension, LoadedExtension, PostgresSource,
     SqlValue,
 };
-pub use ducklake::DuckLakeCatalog;
+pub use ducklake::{DuckLakeAccess, DuckLakeCatalog};
 pub use environment::Environment;
 pub use error::PortError;
 pub use file_system::{FileSystem, SeekRead};

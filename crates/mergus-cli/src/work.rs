@@ -73,6 +73,7 @@ pub(crate) fn work<'a>(
     }
     Ok(Ok(Work {
         extractions: Vec::new(),
+        raw_snapshot: None,
         models,
         // #307 measures the DuckLake files the plan reads; until then nothing is counted.
         bytes_scanned: 0,
@@ -179,6 +180,7 @@ fn sql_work<'a>(
         sql: sql.sql.clone(),
         params: sql.params.clone(),
         macros,
+        catalogs: Vec::new(),
         inputs,
         output: carried(&model.options.name, &sql.columns)?,
     })

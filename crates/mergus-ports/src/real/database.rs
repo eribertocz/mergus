@@ -8,8 +8,8 @@ use duckdb::{Config, Connection};
 
 use crate::database::quote_identifier;
 use crate::{
-    Database, DatabaseConnection, DatabaseLocation, DuckLakeCatalog, Extension, LoadedExtension,
-    MacroRun, PortError, ResultColumn, SqlValue,
+    Database, DatabaseConnection, DatabaseLocation, DuckLakeAccess, DuckLakeCatalog, Extension,
+    LoadedExtension, MacroRun, PortError, ResultColumn, SqlValue,
 };
 
 #[cfg(test)]
@@ -239,18 +239,33 @@ impl DatabaseConnection for RealConnection {
             .map_err(failed)
     }
 
-    fn attach_ducklake_encrypted(&mut self, catalog: &DuckLakeCatalog) -> Result<(), PortError> {
+    fn attach_ducklake_encrypted(
+        &mut self,
+        catalog: &DuckLakeCatalog,
+        access: &DuckLakeAccess,
+    ) -> Result<(), PortError> {
         self.load_extension(Extension::Httpfs)?;
         self.load_extension(Extension::DuckLake)?;
         let metadata = format!("ducklake:{}", catalog.metadata);
         let alias = quote_identifier(&catalog.alias);
+        let mut params = vec![
+            duckdb::types::Value::Text(metadata),
+            duckdb::types::Value::Text(catalog.data_path.clone()),
+        ];
         // Data inlining stays off, so that no row is kept in the catalog instead of in an
         // encrypted data file.
-        let options = "DATA_PATH ?, ENCRYPTED, DATA_INLINING_ROW_LIMIT 0";
+        let mut options = "DATA_PATH ?, ENCRYPTED, DATA_INLINING_ROW_LIMIT 0".to_owned();
+        if access.read_only {
+            options.push_str(", READ_ONLY");
+        }
+        if let Some(snapshot) = access.snapshot {
+            options.push_str(", SNAPSHOT_VERSION ?");
+            params.push(duckdb::types::Value::BigInt(snapshot));
+        }
         // sql: identifiers quoted by quote_identifier
         let attach = format!("ATTACH ? AS {alias} ({options})");
         self.connection
-            .execute(&attach, [metadata.as_str(), catalog.data_path.as_str()])
+            .execute(&attach, duckdb::params_from_iter(params))
             .map(|_| ())
             .map_err(|error| {
                 if error.to_string().contains(NOT_ENCRYPTED) {

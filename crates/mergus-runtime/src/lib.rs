@@ -61,7 +61,7 @@ pub use load_error::LoadError;
 pub use problem::StorageProblem;
 pub use raw_error::RawError;
 pub use raw_load::{Watermarks, load_raw, load_raw_off, load_raw_off_failed};
-pub use raw_open::{RAW_ALIAS, open_raw};
+pub use raw_open::{RAW_ALIAS, open_raw, raw_catalog, raw_snapshot};
 pub use raw_write::{RawLoad, write_raw};
 pub use registry::{
     LOADS, LoadMode, LoadRecord, LoadResult, last_watermark, new_load_id, record_load,
@@ -73,9 +73,9 @@ pub use retention::{
 };
 pub use run::{
     Adopted, CANCELLED_EXIT_CODE, CANDIDATES, COMPLETE, CancelToken, Executed, Extraction,
-    FileErrors, Limit, LimitStop, Limits, ModelWork, RESULT, RUNS, ReadError, ReadModel, ReadPorts,
-    ReadProject, Run, RunError, RunReport, SqlInput, SqlWork, StepContext, StepEnd, StepEvents,
-    StepFailure, Work, plan_models, plan_project, read_project,
+    FileErrors, Limit, LimitStop, Limits, ModelWork, RESULT, RUNS, RawSnapshot, ReadError,
+    ReadModel, ReadPorts, ReadProject, Run, RunError, RunReport, SqlInput, SqlWork, StepContext,
+    StepEnd, StepEvents, StepFailure, Work, plan_models, plan_project, read_project,
 };
 pub use separate::check_storage;
 pub use zone::{Catalog, Clients, Profile, Zone, ZoneStorage, zone_storage};

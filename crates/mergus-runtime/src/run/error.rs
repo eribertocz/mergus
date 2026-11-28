@@ -42,6 +42,10 @@ pub enum RunError {
     /// An extraction failed, so no segment ran (MG-REQ-0704).
     #[error("extraction failed: {0}")]
     Extraction(StepFailure),
+    /// The snapshot of raw could not be taken after the extractions, so no segment ran
+    /// (MG-REQ-0704).
+    #[error("the snapshot of raw cannot be read: {0}")]
+    RawSnapshot(StepFailure),
     /// A step failed; steps already running were let finish and no other one started.
     #[error("step failed: {0}")]
     Step(StepFailure),
@@ -71,7 +75,9 @@ impl RunError {
             Self::Scratch { .. } => Some("MG-0508"),
             Self::Work { .. } => Some("MG-0704"),
             Self::Limit(_) => Some("MG-0705"),
-            Self::Extraction(failure) | Self::Step(failure) => failure.code,
+            Self::Extraction(failure) | Self::RawSnapshot(failure) | Self::Step(failure) => {
+                failure.code
+            }
             Self::NoWork(_) | Self::Unordered(_) | Self::Panicked(_) | Self::RunId(_) => None,
         }
     }

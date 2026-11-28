@@ -32,5 +32,5 @@ pub use read::{ReadError, ReadModel, ReadPorts, ReadProject, read_project};
 pub use read_errors::FileErrors;
 pub use report::RunReport;
 pub use sql_work::{SqlInput, SqlWork};
-pub use work::{Extraction, ModelWork, StepContext, Work};
+pub use work::{Extraction, ModelWork, RawSnapshot, StepContext, Work};
 pub use work_zone::RUNS;

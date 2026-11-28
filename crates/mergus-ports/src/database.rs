@@ -10,7 +10,7 @@ use arrow::record_batch::RecordBatch;
 
 use crate::PortError;
 use crate::column::{ResultColumn, is_column_type};
-use crate::ducklake::DuckLakeCatalog;
+use crate::ducklake::{DuckLakeAccess, DuckLakeCatalog};
 use crate::macros::MacroRun;
 use crate::session::protected_connection;
 
@@ -260,7 +260,8 @@ pub trait DatabaseConnection: Send {
     /// Attaches the DuckLake catalog `catalog` with the `ENCRYPTED` option, so that DuckLake
     /// encrypts every data and delete file it writes with a key of its own, kept in the
     /// catalog (MG-REQ-0515.1). It loads `httpfs`, whose crypto module DuckDB needs to write
-    /// encrypted files, and `ducklake` first. A new catalog is created encrypted.
+    /// encrypted files, and `ducklake` first. A new catalog is created encrypted. `access`
+    /// attaches it `READ_ONLY`, at a `SNAPSHOT_VERSION`, or both.
     ///
     /// The default fails: a connection that does not implement it never writes encrypted.
     ///
@@ -270,7 +271,11 @@ pub trait DatabaseConnection: Send {
     /// encrypted (MG-REQ-0515.3), with [`PortError::ExtensionUnavailable`] when an extension
     /// is not cached and cannot be downloaded, and with [`PortError::Failed`] when the
     /// catalog cannot be attached.
-    fn attach_ducklake_encrypted(&mut self, catalog: &DuckLakeCatalog) -> Result<(), PortError> {
+    fn attach_ducklake_encrypted(
+        &mut self,
+        catalog: &DuckLakeCatalog,
+        _access: &DuckLakeAccess,
+    ) -> Result<(), PortError> {
         Err(PortError::Failed(format!(
             "this connection cannot attach the DuckLake catalog `{}` encrypted",
             catalog.metadata

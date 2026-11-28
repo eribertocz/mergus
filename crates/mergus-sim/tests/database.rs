@@ -9,8 +9,8 @@ use arrow::array::{ArrayRef, Int64Array};
 use arrow::error::ArrowError;
 use arrow::record_batch::RecordBatch;
 use mergus_ports::{
-    Database, DatabaseLocation, DuckLakeCatalog, Extension, LoadedExtension, PortError,
-    PostgresSource, ResultColumn, SqlValue,
+    Database, DatabaseLocation, DuckLakeAccess, DuckLakeCatalog, Extension, LoadedExtension,
+    PortError, PostgresSource, ResultColumn, SqlValue,
 };
 use mergus_sim::{DatabaseFaults, Rate, SimDatabase};
 
@@ -61,14 +61,21 @@ fn mg_req_0515_simulated_database_attaches_encrypted() {
         metadata: "raw.ducklake".to_owned(),
         data_path: "data/".to_owned(),
     };
-    connection.attach_ducklake_encrypted(&catalog).unwrap();
+    let access = DuckLakeAccess {
+        read_only: true,
+        snapshot: Some(3),
+    };
+    connection
+        .attach_ducklake_encrypted(&catalog, &access)
+        .unwrap();
     assert_eq!(database.attached_encrypted(), vec![catalog.clone()]);
+    assert_eq!(database.encrypted_access(), vec![access]);
     assert!(database.attached().is_empty());
 
     // A catalog recorded as unencrypted is refused, as DuckLake refuses it.
     database.record_unencrypted("raw.ducklake");
     assert_eq!(
-        connection.attach_ducklake_encrypted(&catalog),
+        connection.attach_ducklake_encrypted(&catalog, &access),
         Err(PortError::UnencryptedCatalog {
             catalog: "raw.ducklake".to_owned()
         })

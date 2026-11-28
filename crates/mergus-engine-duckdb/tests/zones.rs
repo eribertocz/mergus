@@ -79,6 +79,8 @@ fn mg_req_0180_timestamps_keep_their_time_zone() {
         sql: SQL.to_owned(),
         params: vec![],
         macros: vec![],
+        catalogs: Vec::new(),
+        snapshot: None,
         inputs: vec![events(naive)],
         output,
     };

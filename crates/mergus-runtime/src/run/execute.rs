@@ -1,7 +1,8 @@
 //! Stage 5: executes the approved plan exactly (MG-REQ-0704). Extractions run first, in
-//! order; then each computed step starts once every step it reads has finished, with at most
-//! the plan's `max_parallel` running at once. A `skip` step runs nothing. The bytes the plan
-//! reads are checked before anything runs, and wall time before each segment (MG-REQ-0718.2).
+//! order, then the snapshot of raw every segment reads is taken once; then each computed
+//! step starts once every step it reads has finished, with at most the plan's
+//! `max_parallel` running at once. A `skip` step runs nothing. The bytes the plan reads are
+//! checked before anything runs, and wall time before each segment (MG-REQ-0718.2).
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::panic::{self, AssertUnwindSafe};
@@ -85,6 +86,11 @@ impl Stage<'_> {
             }
             extraction(self.cancel).map_err(RunError::Extraction)?;
         }
+        // One snapshot of raw for the whole run, taken once every extraction is done.
+        let snapshot = match work.raw_snapshot.take() {
+            Some(take) => take().map_err(RunError::RawSnapshot)?,
+            None => None,
+        };
         let steps = &plan.document().steps;
         for step in steps
             .iter()
@@ -97,15 +103,17 @@ impl Stage<'_> {
         let limit = usize::try_from(plan.document().max_parallel)
             .unwrap_or(1)
             .max(1);
-        self.schedule(steps, &work.models, limit, events)
+        self.schedule(steps, &work.models, limit, snapshot, events)
     }
 
-    /// Runs the computed steps in dependency order, at most `limit` at once.
+    /// Runs the computed steps in dependency order, at most `limit` at once, each reading
+    /// raw at `snapshot`.
     fn schedule(
         &self,
         steps: &[Step],
         models: &BTreeMap<String, Box<dyn ModelWork + '_>>,
         limit: usize,
+        snapshot: Option<i64>,
         events: &mut dyn StepEvents,
     ) -> Result<Executed, RunError> {
         let mut progress = self.progress(steps)?;
@@ -128,8 +136,8 @@ impl Stage<'_> {
                     events.started(step);
                     scope.spawn(move || {
                         // The receiver lives until every thread is done.
-                        let _ =
-                            sender.send((step.model.clone(), self.guarded(step, work, &inputs)));
+                        let done = self.guarded(step, work, &inputs, snapshot);
+                        let _ = sender.send((step.model.clone(), done));
                     });
                 }
                 if progress.running == 0 {
@@ -154,10 +162,11 @@ impl Stage<'_> {
         step: &Step,
         work: Option<&dyn ModelWork>,
         inputs: &BTreeMap<String, PathBuf>,
+        snapshot: Option<i64>,
     ) -> Result<Option<Copied>, RunError> {
         let run = || {
             work.ok_or_else(|| RunError::NoWork(step.model.clone()))
-                .and_then(|work| self.run_step(step, work, inputs))
+                .and_then(|work| self.run_step(step, work, inputs, snapshot))
         };
         panic::catch_unwind(AssertUnwindSafe(run))
             .unwrap_or_else(|_| Err(RunError::Panicked(step.model.clone())))
@@ -198,6 +207,7 @@ impl Stage<'_> {
         step: &Step,
         work: &dyn ModelWork,
         inputs: &BTreeMap<String, PathBuf>,
+        snapshot: Option<i64>,
     ) -> Result<Option<Copied>, RunError> {
         if self.cancel.is_cancelled() {
             return Ok(None);
@@ -214,6 +224,7 @@ impl Stage<'_> {
             output: &output,
             scratch: &scratch,
             cancel: self.cancel,
+            raw_snapshot: snapshot,
         };
         work.run(&context).map_err(RunError::Step)?;
         self.candidates.start(&step.fingerprint)?;
