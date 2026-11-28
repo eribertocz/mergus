@@ -44,4 +44,7 @@ pub struct Work<'a> {
     pub extractions: Vec<Extraction<'a>>,
     /// The work of each model, by name. Every model the plan computes needs one.
     pub models: BTreeMap<String, Box<dyn ModelWork + 'a>>,
+    /// The bytes the plan reads: the sum of the sizes of the DuckLake files it reads,
+    /// checked against `bytes_scanned` before stage 5 starts (MG-REQ-0718.2).
+    pub bytes_scanned: u64,
 }

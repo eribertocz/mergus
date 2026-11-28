@@ -73,9 +73,9 @@ pub use retention::{
 };
 pub use run::{
     Adopted, CANCELLED_EXIT_CODE, CANDIDATES, COMPLETE, CancelToken, Executed, Extraction,
-    FileErrors, ModelWork, RESULT, RUNS, ReadError, ReadModel, ReadPorts, ReadProject, Run,
-    RunError, SqlInput, SqlWork, StepContext, StepFailure, Work, plan_models, plan_project,
-    read_project,
+    FileErrors, Limit, LimitStop, Limits, ModelWork, RESULT, RUNS, ReadError, ReadModel, ReadPorts,
+    ReadProject, Run, RunError, RunReport, SqlInput, SqlWork, StepContext, StepFailure, Work,
+    plan_models, plan_project, read_project,
 };
 pub use separate::check_storage;
 pub use zone::{Catalog, Clients, Profile, Zone, ZoneStorage, zone_storage};

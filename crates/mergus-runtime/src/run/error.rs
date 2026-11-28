@@ -4,6 +4,8 @@ use std::path::Path;
 
 use mergus_ports::PortError;
 
+use super::LimitStop;
+
 /// A failure of one extraction or one step, with the code of the crate that found it.
 #[derive(Clone, Debug, PartialEq, Eq, thiserror::Error)]
 #[error("{name}: {message}")]
@@ -43,6 +45,9 @@ pub enum RunError {
     /// A step failed; steps already running were let finish and no other one started.
     #[error("step failed: {0}")]
     Step(StepFailure),
+    /// A limit stopped the run before it was exceeded (MG-REQ-0718.3).
+    #[error("{0}")]
+    Limit(LimitStop),
     /// The plan computes a model the caller gave no work for.
     #[error("internal error: the plan computes `{0}`, but no work was given for it")]
     NoWork(String),
@@ -65,6 +70,7 @@ impl RunError {
         match self {
             Self::Scratch { .. } => Some("MG-0508"),
             Self::Work { .. } => Some("MG-0704"),
+            Self::Limit(_) => Some("MG-0705"),
             Self::Extraction(failure) | Self::Step(failure) => failure.code,
             Self::NoWork(_) | Self::Unordered(_) | Self::Panicked(_) | Self::RunId(_) => None,
         }

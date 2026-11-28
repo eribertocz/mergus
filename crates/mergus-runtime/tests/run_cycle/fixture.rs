@@ -193,6 +193,7 @@ pub fn models<'a>(
     Work {
         extractions: Vec::new(),
         models,
+        bytes_scanned: 0,
     }
 }
 
