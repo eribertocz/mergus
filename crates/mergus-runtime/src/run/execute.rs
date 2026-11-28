@@ -163,8 +163,8 @@ impl Stage<'_> {
     }
 
     /// Runs one computed step: checks the token, runs its work into its scratch directory,
-    /// then copies the rows into its candidate, checking the token between batches, and
-    /// completes it. `None` means the token was set.
+    /// then copies the rows into its candidate's temporary result, checking the token
+    /// between batches, and completes it. `None` means the token was set.
     fn run_step(
         &self,
         step: &Step,
@@ -175,13 +175,9 @@ impl Stage<'_> {
             return Ok(None);
         }
         let scratch = self.scratch.join("steps").join(&step.model);
-        let failed = |path: &Path| {
-            let path = path.to_path_buf();
-            move |error| RunError::work(self.root, &path, &error)
-        };
         self.files
             .create_dir_all(&scratch)
-            .map_err(failed(&scratch))?;
+            .map_err(|error| RunError::scratch(self.root, &scratch, &error))?;
         let output = scratch.join(super::candidate::RESULT);
         let context = StepContext {
             model: &step.model,
@@ -192,7 +188,7 @@ impl Stage<'_> {
         };
         work.run(&context).map_err(RunError::Step)?;
         self.candidates.start(&step.fingerprint)?;
-        let target = self.candidates.result(&step.fingerprint);
+        let target = self.candidates.result_temporary(&step.fingerprint);
         let copied = copy_result(self.files, &output, &target, self.cancel)
             .map_err(|error| RunError::work(self.root, &target, &error))?;
         let Some(rows) = copied else {

@@ -22,6 +22,9 @@ const COMPLETE_TEMPORARY: &str = "complete.json.tmp";
 /// The rows of a candidate, as an Arrow IPC file.
 pub const RESULT: &str = "result.arrow";
 
+/// The temporary name the rows are copied to before they are renamed.
+const RESULT_TEMPORARY: &str = "result.arrow.tmp";
+
 /// The candidates of the project at `root`.
 pub(crate) struct Candidates<'a> {
     files: &'a dyn FileSystem,
@@ -52,6 +55,12 @@ impl<'a> Candidates<'a> {
     /// The result file of the candidate of `fingerprint`.
     pub(crate) fn result(&self, fingerprint: &str) -> PathBuf {
         self.dir(fingerprint).join(RESULT)
+    }
+
+    /// The file the rows of the candidate of `fingerprint` are copied to, before
+    /// [`Candidates::complete`] renames it.
+    pub(crate) fn result_temporary(&self, fingerprint: &str) -> PathBuf {
+        self.dir(fingerprint).join(RESULT_TEMPORARY)
     }
 
     /// Whether the candidate of `fingerprint` is complete: its `complete.json` exists.
@@ -126,14 +135,21 @@ impl<'a> Candidates<'a> {
         self.files.create_dir_all(&dir).map_err(self.failed(&dir))
     }
 
-    /// Completes the candidate of `fingerprint`: writes `complete.json` with its fingerprint,
-    /// the run id and its row count to a temporary name, then renames it (MG-REQ-0705.1).
+    /// Completes the candidate of `fingerprint`: renames its rows from `result.arrow.tmp`
+    /// to `result.arrow`, which puts them on the disk, then writes `complete.json` with its
+    /// fingerprint, the run id and its row count to a temporary name and renames it
+    /// (MG-REQ-0705.1). So a `complete.json` never stands over rows that are not there.
     pub(crate) fn complete(
         &self,
         fingerprint: &str,
         run_id: &str,
         rows: u64,
     ) -> Result<(), RunError> {
+        let rows_temporary = self.result_temporary(fingerprint);
+        let result = self.result(fingerprint);
+        self.files
+            .rename(&rows_temporary, &result)
+            .map_err(self.failed(&result))?;
         let dir = self.dir(fingerprint);
         let temporary = dir.join(COMPLETE_TEMPORARY);
         let complete = dir.join(COMPLETE);

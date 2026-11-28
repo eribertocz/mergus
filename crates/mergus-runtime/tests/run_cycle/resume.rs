@@ -1,5 +1,7 @@
 //! The work zone across runs: scratch deleted, finished work reused, cancellation cleaned.
 
+use std::sync::atomic::AtomicBool;
+
 use mergus_contracts::generated::mergus_plan_v1::{StepAction, StepReason};
 use mergus_plan::Plan;
 use mergus_ports::FileSystem;
@@ -10,7 +12,8 @@ use mergus_runtime::{
 use mergus_sim::SimFileSystem;
 
 use crate::fixture::{
-    COUNT, Log, at, cleared, database, fingerprint, models, orders, plan, read, root, tree,
+    COUNT, CrashAfter, Log, at, cleared, database, fingerprint, models, orders, plan, read, root,
+    tree,
 };
 
 const CANDIDATES: &str = ".mergus/work/candidates";
@@ -141,36 +144,69 @@ fn changed_model(files: &SimFileSystem, database: &RealDatabase, first: &Plan) {
     assert_eq!(rows.get("orders_count"), Some(&1));
 }
 
-#[test]
-fn mg_req_0707_candidate_renamed_before_a_crash_is_reused() {
+/// Runs the fixture with one step at a time, crashing right after the first rename of a
+/// file named `file`, then runs it again. Returns the results available to the second run
+/// and the models it started.
+#[cfg(test)]
+fn crash_then_retry(file: &'static str) -> (Vec<String>, Vec<String>) {
     let files = orders(COUNT);
+    let crashing = CrashAfter {
+        inner: &files,
+        file,
+        armed: AtomicBool::new(true),
+    };
     let database = database();
     let project = read(&files);
-    let run = Run::begin(&files, root(), "run1", CancelToken::new()).unwrap();
+    let run = Run::begin(&crashing, root(), "run1", CancelToken::new()).unwrap();
     let planned = plan(&project, run.available(), 1);
     let adopted = run.adopt(&planned).unwrap();
     let mut work = models(&files, &database, &project, &Log::default(), None);
-    // The completion of `stg_orders`, the first step, renames `complete.json`, then crashes.
-    files.crash_after_next_rename();
     let crashed = run.execute(&adopted, &cleared(), &mut work);
     assert_eq!(crashed.unwrap_err().code(), Some("MG-0704"));
     run.finish().unwrap();
 
     let run = Run::begin(&files, root(), "run2", CancelToken::new()).unwrap();
-    let stg = fingerprint(&planned, "stg_orders");
-    assert_eq!(run.available().iter().collect::<Vec<_>>(), [&stg]);
+    let available = run
+        .available()
+        .iter()
+        .map(|available| {
+            let stg = fingerprint(&planned, "stg_orders");
+            if *available == stg {
+                "stg_orders".to_owned()
+            } else {
+                available.clone()
+            }
+        })
+        .collect();
     let retried = plan(&project, run.available(), 1);
     let adopted = run.adopt(&retried).unwrap();
     let log = Log::default();
     let mut work = models(&files, &database, &project, &log, None);
     run.execute(&adopted, &cleared(), &mut work).unwrap();
     run.finish().unwrap();
-    let started: Vec<String> = log
+    let started = log
         .events()
         .into_iter()
-        .filter(|e| e.starts_with("start"))
+        .filter_map(|event| event.strip_prefix("start ").map(str::to_owned))
         .collect();
-    assert_eq!(started, ["start orders_big", "start orders_count"]);
+    (available, started)
+}
+
+#[test]
+fn mg_req_0707_candidate_renamed_before_a_crash_is_reused() {
+    // `stg_orders`, the first step, renames its `complete.json`, then the run crashes.
+    let (available, started) = crash_then_retry("complete.json");
+    assert_eq!(available, ["stg_orders"]);
+    assert_eq!(started, ["orders_big", "orders_count"]);
+}
+
+#[test]
+fn mg_req_0705_rows_without_complete_json_are_incomplete() {
+    // `stg_orders` renames its rows to `result.arrow`, then the run crashes before
+    // `complete.json` exists: the candidate is incomplete, deleted and computed again.
+    let (available, started) = crash_then_retry("result.arrow");
+    assert!(available.is_empty(), "{available:?}");
+    assert_eq!(started, ["stg_orders", "orders_big", "orders_count"]);
 }
 
 #[test]

@@ -215,6 +215,10 @@ fn references(
     python: PythonInputs,
     passes: &mut Passes,
 ) -> Result<BTreeMap<String, Vec<String>>, ReadError> {
+    if python.is_empty() {
+        // Without a `.py` model, `read_sql_references` has found every cycle already.
+        return Ok(sql);
+    }
     let python: BTreeMap<String, BTreeMap<String, usize>> = python.into_iter().collect();
     let mut graph = Graph::new();
     for model in &layout.models {
@@ -231,9 +235,7 @@ fn references(
         let path = model.path.clone();
         graph.insert(model.name.clone(), Node { path, reads });
     }
-    if python.values().any(|inputs| !inputs.is_empty()) {
-        passes.errors.extend(cycles(&graph));
-    }
+    passes.errors.extend(cycles(&graph));
     let mut references = sql;
     for (name, inputs) in python {
         references.insert(name, inputs.into_keys().collect());

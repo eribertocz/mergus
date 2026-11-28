@@ -127,8 +127,8 @@ window of `raw_retention`: the longest `retention` of the sources without `raw =
 2. `Run::begin` empties `.mergus/work/runs/` and deletes candidates without `complete.json`.
    Stage 5, on scoped threads, starts the first pending step whose planned inputs finished,
    while fewer than `max_parallel` run and none failed. Its work writes into `steps/<model>/`,
-   copied batch by batch into a fresh candidate, then completed. A panic fails its step; the
-   first failed step in plan order is returned.
+   copied batch by batch into a fresh candidate's `result.arrow.tmp`, renamed, then
+   completed. A panic fails its step; the first failed step in plan order is returned.
 3. Not yet: a lock for concurrent runs, the input of a step skipped for a gold result (0.5).
 
 ## Dependencies

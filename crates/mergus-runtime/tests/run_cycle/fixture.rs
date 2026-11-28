@@ -8,8 +8,8 @@ use std::sync::{Arc, Mutex};
 
 use arrow::datatypes::{DataType, Field, Schema, SchemaRef};
 use mergus_plan::{Cleared, Gate, GateCheck, GateInput, Plan, PlanRequest, evaluate};
-use mergus_ports::FileSystem;
 use mergus_ports::real::{RealDatabase, RealSqlParser};
+use mergus_ports::{FileSystem, PortError, SeekRead};
 use mergus_runtime::{
     ModelWork, ReadPorts, ReadProject, SqlInput, SqlWork, StepContext, StepFailure, Work,
     plan_project, read_project,
@@ -236,4 +236,59 @@ pub fn fingerprint(plan: &Plan, model: &str) -> String {
         .unwrap()
         .fingerprint
         .clone()
+}
+
+/// The simulated file system, crashing once right after it renames a file named `file`.
+#[cfg(test)]
+pub struct CrashAfter<'a> {
+    pub inner: &'a SimFileSystem,
+    pub file: &'static str,
+    pub armed: std::sync::atomic::AtomicBool,
+}
+
+#[cfg(test)]
+impl FileSystem for CrashAfter<'_> {
+    fn read(&self, path: &Path) -> Result<Vec<u8>, PortError> {
+        self.inner.read(path)
+    }
+
+    fn open(&self, path: &Path) -> Result<Box<dyn SeekRead>, PortError> {
+        self.inner.open(path)
+    }
+
+    fn create(&self, path: &Path) -> Result<Box<dyn std::io::Write + Send>, PortError> {
+        self.inner.create(path)
+    }
+
+    fn write(&self, path: &Path, contents: &[u8]) -> Result<(), PortError> {
+        self.inner.write(path, contents)
+    }
+
+    fn remove_file(&self, path: &Path) -> Result<(), PortError> {
+        self.inner.remove_file(path)
+    }
+
+    fn remove_dir_all(&self, path: &Path) -> Result<(), PortError> {
+        self.inner.remove_dir_all(path)
+    }
+
+    fn rename(&self, from: &Path, to: &Path) -> Result<(), PortError> {
+        let named = to.file_name().is_some_and(|name| name == self.file);
+        if named && self.armed.swap(false, Ordering::SeqCst) {
+            self.inner.crash_after_next_rename();
+        }
+        self.inner.rename(from, to)
+    }
+
+    fn create_dir_all(&self, path: &Path) -> Result<(), PortError> {
+        self.inner.create_dir_all(path)
+    }
+
+    fn list_dir(&self, path: &Path) -> Result<Vec<PathBuf>, PortError> {
+        self.inner.list_dir(path)
+    }
+
+    fn exists(&self, path: &Path) -> Result<bool, PortError> {
+        self.inner.exists(path)
+    }
 }

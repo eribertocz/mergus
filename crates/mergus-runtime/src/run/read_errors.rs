@@ -15,15 +15,18 @@ pub struct FileErrors {
 }
 
 /// The rank of a file's top entry in the layout of a project: `project.toml`, `ids.toml`,
-/// `models/`, `sources/`, `seeds/`, then every other file (#298).
+/// `sources/`, `models/`, `macros/`, `lib/`, `seeds/`, `contracts/`, then every other file.
 fn top_rank(path: &str) -> u8 {
     match path.split('/').next() {
         Some("project.toml") => 0,
         Some("ids.toml") => 1,
-        Some("models") => 2,
-        Some("sources") => 3,
-        Some("seeds") => 4,
-        _ => 5,
+        Some("sources") => 2,
+        Some("models") => 3,
+        Some("macros") => 4,
+        Some("lib") => 5,
+        Some("seeds") => 6,
+        Some("contracts") => 7,
+        _ => 8,
     }
 }
 
@@ -65,20 +68,20 @@ mod tests {
 
     #[test]
     fn paths_follow_the_layout() {
-        assert_eq!(
-            layout_order("models/b.sql", "sources/a.toml"),
-            Ordering::Less
-        );
-        assert_eq!(
-            layout_order("sources/a.toml", "seeds/a.csv"),
-            Ordering::Less
-        );
-        assert_eq!(layout_order("project.toml", "ids.toml"), Ordering::Less);
-        assert_eq!(layout_order("ids.toml", "models/a.sql"), Ordering::Less);
-        assert_eq!(layout_order("seeds/a.csv", "macros/a.sql"), Ordering::Less);
-        assert_eq!(
-            layout_order("models/a/z.sql", "models/b.sql"),
-            Ordering::Less
-        );
+        let order = [
+            "project.toml",
+            "ids.toml",
+            "sources/a.toml",
+            "models/a/z.sql",
+            "models/b.sql",
+            "macros/a.sql",
+            "lib/a.py",
+            "seeds/a.csv",
+            "contracts/a.json",
+            "other.txt",
+        ];
+        for pair in order.windows(2) {
+            assert_eq!(layout_order(pair[0], pair[1]), Ordering::Less, "{pair:?}");
+        }
     }
 }

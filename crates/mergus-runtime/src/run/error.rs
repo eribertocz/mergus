@@ -20,9 +20,17 @@ pub struct StepFailure {
 #[derive(Clone, Debug, PartialEq, Eq, thiserror::Error)]
 #[non_exhaustive]
 pub enum RunError {
-    /// The scratch directory or a candidate could not be read, written or removed
-    /// (MG-REQ-0503, MG-REQ-0705).
-    #[error("the work zone cannot be used at `{path}`: {message}")]
+    /// The run's scratch directory could not be created, written or removed (MG-REQ-0503).
+    #[error("the scratch directory cannot be used at `{path}`: {message}")]
+    Scratch {
+        /// The path, relative to the project root when it lies inside it.
+        path: String,
+        /// What the file system reported.
+        message: String,
+    },
+    /// A candidate could not be read, written, renamed or removed (MG-REQ-0705,
+    /// MG-REQ-0707).
+    #[error("a candidate cannot be used at `{path}`: {message}")]
     Work {
         /// The path, relative to the project root when it lies inside it.
         path: String,
@@ -55,6 +63,7 @@ impl RunError {
     #[must_use]
     pub fn code(&self) -> Option<&'static str> {
         match self {
+            Self::Scratch { .. } => Some("MG-0508"),
             Self::Work { .. } => Some("MG-0704"),
             Self::Extraction(failure) | Self::Step(failure) => failure.code,
             Self::NoWork(_) | Self::Unordered(_) | Self::Panicked(_) | Self::RunId(_) => None,
@@ -63,10 +72,27 @@ impl RunError {
 
     /// The [`RunError::Work`] of `error` at `path`, shown relative to `root`.
     pub(crate) fn work(root: &Path, path: &Path, error: &PortError) -> Self {
-        let shown = path.strip_prefix(root).unwrap_or(path);
         Self::Work {
-            path: shown.display().to_string().replace('\\', "/"),
+            path: shown(root, path),
             message: error.to_string(),
         }
     }
+
+    /// The [`RunError::Scratch`] of `error` at `path`, shown relative to `root`.
+    pub(crate) fn scratch(root: &Path, path: &Path, error: &PortError) -> Self {
+        Self::Scratch {
+            path: shown(root, path),
+            message: error.to_string(),
+        }
+    }
+}
+
+/// `path` relative to `root` when it lies inside it, separated by `/`.
+fn shown(root: &Path, path: &Path) -> String {
+    let relative = path.strip_prefix(root).unwrap_or(path);
+    let parts: Vec<String> = relative
+        .components()
+        .map(|part| part.as_os_str().to_string_lossy().into_owned())
+        .collect();
+    parts.join("/")
 }

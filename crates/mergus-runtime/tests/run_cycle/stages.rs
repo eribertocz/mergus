@@ -144,11 +144,16 @@ fn mg_req_0702_all_errors_reported_together() {
         ("models/b_orders.sql", "SELECT * FROM missing_one"),
         ("models/a_orders.sql", "SELECT 1 AS id"),
         ("models/Bad-Name.sql", "SELECT 1 AS id"),
+        ("sources/erp.toml", "unknown = 1\n"),
     ]);
-    // The layout is read before `project.toml`, but `project.toml` comes first in it.
+    // The layout is read before the configuration, but `project.toml` and `sources/` come
+    // before `models/` in it.
     let groups = errors_of(&files);
     let paths: Vec<&str> = groups.iter().map(|(path, _)| path.as_str()).collect();
-    assert_eq!(paths, ["project.toml", "models/Bad-Name.sql"]);
+    assert_eq!(
+        paths,
+        ["project.toml", "sources/erp.toml", "models/Bad-Name.sql"]
+    );
     let lines: Vec<Option<usize>> = groups[0].1.iter().map(ProjectError::line).collect();
     assert_eq!(lines, [Some(2), Some(3)]);
 

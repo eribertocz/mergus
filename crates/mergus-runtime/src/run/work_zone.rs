@@ -24,7 +24,7 @@ pub(crate) fn open_scratch(
         return Err(RunError::RunId(run_id.to_owned()));
     }
     let runs = under(root, RUNS);
-    let failed = |path: &Path, error: PortError| RunError::work(root, path, &error);
+    let failed = |path: &Path, error: PortError| RunError::scratch(root, path, &error);
     files
         .create_dir_all(&runs)
         .map_err(|error| failed(&runs, error))?;
@@ -57,7 +57,7 @@ pub(crate) fn remove_scratch(
     root: &Path,
     scratch: &Path,
 ) -> Result<(), RunError> {
-    let failed = |error: PortError| RunError::work(root, scratch, &error);
+    let failed = |error: PortError| RunError::scratch(root, scratch, &error);
     if files.exists(scratch).map_err(failed)? {
         files.remove_dir_all(scratch).map_err(failed)?;
     }
@@ -78,6 +78,7 @@ pub(crate) fn remove_entry(files: &dyn FileSystem, entry: &Path) -> Result<(), P
 mod tests {
     use std::path::Path;
 
+    use mergus_ports::FileSystem;
     use mergus_sim::SimFileSystem;
 
     use super::open_scratch;
@@ -97,5 +98,20 @@ mod tests {
         let scratch = open_scratch(&files, root, "0193a").unwrap();
         let expected = root.join(".mergus").join("work").join("runs").join("0193a");
         assert_eq!(scratch, expected);
+    }
+
+    #[test]
+    fn mg_req_0503_an_unusable_scratch_directory_is_mg_0508() {
+        let files = SimFileSystem::new();
+        let root = Path::new("/p");
+        let work = root.join(".mergus").join("work");
+        files.create_dir_all(&work).unwrap();
+        files.write(&work.join("runs"), b"a file").unwrap();
+        let failed = open_scratch(&files, root, "0193a").unwrap_err();
+        assert_eq!(failed.code(), Some("MG-0508"));
+        assert!(
+            failed.to_string().contains("`.mergus/work/runs`"),
+            "{failed}"
+        );
     }
 }

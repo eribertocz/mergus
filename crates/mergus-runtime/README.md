@@ -60,10 +60,10 @@ Run cycle and scheduling; wires ports to crates.
 
 - Runs the cycle of a run (MG-REQ-0701): stage 1, `read_project`, reads the project and
   returns every error at once, grouped by file in the order of the layout (`project.toml`,
-  `ids.toml`, `models/`, `sources/`, `seeds/`, then the other files), each file's errors by
-  line (MG-REQ-0702); a cycle between models, `.sql` or `.py`, is one error listing them in
-  reference order (MG-REQ-0703). Stages 2
-  and 3, `plan_project`, plan it with `mergus-plan`; stage 4 is `mergus_plan::evaluate`.
+  `ids.toml`, `sources/`, `models/`, `macros/`, `lib/`, `seeds/`, `contracts/`, then the
+  other files), each file's errors by line (MG-REQ-0702); a cycle between models, `.sql` or
+  `.py`, is one error listing them in reference order (MG-REQ-0703). Stages 2 and 3,
+  `plan_project`, plan it with `mergus-plan`; stage 4 is `mergus_plan::evaluate`.
   None of them reads or writes table data.
 - `Run` keeps the work zone of a run. `Run::begin` deletes every scratch directory left in
   `.mergus/work/runs/`, creates `.mergus/work/runs/<run_id>/` and deletes incomplete
@@ -75,10 +75,11 @@ Run cycle and scheduling; wires ports to crates.
   step it reads has finished, at most the plan's `max_parallel` at once; a `skip` step runs
   nothing and its input is its candidate (MG-REQ-0704). Each step runs its `ModelWork`, such
   as `SqlWork`, one DuckDB segment, into its scratch directory; the rows are then copied into
-  `.mergus/work/candidates/<fingerprint>/result.arrow`, and the candidate is complete once
-  `complete.json`, with its fingerprint, run id and rows, is written to
-  `complete.json.tmp` and renamed (MG-REQ-0705.1). Nothing else reads the candidates
-  (MG-REQ-0705.2). A failure of the work zone is `MG-0704`.
+  `.mergus/work/candidates/<fingerprint>/result.arrow.tmp` and renamed to `result.arrow`, and
+  the candidate is complete once `complete.json`, with its fingerprint, run id and rows, is
+  written to `complete.json.tmp` and renamed (MG-REQ-0705.1). Nothing else reads the
+  candidates (MG-REQ-0705.2). A failure of a candidate is `MG-0704`, of the scratch
+  directory `MG-0508`.
 - A `CancelToken` is checked before each extraction and each segment, and between the batches
   copied into a candidate; a cancelled stage 5 ends `Cancelled`, exit code 7. `Run::finish`
   deletes the incomplete candidates and the scratch directory whether the run succeeded,
