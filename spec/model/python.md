@@ -28,7 +28,11 @@ def sales_by_segment(in_usd):
 ### MG-REQ-0611 · Read without importing
 
 Mergus MUST read a `.py` model by parsing its syntax tree, without importing or executing
-it, to find its functions, parameters, return kinds and literal SQL.
+it, to find its functions, parameters, return kinds and literal SQL:
+
+1. MG-REQ-0611.1: a syntax error in a model file or in a `lib/*.py` file is a validation error
+   with the next free `MG-06xx` code and exit code 1. It names the file, the line and the
+   column, and gives Python's message.
 
 - Kind: behavior
 - Verify: test `mg_req_0611_python_parsed_not_imported`
@@ -55,7 +59,8 @@ variables or f-strings, MUST be a validation error:
    SQL. Any other expression is Polars, confirmed when the step runs (MG-REQ-0617.4).
 2. MG-REQ-0613.2: the following are each a validation error with the next free `MG-06xx` code
    and exit code 1, naming the step and the line:
-   - a return of an f-string, of a `+` or `%` expression, or of a bare variable name;
+   - a return of an f-string, of any binary operation (a LazyFrame has no binary operator that
+     returns a LazyFrame), or of a bare variable name;
    - a return of a `.format(...)` call on a string literal, that is a call named `format`
      whose receiver is a literal, on the return's line;
    - a return of `None`, or a step with no `return`;
@@ -73,9 +78,11 @@ seed, in that order of precedence. Raw tables and seeds are named without the sc
 1. MG-REQ-0614.1: the closest match is the known name with the smallest edit distance
    (Levenshtein), ties broken by name order. A name farther than 3 edits from every known name
    gets no suggestion. The error has the next free `MG-06xx` code and exit code 1.
-2. MG-REQ-0614.2: a `*args` or `**kwargs` parameter, a parameter with a default value, and a
-   cycle between steps of one file are each a validation error with its own next free `MG-06xx`
-   code and exit code 1. A step's parameter never resolves to the step itself.
+2. MG-REQ-0614.2: a `*args` or `**kwargs` parameter, a positional-only parameter (before `/`,
+   since Mergus passes every input by keyword) and a cycle between steps of one file are
+   each a validation error with its own next free `MG-06xx` code and exit code 1. A step's
+   parameter never resolves to the step itself. A default value is allowed and never used,
+   because Mergus passes every parameter.
 
 - Kind: behavior
 - Verify: test `mg_req_0614_parameters_resolve_inputs`
