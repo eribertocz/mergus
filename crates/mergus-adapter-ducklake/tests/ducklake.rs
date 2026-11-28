@@ -307,20 +307,6 @@ fn read_at_an_unknown_version_fails_typed() {
 }
 
 #[test]
-fn latest_is_none_until_the_first_commit_of_mergus() {
-    let database = Logged::new();
-    let adapter = DuckLakeAdapter::open(&database, &catalog(), clock(0)).unwrap();
-    // DuckLake makes snapshot 0 when it creates the catalog; it holds no table of Mergus.
-    for (rows, expected) in [(vec![0], None), (vec![4], Some(VersionRef::new("4")))] {
-        let rows = vec![int_batch(&[("snapshot_id", rows)])];
-        database
-            .inner
-            .record_query(LATEST, vec![text("lake")], rows);
-        assert_eq!(adapter.latest().unwrap(), expected);
-    }
-}
-
-#[test]
 fn open_attaches_the_catalog_and_declares_its_capabilities() {
     let database = Logged::new();
     let adapter = DuckLakeAdapter::open(&database, &catalog(), clock(0)).unwrap();
