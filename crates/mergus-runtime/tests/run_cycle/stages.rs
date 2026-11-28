@@ -13,12 +13,14 @@ use mergus_runtime::{ReadError, ReadPorts, read_project};
 use crate::fixture::{COUNT, cleared, orders, plan, project, read, root};
 
 /// A file system that records every path it is asked about.
+#[cfg(test)]
 struct Watched<'a> {
     inner: &'a dyn FileSystem,
     reads: Mutex<Vec<PathBuf>>,
     writes: Mutex<Vec<PathBuf>>,
 }
 
+#[cfg(test)]
 impl Watched<'_> {
     fn read_at(&self, path: &Path) {
         self.reads.lock().unwrap().push(path.to_path_buf());
@@ -29,6 +31,7 @@ impl Watched<'_> {
     }
 }
 
+#[cfg(test)]
 impl FileSystem for Watched<'_> {
     fn read(&self, path: &Path) -> Result<Vec<u8>, PortError> {
         self.read_at(path);
@@ -118,6 +121,7 @@ fn mg_req_0701_stages_one_to_four_touch_no_data() {
     }
 }
 
+#[cfg(test)]
 fn errors_of(files: &dyn FileSystem) -> Vec<(String, Vec<ProjectError>)> {
     let parser = RealSqlParser::new();
     let ports = ReadPorts {
