@@ -1,5 +1,6 @@
 //! Stage 1: reads the project and finds every error in one pass, grouped by file
-//! (MG-REQ-0701, MG-REQ-0702), a cycle between models among them (MG-REQ-0703).
+//! (MG-REQ-0701, MG-REQ-0702), a cycle between models among them, which `mergus-project`
+//! finds over `.sql` and `.py` models in one pass (MG-REQ-0375, MG-REQ-0703).
 
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
@@ -7,14 +8,12 @@ use std::path::{Path, PathBuf};
 use mergus_ports::{Database, FileSystem, Python, SqlParser};
 use mergus_project::{
     Configuration, Identifier, Identifiers, KnownTables, Layout, LayoutError, Macros,
-    ModelLanguage, ModelOptions, ProjectError, Renames, Seeds, read_configuration, read_layout,
-    read_macros, read_model_options, read_python_lib, read_renames, read_seeds,
-    read_sql_references,
+    ModelLanguage, ModelOptions, ProjectError, PythonModel, Renames, Seeds, read_configuration,
+    read_layout, read_macros, read_model_options, read_model_references, read_python_lib,
+    read_renames, read_seeds,
 };
 
-use super::read_cycles::{Graph, Node, cycles, reference_line};
 use super::read_errors::{FileErrors, group};
-use super::read_python::python_inputs;
 
 /// The ports stage 1 reads through. Without `python`, `.py` models are not read; without
 /// `database`, `macros/` is not.
@@ -70,9 +69,6 @@ pub enum ReadError {
     #[error(transparent)]
     Unreadable(LayoutError),
 }
-
-/// The inputs of each `.py` model read, with the line of each reference.
-type PythonInputs = Vec<(String, BTreeMap<String, usize>)>;
 
 /// Collects the errors of each pass of stage 1.
 struct Passes {
@@ -169,15 +165,13 @@ fn find(ports: &ReadPorts<'_>, root: &Path, passes: &mut Passes) -> Result<Found
         found.identifiers = Some(identifiers(renames, options, passes));
     }
     if let (Some(layout), Some(configuration)) = (&found.layout, &found.configuration) {
-        let sql = read_sql_references(files, root, layout, configuration, ports.parser);
-        let sql = passes.take(sql)?;
+        let python = read_python(ports, root, layout, configuration, passes)?;
+        let references =
+            read_model_references(files, root, layout, configuration, ports.parser, &python);
+        found.references = passes.take(references)?;
         if let Some(seeds) = passes.take(read_seeds(files, root, configuration))? {
             passes.errors.extend(seeds.problems.iter().cloned());
             found.seeds = Some(seeds);
-        }
-        let python = read_python(ports, root, layout, configuration, passes)?;
-        if let Some(sql) = sql {
-            found.references = Some(references(ports, root, layout, sql, python, passes)?);
         }
     }
     found.macros = match ports.database {
@@ -205,53 +199,15 @@ fn identifiers(
     assigned
 }
 
-/// The inputs of every model, `.sql` and `.py`; a cycle through a `.py` model goes to
-/// `passes` (MG-REQ-0703).
-fn references(
-    ports: &ReadPorts<'_>,
-    root: &Path,
-    layout: &Layout,
-    sql: BTreeMap<String, Vec<String>>,
-    python: PythonInputs,
-    passes: &mut Passes,
-) -> Result<BTreeMap<String, Vec<String>>, ReadError> {
-    if python.is_empty() {
-        // Without a `.py` model, `read_sql_references` has found every cycle already.
-        return Ok(sql);
-    }
-    let python: BTreeMap<String, BTreeMap<String, usize>> = python.into_iter().collect();
-    let mut graph = Graph::new();
-    for model in &layout.models {
-        let reads = match python.get(&model.name) {
-            Some(inputs) => inputs.clone(),
-            None => {
-                let text = read_text(ports.files, root, &model.path)?;
-                let inputs = sql.get(&model.name).into_iter().flatten();
-                inputs
-                    .map(|input| (input.clone(), reference_line(&text, input)))
-                    .collect()
-            }
-        };
-        let path = model.path.clone();
-        graph.insert(model.name.clone(), Node { path, reads });
-    }
-    passes.errors.extend(cycles(&graph));
-    let mut references = sql;
-    for (name, inputs) in python {
-        references.insert(name, inputs.into_keys().collect());
-    }
-    Ok(references)
-}
-
-/// Reads `lib/` and every `.py` model, when the Python port is given, and returns the
-/// inputs of each valid model by name.
+/// Reads `lib/` and every `.py` model, when the Python port is given, and returns each
+/// valid model.
 fn read_python(
     ports: &ReadPorts<'_>,
     root: &Path,
     layout: &Layout,
     configuration: &Configuration,
     passes: &mut Passes,
-) -> Result<PythonInputs, ReadError> {
+) -> Result<Vec<PythonModel>, ReadError> {
     let Some(python) = ports.python else {
         return Ok(Vec::new());
     };
@@ -259,7 +215,7 @@ fn read_python(
         return Ok(Vec::new());
     };
     let known = KnownTables::new(layout, configuration);
-    let mut inputs = Vec::new();
+    let mut models = Vec::new();
     for model in &layout.models {
         if model.language != ModelLanguage::Python {
             continue;
@@ -270,10 +226,10 @@ fn read_python(
             .map_err(|error| ReadError::Unreadable(LayoutError::Port(error)))?;
         let read = mergus_project::read_python_model(&model.path, &bytes, &known, &lib, python);
         if let Some(read) = passes.take(read)? {
-            inputs.push((model.name.clone(), python_inputs(&read)));
+            models.push(read);
         }
     }
-    Ok(inputs)
+    Ok(models)
 }
 
 /// The text of the file at `path`, relative to `root`.

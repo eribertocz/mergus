@@ -1,19 +1,47 @@
 //! Tests of the rejection of reference cycles between models (MG-REQ-0375). The trees are
-//! written by hand in the shape `json_serialize_sql` gives: only the nodes the walk reads.
+//! written by hand in the shape `json_serialize_sql` gives: only the nodes the walk reads, so
+//! a word in a comment or a string literal is no table, as in DuckDB's tree.
 
 use std::path::Path;
 
 use mergus_ports::FileSystem;
+use std::collections::BTreeMap;
+
 use mergus_project::{
-    ConfigFile, Configuration, Layout, LayoutError, Model, ModelLanguage, ProjectError,
-    Publication, read_sql_references,
+    ConfigFile, Configuration, InputSource, Layout, LayoutError, Model, ModelLanguage,
+    ProjectError, Publication, PythonModel, PythonStep, StepEngine, StepInput,
+    read_model_references,
 };
 use mergus_sim::{SimFileSystem, SimSqlParser};
 use serde_json::{Value, json};
 
-/// The path of the model `name`.
+/// The path of the model `name`: a `.py` model when its name starts with `py_`.
 fn path(name: &str) -> String {
-    format!("models/staging/{name}.sql")
+    let extension = if name.starts_with("py_") { "py" } else { "sql" };
+    format!("models/staging/{name}.{extension}")
+}
+
+/// The `.py` model `name` of one step named like it, whose parameters are `inputs`: each a
+/// model it reads and the line of the parameter.
+fn python(name: &str, inputs: &[(&str, usize)]) -> PythonModel {
+    PythonModel {
+        path: path(name),
+        name: name.to_owned(),
+        steps: vec![PythonStep {
+            name: name.to_owned(),
+            line: 1,
+            engine: StepEngine::Polars,
+            inputs: inputs
+                .iter()
+                .map(|(model, line)| StepInput {
+                    parameter: (*model).to_owned(),
+                    line: *line,
+                    source: InputSource::Model((*model).to_owned()),
+                })
+                .collect(),
+        }],
+        lib_inputs: BTreeMap::new(),
+    }
 }
 
 /// A base-table node of `table` at the byte offset `offset`.
@@ -55,6 +83,12 @@ fn tree(text: &str) -> String {
 /// Reads the references of a project whose `.sql` models are `models`: each a name and its
 /// text.
 fn read(models: &[(&str, &str)]) -> Result<Vec<String>, LayoutError> {
+    read_with(models, &[])
+}
+
+/// Reads the references of a project whose `.sql` models are `models`, each a name and its
+/// text, and whose `.py` models are `python`.
+fn read_with(models: &[(&str, &str)], python: &[PythonModel]) -> Result<Vec<String>, LayoutError> {
     let fs = SimFileSystem::new();
     let parser = SimSqlParser::new();
     let mut layout = Layout { models: Vec::new() };
@@ -72,6 +106,14 @@ fn read(models: &[(&str, &str)]) -> Result<Vec<String>, LayoutError> {
             publication: Publication::Intermediate,
         });
     }
+    for model in python {
+        layout.models.push(Model {
+            name: model.name.clone(),
+            path: model.path.clone(),
+            language: ModelLanguage::Python,
+            publication: Publication::Intermediate,
+        });
+    }
     let value = json!({"name": "shop"});
     let configuration = Configuration {
         project: ConfigFile {
@@ -81,7 +123,8 @@ fn read(models: &[(&str, &str)]) -> Result<Vec<String>, LayoutError> {
         },
         sources: Vec::new(),
     };
-    let found = read_sql_references(&fs, Path::new("/project"), &layout, &configuration, &parser)?;
+    let root = Path::new("/project");
+    let found = read_model_references(&fs, root, &layout, &configuration, &parser, python)?;
     Ok(found.into_keys().collect())
 }
 
@@ -131,15 +174,54 @@ fn mg_req_0375_model_cycle_rejected() {
     let found = read(&[("cyc", "SELECT *\nFROM CYC"), ("ok", "SELECT *\nFROM cyc")]);
     assert_eq!(found, Err(LayoutError::Invalid(vec![cycle(&[("cyc", 2)])])));
 
-    // Models without a cycle are listed.
+    assert_cycle_through_python();
+    assert_no_reference_in_comment_or_literal();
+
+    assert_no_cycle_listed();
+}
+
+/// A cycle through a `.py` model is found in the same pass as the `.sql` ones (MG-REQ-0375.1).
+fn assert_cycle_through_python() {
+    // A cycle through a `.py` model, found in the same pass: the line of a `.py` reference
+    // is the line of its parameter, not of its `def`.
+    let found = read_with(
+        &[("a", "SELECT *\n\nFROM py_b")],
+        &[python("py_b", &[("a", 4)])],
+    );
+    let expected = cycle(&[("a", 3), ("py_b", 4)]);
+    assert_eq!(found, Err(LayoutError::Invalid(vec![expected])));
+}
+
+/// A word in a comment or a string literal is no reference (MG-REQ-0375.2).
+fn assert_no_reference_in_comment_or_literal() {
+    // A comment and a string literal that name the next model before the real reference are
+    // no reference: the line is the one of the parsed table name.
     let found = read(&[
-        ("x", "SELECT *\nFROM y\nJOIN z"),
-        ("y", "SELECT *\nFROM z"),
-        ("z", "SELECT 1"),
+        ("n_a", "-- reads n_b\nSELECT 'n_b' AS note\nFROM n_b"),
+        ("n_b", "SELECT *\nFROM n_a"),
     ]);
+    let expected = cycle(&[("n_a", 3), ("n_b", 2)]);
+    assert_eq!(found, Err(LayoutError::Invalid(vec![expected])));
+}
+
+/// Models without a cycle are listed, `.py` models among them.
+fn assert_no_cycle_listed() {
+    let found = read_with(
+        &[
+            ("x", "SELECT *\nFROM y\nJOIN z"),
+            ("y", "SELECT *\nFROM z"),
+            ("z", "SELECT 1"),
+        ],
+        &[python("py_w", &[("x", 2)])],
+    );
     assert_eq!(
         found,
-        Ok(vec!["x".to_owned(), "y".to_owned(), "z".to_owned()])
+        Ok(vec![
+            "py_w".to_owned(),
+            "x".to_owned(),
+            "y".to_owned(),
+            "z".to_owned()
+        ])
     );
 }
 

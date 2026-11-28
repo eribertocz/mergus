@@ -249,3 +249,39 @@ fn mg_req_0703_cycle_through_python_reported_in_order() {
     };
     assert_eq!(errors, [&expected]);
 }
+
+/// The text and the tree the real `Python` port gives of `models/b.py`, whose parameter `a`
+/// sits on line 3, below its `def`.
+const B_PY_LONG: &str = "def b(\n    *,\n    a,\n):\n    return \"SELECT * FROM a\"\n";
+const B_TREE_LONG: &str = r#"{"calls":[],"functions":[{"async":false,"column":1,"line":1,"name":"b","parameters":[{"column":5,"kind":"keyword_only","line":3,"name":"a"}],"returns":[{"column":5,"kind":"string","line":5,"value":"SELECT * FROM a"}]}],"imports":[],"version":1}"#;
+
+#[test]
+fn mg_req_0375_cycle_lines_exact_when_read() {
+    // A comment and a string literal name `b` before the real reference on line 3.
+    let files = project(&[
+        ("project.toml", "name = \"sales\"\n"),
+        ("models/a.sql", "-- reads b\nSELECT 'b' AS note, *\nFROM b"),
+        ("models/b.py", B_PY_LONG),
+    ]);
+    let python = SimPython::new();
+    python.record(B_PY_LONG, B_TREE_LONG);
+    let parser = RealSqlParser::new();
+    let ports = ReadPorts {
+        files: &files,
+        parser: &parser,
+        python: Some(&python),
+        database: None,
+    };
+    let Err(ReadError::Invalid(groups)) = read_project(&ports, root()) else {
+        panic!("the cycle is not reported");
+    };
+    let errors: Vec<&ProjectError> = groups.iter().flat_map(|group| &group.errors).collect();
+    let expected = ProjectError::ModelCycle {
+        models: vec!["a".to_owned(), "b".to_owned()],
+        references: vec![
+            ("models/a.sql".to_owned(), 3),
+            ("models/b.py".to_owned(), 3),
+        ],
+    };
+    assert_eq!(errors, [&expected]);
+}
