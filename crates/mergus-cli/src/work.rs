@@ -64,6 +64,8 @@ pub(crate) fn work<'a>(
     Ok(Ok(Work {
         extractions: Vec::new(),
         models,
+        // #307 measures the DuckLake files the plan reads; until then nothing is counted.
+        bytes_scanned: 0,
     }))
 }
 

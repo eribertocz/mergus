@@ -15,8 +15,8 @@ use mergus_plan::{
 use mergus_ports::Database;
 use mergus_project::RunParameters;
 use mergus_runtime::{
-    Executed, ReadError, ReadPorts, ReadProject, Run, RunError, plan_models, plan_project,
-    read_project,
+    Executed, Limits, ReadError, ReadPorts, ReadProject, Run, RunError, RunReport, plan_models,
+    plan_project, read_project,
 };
 
 use crate::args::Invocation;
@@ -60,11 +60,13 @@ pub(crate) fn run(
         Ok(read) => read,
         Err(diagnostics) => return Ok((exit::SUCCESS, diagnostics)),
     };
-    let cycle = Run::begin(
+    let cycle = Run::begin_with_limits(
         ports.files,
         &project.root,
         output.run_id(),
         ports.cancel.clone(),
+        Limits::default(),
+        ports.clock,
     );
     let cycle = match cycle {
         Ok(cycle) => cycle,
@@ -75,16 +77,50 @@ pub(crate) fn run(
         database,
         parameters: parameters(ports),
     };
-    let result = stages(&context, &project, &read, &request, &cycle, output);
-    let finished = cycle.finish();
-    let (code, mut diagnostics) = result?;
-    if let Err(error) = finished {
-        // MG-REQ-0709: a failure of the finalizer is a warning after the run's own error.
-        let mut warning = of_run(&error)?;
+    // A run that ends before stage 5 is finalized when `cycle` is dropped (MG-REQ-0709.1).
+    let (plan, outcome) = match stages(&context, &project, &read, &request, &cycle, output)? {
+        Staged::Refused(diagnostics) => return Ok((exit::SUCCESS, diagnostics)),
+        Staged::Ran { plan, outcome } => (plan, outcome),
+    };
+    ended(&cycle.finish(outcome), &plan, output)
+}
+
+/// The exit code and the diagnostics of the run `report` of `plan`, after its human summary
+/// (MG-REQ-0710.3); the finalizer's failures are warnings after the run's own error
+/// (MG-REQ-0709.2).
+fn ended(
+    report: &RunReport,
+    plan: &Plan,
+    output: &mut Output<'_>,
+) -> Result<(u8, Vec<Diagnostic>), CliError> {
+    let (code, mut diagnostics) = match &report.outcome {
+        Ok(Executed::Finished { .. }) => {
+            output.report(&summary(plan))?;
+            (exit::SUCCESS, Vec::new())
+        }
+        Ok(Executed::Cancelled) => {
+            output.report("run cancelled; nothing was published\n")?;
+            (exit::CANCELLED, Vec::new())
+        }
+        Err(error) => (exit::SUCCESS, vec![of_run(error)?]),
+    };
+    for error in &report.warnings {
+        let mut warning = of_run(error)?;
         warning.warning = true;
         diagnostics.push(warning);
     }
     Ok((code, diagnostics))
+}
+
+/// How stages 2 to 5 ended.
+enum Staged {
+    /// Stages 2 to 4 refused the run, with these diagnostics; nothing was executed.
+    Refused(Vec<Diagnostic>),
+    /// Stage 5 ran the plan, with this outcome.
+    Ran {
+        plan: Box<Plan>,
+        outcome: Result<Executed, RunError>,
+    },
 }
 
 /// Stages 2 to 5 inside the run cycle `cycle`, which the caller finishes.
@@ -95,38 +131,32 @@ fn stages(
     request: &PlanRequest,
     cycle: &Run<'_>,
     output: &mut Output<'_>,
-) -> Result<(u8, Vec<Diagnostic>), CliError> {
+) -> Result<Staged, CliError> {
     let plan = match plan_project(read, request, cycle.available()) {
         Ok(plan) => plan,
         Err(PlanError::Refresh(errors)) => {
-            return Ok((exit::SUCCESS, refresh_diagnostics(project, &errors)));
+            return Ok(Staged::Refused(refresh_diagnostics(project, &errors)));
         }
         Err(error) => return Err(CliError::Internal(error.to_string())),
     };
     let cleared = match gates(read)? {
         Ok(cleared) => cleared,
-        Err(diagnostics) => return Ok((exit::SUCCESS, diagnostics)),
+        Err(diagnostics) => return Ok(Staged::Refused(diagnostics)),
     };
     let mut work = match work(context, read, &plan)? {
         Ok(work) => work,
-        Err(diagnostics) => return Ok((exit::SUCCESS, diagnostics)),
+        Err(diagnostics) => return Ok(Staged::Refused(diagnostics)),
     };
     let adopted = match cycle.adopt(&plan) {
         Ok(adopted) => adopted,
-        Err(error) => return Ok((exit::SUCCESS, vec![of_run(&error)?])),
+        Err(error) => return Ok(Staged::Refused(vec![of_run(&error)?])),
     };
     output.plan_ready(steps(&plan))?;
-    match cycle.execute(&adopted, &cleared, &mut work) {
-        Ok(Executed::Finished { .. }) => {
-            output.report(&summary(&plan))?;
-            Ok((exit::SUCCESS, Vec::new()))
-        }
-        Ok(Executed::Cancelled) => {
-            output.report("run cancelled; nothing was published\n")?;
-            Ok((mergus_runtime::CANCELLED_EXIT_CODE, Vec::new()))
-        }
-        Err(error) => Ok((exit::SUCCESS, vec![of_run(&error)?])),
-    }
+    let outcome = cycle.execute(&adopted, &cleared, &mut work);
+    Ok(Staged::Ran {
+        plan: Box::new(plan),
+        outcome,
+    })
 }
 
 /// The plan request of `invocation`: the selection, or the backfilled model and its range
