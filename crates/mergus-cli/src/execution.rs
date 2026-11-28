@@ -12,11 +12,11 @@ use mergus_plan::{
     Backfill, Cleared, Gate, GateCheck, GateInput, Instant, Plan, PlanError, PlanRequest,
     determinism, evaluate, type_passport,
 };
-use mergus_ports::Database;
+use mergus_ports::{Database, Python};
 use mergus_project::RunParameters;
 use mergus_runtime::{
-    Executed, ReadError, ReadPorts, ReadProject, Run, RunError, RunReport, plan_models,
-    plan_project, read_project,
+    Executed, RUNS, ReadError, ReadPorts, ReadProject, Run, RunError, RunReport, child_environment,
+    plan_models, plan_project, read_project,
 };
 
 use crate::args::Invocation;
@@ -58,7 +58,8 @@ pub(crate) fn run(
     };
     let request = request(ports, invocation, &project)?;
     let database = ports.database.ok_or(CliError::NoDatabase)?;
-    let read = match read_stage(ports, database, &project.root)? {
+    let python = interpreter(ports, &project, output.run_id())?;
+    let read = match read_stage(ports, database, python.as_deref(), &project.root)? {
         Ok(read) => read,
         Err(diagnostics) => return Ok((exit::SUCCESS, diagnostics)),
     };
@@ -77,6 +78,8 @@ pub(crate) fn run(
     let context = Context {
         ports,
         database,
+        python: python.as_deref(),
+        scratch: cycle.scratch().to_path_buf(),
         parameters: parameters(ports),
     };
     // A run that ends before stage 5 is finalized when `cycle` is dropped (MG-REQ-0709.1).
@@ -251,16 +254,48 @@ fn date(option: &'static str, given: &str) -> Result<Instant, CliError> {
     Instant::from_date(year, month, day).ok_or_else(invalid)
 }
 
+/// The Python of the Polars steps, located once for the run `run_id` of `project` when it
+/// has a `.py` model. Its children get only the allowlisted environment, with the run's
+/// scratch directory as their temporary directory (MG-REQ-0636.1).
+///
+/// # Errors
+///
+/// Fails with [`CliError::Internal`] when no interpreter is found.
+fn interpreter(
+    ports: &Ports<'_>,
+    project: &Project,
+    run_id: &str,
+) -> Result<Option<Box<dyn Python>>, CliError> {
+    if !project
+        .models
+        .iter()
+        .any(|model| model.path().ends_with(".py"))
+    {
+        return Ok(None);
+    }
+    let scratch = RUNS
+        .split('/')
+        .fold(project.root.clone(), |path, part| path.join(part))
+        .join(run_id);
+    let env = child_environment(&scratch.display().to_string(), ports.environment);
+    ports
+        .python
+        .locate(&project.root, env)
+        .map(Some)
+        .map_err(|error| CliError::Internal(error.to_string()))
+}
+
 /// Stage 1 through the runtime, every error at once (MG-REQ-0702).
 fn read_stage(
     ports: &Ports<'_>,
     database: &dyn Database,
+    python: Option<&dyn Python>,
     root: &Path,
 ) -> Result<Result<ReadProject, Vec<Diagnostic>>, CliError> {
     let read_ports = ReadPorts {
         files: ports.files,
         parser: ports.sql_parser,
-        python: None,
+        python,
         database: Some(database),
     };
     match read_project(&read_ports, root) {

@@ -19,8 +19,8 @@
 //! resolves its settings ([`settings`]) and writes the plan of `mergus-plan` ([`planning`]).
 //! `explain` prints an error code's catalog file or a model's options ([`explain`]).
 //! `run` and `backfill` drive the run cycle of `mergus-runtime` into candidates in work
-//! ([`execution`], [`work`]). A command that changes state, given `--idempotency-key`, runs
-//! once per key and arguments ([`idempotency`]).
+//! ([`execution`], [`work`], [`polars`]). A command that changes state, given
+//! `--idempotency-key`, runs once per key and arguments ([`idempotency`]).
 //! `doctor` shows which link of the resolution chain answers for each secret reference of the
 //! sources, never its value ([`doctor`]).
 
@@ -48,6 +48,7 @@ mod models;
 mod name;
 mod output;
 mod planning;
+mod polars;
 mod project;
 mod run;
 mod scaffold;
@@ -61,13 +62,14 @@ mod work;
 
 use std::cell::RefCell;
 use std::io::{IsTerminal, Read, StdinLock};
+use std::path::Path;
 use std::process::ExitCode;
 
 use mergus_ports::real::{
-    RealClock, RealDatabase, RealEnvironment, RealFileSystem, RealKeychain, RealRandom,
+    RealClock, RealDatabase, RealEnvironment, RealFileSystem, RealKeychain, RealPython, RealRandom,
     RealSqlParser,
 };
-use mergus_ports::{Database, Environment};
+use mergus_ports::{Database, Environment, PortError, Python};
 use mergus_runtime::CancelToken;
 
 /// Standard input, read through the lock `main` holds (MG-REQ-1007).
@@ -87,6 +89,20 @@ impl run::SecretInput for Stdin<'_> {
         let mut value = String::new();
         self.0.borrow_mut().read_to_string(&mut value).ok()?;
         Some(value)
+    }
+}
+
+/// The interpreter of a project, found as [`RealPython::locate`] does.
+struct ProjectPython;
+
+impl run::Interpreters for ProjectPython {
+    fn locate(
+        &self,
+        root: &Path,
+        env: Vec<(String, String)>,
+    ) -> Result<Box<dyn Python>, PortError> {
+        let python = RealPython::locate(None, root, env)?;
+        Ok(Box::new(python))
     }
 }
 
@@ -115,6 +131,7 @@ fn main() -> ExitCode {
         keychain: &RealKeychain,
         database: database.as_ref().map(|database| database as &dyn Database),
         cancel,
+        python: &ProjectPython,
     };
     let code = run::run(&ports, &mut std::io::stdout(), &mut std::io::stderr());
     ExitCode::from(code)

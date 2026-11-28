@@ -14,6 +14,8 @@ mergus-adapter = { path = "../mergus-adapter" }
 mergus-adapter-ducklake = { path = "../mergus-adapter-ducklake" }
 mergus-contracts = { path = "../mergus-contracts" }
 mergus-engine-duckdb = { path = "../mergus-engine-duckdb" }
+# The Polars steps of a `.py` model (MG-REQ-0617, MG-REQ-0704).
+mergus-engine-polars = { path = "../mergus-engine-polars" }
 mergus-plan = { path = "../mergus-plan" }
 mergus-ports = { path = "../mergus-ports" }
 mergus-project = { path = "../mergus-project" }

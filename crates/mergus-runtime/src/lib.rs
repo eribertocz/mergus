@@ -34,7 +34,8 @@
 //! error at once (MG-REQ-0702, MG-REQ-0703); [`plan_project`] is stages 2 and 3; a [`Run`]
 //! keeps the scratch directory and the candidates (MG-REQ-0503, MG-REQ-0705), reuses finished
 //! work (MG-REQ-0707), executes the plan in stage 5 (MG-REQ-0704) and stops at its
-//! [`CancelToken`] (MG-REQ-0708).
+//! [`CancelToken`] (MG-REQ-0708). The caller gives the work of each model: a [`SqlWork`] for
+//! DuckDB, a [`PolarsWork`] for the Polars steps of a `.py` model.
 
 #![forbid(unsafe_code)]
 
@@ -58,6 +59,9 @@ mod zone;
 
 pub use chunk_load::{LoadOutcome, Stores, TableLoad, finished_changes, load_table};
 pub use load_error::LoadError;
+/// The allowlisted environment of the Python child of a run (MG-REQ-0617.1), which the
+/// caller locates the interpreter with.
+pub use mergus_engine_polars::child_environment;
 pub use problem::StorageProblem;
 pub use raw_error::RawError;
 pub use raw_load::{Watermarks, load_raw, load_raw_off, load_raw_off_failed};
@@ -73,9 +77,10 @@ pub use retention::{
 };
 pub use run::{
     Adopted, CANCELLED_EXIT_CODE, CANDIDATES, COMPLETE, CancelToken, Executed, Extraction,
-    FileErrors, Limit, LimitStop, Limits, ModelWork, RESULT, RUNS, ReadError, ReadModel, ReadPorts,
-    ReadProject, Run, RunError, RunReport, SqlInput, SqlWork, StepContext, StepEnd, StepEvents,
-    StepFailure, Work, plan_models, plan_project, read_project,
+    FileErrors, Limit, LimitStop, Limits, ModelWork, PolarsInput, PolarsSource, PolarsStep,
+    PolarsWork, RESULT, RUNS, ReadError, ReadModel, ReadPorts, ReadProject, Run, RunError,
+    RunReport, SqlInput, SqlWork, StepContext, StepEnd, StepEvents, StepFailure, Work, plan_models,
+    plan_project, read_project,
 };
 pub use separate::check_storage;
 pub use zone::{Catalog, Clients, Profile, Zone, ZoneStorage, zone_storage};

@@ -1567,6 +1567,7 @@ dependencies = [
  "mergus-adapter-ducklake",
  "mergus-contracts",
  "mergus-engine-duckdb",
+ "mergus-engine-polars",
  "mergus-plan",
  "mergus-ports",
  "mergus-project",
