@@ -64,6 +64,21 @@ where
         .map(|(_, candidate)| candidate)
 }
 
+/// Returns the candidate closest to `given` by Levenshtein distance counted in Unicode scalar
+/// values, ties broken by byte order, or `None` when that distance is more than `limit`.
+pub(crate) fn closest_within<'a, I>(given: &str, candidates: I, limit: usize) -> Option<&'a str>
+where
+    I: IntoIterator<Item = &'a str>,
+{
+    let given: Vec<char> = given.chars().collect();
+    candidates
+        .into_iter()
+        .map(|candidate| (levenshtein(&given, candidate), candidate))
+        .min()
+        .filter(|(distance, _)| *distance <= limit)
+        .map(|(_, candidate)| candidate)
+}
+
 /// Returns the Levenshtein distance between `given` and `candidate`, in scalar values.
 fn levenshtein(given: &[char], candidate: &str) -> usize {
     let mut previous: Vec<usize> = (0..=given.len()).collect();

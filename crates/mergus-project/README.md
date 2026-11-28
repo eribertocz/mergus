@@ -42,6 +42,20 @@ Read and validate the project: files, `project.toml`, folder `mergus.toml`.
 - Checks each `seeds/<name>.csv` against its `[seeds.<name>]`: `MG-0613` to `MG-0616`
   (MG-REQ-0645); hashes it for the fingerprints of its readers, and warns with `MG-0617` above
   10,000,000 bytes (MG-REQ-0646).
+- Reads each `.py` model through the `Python` port, parsed and never imported (MG-REQ-0611).
+  Its public top-level functions are its steps, in file order; a public `async def` is
+  `MG-0618` (MG-REQ-0612). A step that returns a string literal is DuckDB, any other
+  expression Polars; an f-string, any binary operation, a bare variable, `.format(...)` of a
+  literal, `None`, no `return` or both kinds is `MG-0619` (MG-REQ-0613). Each parameter reads
+  a step of the file, a model, then a raw table or seed: an unresolved one is `MG-0620` with
+  the closest name within 3 edits, `*args` or `**kwargs` `MG-0621`, a positional-only one
+  `MG-0625`, a cycle of steps `MG-0622` (MG-REQ-0614). The step named like the file is the
+  result, else `MG-0623` (MG-REQ-0615). An eager call anywhere in the file is `MG-0624`
+  (MG-REQ-0616). A model or `lib` file that is not valid Python is `MG-0626` (MG-REQ-0611.1).
+  A public `async def` is reported once: its readers and a missing result do not repeat it.
+- Reads each `lib/*.py` the same way and gives each `.py` model the `lib` modules it imports,
+  directly or through each other, as fingerprint inputs `lib:<module>` = `sha256:<hex>`
+  (MG-REQ-0618).
 - Collects every problem, not only the first, each file's problems ordered by line, code and
   key.
 
@@ -50,5 +64,5 @@ Read and validate the project: files, `project.toml`, folder `mergus.toml`.
 - It performs no I/O itself: it calls the port only (MG-REQ-0004).
 - It checks no key of `sources/*.toml` yet (MG-REQ-0362.3), and does not know `pii`, `by`,
   `deletes` nor `inputs` yet (MG-REQ-0366).
-- It does not analyze SQL or Python, so it does not check that a file produces one table.
+- It does not run Python models. A parameter's default value is allowed and never used.
 - It does not load seeds, nor compute fingerprints: it gives their inputs to the caller.

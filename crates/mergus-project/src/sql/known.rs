@@ -53,6 +53,16 @@ impl KnownTables {
         }
     }
 
+    /// The models, lowercase, sorted.
+    pub(crate) fn models(&self) -> &BTreeSet<String> {
+        &self.models
+    }
+
+    /// The raw tables of sources and seeds without their schema, lowercase, sorted.
+    pub(crate) fn raw_tables(&self) -> &BTreeSet<String> {
+        &self.raw
+    }
+
     /// Every known table as a reference names it: `<model>` or `raw.<table>`, sorted.
     pub(crate) fn names(&self) -> impl Iterator<Item = String> + '_ {
         self.models

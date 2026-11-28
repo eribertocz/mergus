@@ -5,8 +5,10 @@ use std::fmt;
 use mergus_ports::PortError;
 
 mod access;
+mod python;
 mod warning;
 
+pub use python::PythonModelError;
 pub use warning::ProjectWarning;
 mod format;
 
@@ -359,6 +361,9 @@ pub enum ProjectError {
         /// The type given.
         type_name: String,
     },
+    /// A problem of a `.py` model (MG-REQ-0612 to MG-REQ-0616).
+    #[error(transparent)]
+    Python(#[from] PythonModelError),
 }
 
 /// Why a project layout could not be read.
