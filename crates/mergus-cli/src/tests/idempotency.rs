@@ -206,7 +206,10 @@ fn mg_req_1313_reclaim_never_removes_a_record_it_did_not_read() {
     files.write(&path, b"fresh claim").unwrap();
     assert!(!reclaim(&files, &random, &path, b"expired record").unwrap());
     assert_eq!(files.read(&path).unwrap(), b"fresh claim");
-    assert_eq!(files.list_dir(&folder).unwrap(), [path.clone()]);
+    assert_eq!(
+        files.list_dir(&folder).unwrap(),
+        std::slice::from_ref(&path)
+    );
 
     // The record is still the one read: it is moved aside and removed, and the key is free.
     assert!(reclaim(&files, &random, &path, b"fresh claim").unwrap());
